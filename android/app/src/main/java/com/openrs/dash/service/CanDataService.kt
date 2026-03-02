@@ -24,8 +24,14 @@ class CanDataService : Service() {
 
     private val binder = LocalBinder()
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
-    private val wican = WiCanConnection()
     private var connectionJob: Job? = null
+
+    // Lazily built so it picks up the latest saved settings at connect time
+    private fun buildWiCan() = WiCanConnection(
+        host = com.openrs.dash.ui.AppSettings.getHost(this),
+        port = com.openrs.dash.ui.AppSettings.getPort(this)
+    )
+    private var wican = buildWiCan()
 
     val connectionState: StateFlow<WiCanConnection.State> = wican.state
 
@@ -52,6 +58,7 @@ class CanDataService : Service() {
 
     fun startConnection() {
         if (connectionJob?.isActive == true) return
+        wican = buildWiCan() // pick up any settings changes
 
         connectionJob = scope.launch {
             launch {
@@ -144,14 +151,14 @@ class CanDataService : Service() {
 
     private fun createNotificationChannel() {
         val channel = NotificationChannel(
-            CHANNEL_ID, "RS Dash CAN Data", NotificationManager.IMPORTANCE_LOW
+            CHANNEL_ID, "openRS_ CAN Data", NotificationManager.IMPORTANCE_LOW
         ).apply { description = "WiCAN connection status" }
         getSystemService(NotificationManager::class.java).createNotificationChannel(channel)
     }
 
     private fun buildNotification(text: String): Notification =
         NotificationCompat.Builder(this, CHANNEL_ID)
-            .setContentTitle("RS Dash")
+            .setContentTitle("openRS_")
             .setContentText(text)
             .setSmallIcon(R.drawable.ic_notification)
             .setOngoing(true).setSilent(true).build()

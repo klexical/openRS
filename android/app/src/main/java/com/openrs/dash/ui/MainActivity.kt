@@ -107,9 +107,13 @@ class MainActivity : ComponentActivity() {
 // ═══════════════════════════════════════════════════════════════
 
 @Composable fun Header(vs: VehicleState, onConnect: () -> Unit, onDisconnect: () -> Unit) {
+    var showSettings by remember { mutableStateOf(false) }
+    if (showSettings) SettingsDialog(onDismiss = { showSettings = false })
+
     Row(Modifier.fillMaxWidth().background(Surf).padding(horizontal = 12.dp, vertical = 6.dp),
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically) {
+        // Brand + settings gear
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text("open", fontSize = 14.sp, fontWeight = FontWeight.Bold,
                 fontFamily = Mono, color = Color(0xFFF5F6F4), letterSpacing = 1.sp)
@@ -117,6 +121,9 @@ class MainActivity : ComponentActivity() {
                 fontFamily = Mono, color = Accent, letterSpacing = 1.sp)
             Text("_", fontSize = 14.sp, fontWeight = FontWeight.Bold,
                 fontFamily = Mono, color = Color(0xFFF5F6F4))
+            Spacer(Modifier.width(6.dp))
+            Text("⚙", fontSize = 12.sp, color = Dim,
+                modifier = Modifier.clickable { showSettings = true })
         }
         // Mode badge
         val (modeColor, modeText) = when (vs.driveMode.label) {
@@ -132,7 +139,7 @@ class MainActivity : ComponentActivity() {
         Text(vs.escStatus.label, fontSize = 10.sp, fontFamily = Mono, color = Dim)
         // Connect button
         val isConn = vs.isConnected
-        Text(if (isConn) "● CONNECTED" else "● OFFLINE",
+        Text(if (isConn) "● CONNECTED" else "○ OFFLINE",
             fontSize = 10.sp, fontWeight = FontWeight.Bold, fontFamily = Mono,
             color = if (isConn) Grn else Red,
             modifier = Modifier.clickable { if (isConn) onDisconnect() else onConnect() })
