@@ -16,19 +16,48 @@ The WiCAN should be in its default configuration:
 | Port | `3333` |
 | Protocol | CAN 500 kbps (auto-detected via `ATSP6`) |
 
-### Installation
+### First-Time Setup
 
-1. **Locate the OBD-II port**: Under the steering column, to the left of the hood release
-2. **Plug in the WiCAN**: Angled connector works best to avoid knee contact
-3. **Power**: The WiCAN powers on with the ignition (ACC or RUN)
-4. **Wi-Fi**: Connect your phone to the WiCAN's Wi-Fi network
+**Step 1 — Physical install**
+1. Locate the OBD-II port: under the steering column, left of the hood release lever
+2. Plug in the WiCAN — the angled connector faces down to avoid knee contact
+3. Turn the car to ACC or RUN — the WiCAN LED will flash then go solid
 
-### Tips
+**Step 2 — Connect your phone to the WiCAN hotspot**
+1. On your phone, open WiFi settings
+2. Connect to the network named `WiCAN_XXXXXX` (last 6 chars of MAC, printed on device)
+3. Default password: `bla2020blabla`
 
-- The WiCAN creates its own Wi-Fi network — you don't need internet connectivity
-- If using Android Auto with a wired connection, the phone can still connect to WiCAN Wi-Fi
-- For wireless AA, you may need a USB Wi-Fi adapter or dual-band configuration
-- The WiCAN draws minimal power but will drain the battery if left plugged in with ACC on
+**Step 3 — Verify WiCAN configuration**
+1. Open a browser on your phone → go to `http://192.168.80.1`
+2. The WiCAN web interface loads
+3. Confirm these settings under **CAN Settings / Device Settings**:
+
+| Setting | Required Value |
+|---------|----------------|
+| Mode | ELM327 |
+| Protocol | CAN (auto / 500 kbps) |
+| TCP Port | 3333 |
+| WiFi Mode | AP (Access Point) |
+
+4. If anything differs, update and press **Save** — the device reboots
+
+**Step 4 — Connect openRS_**
+1. Open the openRS_ app
+2. Tap **● OFFLINE** in the top-right header → it changes to **● CONNECTED**
+3. The app connects to `192.168.80.1:3333`, runs the ELM327 handshake, and begins streaming data
+
+> **Tip:** The WiCAN WiFi and Android Auto Wireless use different radios. Your phone can be on WiCAN WiFi while AA runs over Bluetooth — they don't conflict.
+
+> **Tip:** The WiCAN will slowly drain the 12V battery if left plugged in with the ignition off. Unplug when parked for extended periods.
+
+### Changing the WiCAN IP / Port
+
+If your WiCAN is configured in **Client mode** (joining your phone's hotspot), the IP address will be different from `192.168.80.1`. You can update the connection target inside the app:
+
+**Settings → WiCAN Host / Port**
+
+The app saves your last-used values and reconnects automatically.
 
 ## OBD-II Port Pinout (Focus RS MK3)
 
@@ -43,15 +72,6 @@ The WiCAN should be in its default configuration:
 | 16 | Battery +12V | Always on |
 
 openRS uses the HS-CAN bus (pins 6/14) for all data. The standard WiCAN connects to HS-CAN automatically.
-
-## Second WiCAN (Optional)
-
-For direct MS-CAN access (TPMS broadcast on 0x340 at 125 kbps):
-
-1. You need a second WiCAN configured for MS-CAN (125 kbps)
-2. Connect to pins 3/11 via a Y-splitter or custom harness
-3. This provides raw tire pressures without BCM Mode 22 queries
-4. Not required — the BCM method works well and is simpler
 
 ## Tested Head Units
 
