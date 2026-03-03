@@ -282,10 +282,11 @@ class WiCanConnection(
     }
 
     private fun parseLine(line: String): Pair<Int, ByteArray>? {
-        if (line.length < 5) return null
-        if (!line.all { it in '0'..'9' || it in 'A'..'F' || it in 'a'..'f' }) return null
-        val id = line.substring(0, 3).toIntOrNull(16) ?: return null
-        val dataHex = line.substring(3)
+        val compact = line.replace(" ", "")  // WiCAN ELM327 outputs "1B0 00 11 22..." with spaces
+        if (compact.length < 5) return null
+        if (!compact.all { it in '0'..'9' || it in 'A'..'F' || it in 'a'..'f' }) return null
+        val id = compact.substring(0, 3).toIntOrNull(16) ?: return null
+        val dataHex = compact.substring(3)
         if (dataHex.length % 2 != 0) return null
         val data = ByteArray(dataHex.length / 2) { i ->
             dataHex.substring(i * 2, i * 2 + 2).toInt(16).toByte()

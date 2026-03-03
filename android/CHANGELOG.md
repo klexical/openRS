@@ -5,6 +5,13 @@ Firmware changes are tracked separately in [firmware releases](https://github.co
 
 ---
 
+## [v1.0.2] — 2026-03-03
+
+### Fixed
+- **ATMA frame parsing** — WiCAN ELM327 outputs CAN frames with spaces (e.g. `1B0 00 11 22 33 44 55 66 77`); the parser now strips spaces before hex validation so all gauge telemetry is received and decoded correctly
+
+---
+
 ## [v1.0.1] — 2026-03-03
 
 ### Added
