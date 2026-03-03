@@ -49,6 +49,8 @@ Download the `wican-fw_vXXX_usb.zip` package and extract — it contains the sam
 
 The ESP32-C3 must be in bootloader mode before the flash tool can communicate with it.
 
+The WiCAN-USB-C3 does **not** have an exposed BOOT button. You must **short the two BOOT pads** on the PCB using metal probes (tweezers, a small flat-head screwdriver tip, or two jumper wires) while applying USB power.
+
 ```
 WiCAN-USB-C3 — PCB layout (top view):
 
@@ -56,20 +58,25 @@ WiCAN-USB-C3 — PCB layout (top view):
   │                                        │
   │   [CANH] [CANL] [TR] [GND]            │
   │                                        │
-  │                          ┌──────────┐  │
-  │                          │  [BOOT]  │  │ ← hold this
-  │                          └──────────┘  │
+  │              ┌──────────────┐          │
+  │              │  ●  ●  BOOT  │ ← short  │
+  │              │  pads with   │   these  │
+  │              │  metal probes│   two    │
+  │              └──────────────┘          │
   │                               [Mini USB]
   └────────────────────────────────────────┘
 ```
 
 1. Do **not** plug in the USB cable yet
-2. Press and **hold** the BOOT button on the WiCAN PCB
-3. While holding BOOT, plug the Mini USB cable into the WiCAN and into your computer
-4. Release the BOOT button
-5. The **orange LED** lights up — bootloader mode is active ✓
+2. Locate the two small BOOT pads on the PCB (near the top edge, beside the ESP32-C3 module)
+3. Hold your metal probes (or tweezers) across **both pads simultaneously** to short them
+4. While keeping the short, plug the Mini USB cable into the WiCAN and into your computer
+5. Keep the short for 1–2 seconds, then release
+6. The **orange LED** lights up — bootloader mode is active ✓
 
-> If the orange LED does not appear: unplug, wait 3 seconds, and repeat firmly — the button must be held at the exact moment USB power is applied.
+> **What to use for shorting:** Metal tweezers work best. A small flat-head screwdriver, two jumper wire ends held together, or any conductive metal tip touching both pads at the same time will work.
+
+> If the orange LED does not appear: unplug, wait 3 seconds, and repeat — the pads must be shorted at the exact moment USB power is applied.
 
 ---
 

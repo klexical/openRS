@@ -39,15 +39,36 @@ Do NOT mix these files with the stock firmware package.
   STEP 1 — ENTER BOOTLOADER MODE
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
+  The WiCAN-USB-C3 does NOT have an exposed BOOT button.
+  You must SHORT the two BOOT pads on the PCB using metal probes
+  (tweezers, a small flat-head screwdriver tip, or jumper wires).
+
+  PCB layout (top view):
+
+    ┌──────────────────────────────────────┐
+    │  [CANH] [CANL] [TR] [GND]           │
+    │           ┌─────────────┐           │
+    │           │  ● ●  BOOT  │ ← short   │
+    │           │   pads      │   these   │
+    │           └─────────────┘           │
+    │                             [Mini USB]
+    └──────────────────────────────────────┘
+
   1. Do NOT plug in the USB cable yet
-  2. Press and HOLD the BOOT button on the WiCAN PCB
-  3. While holding BOOT, plug the Mini USB cable into the WiCAN
-     and into your computer
-  4. Release the BOOT button
-  5. The orange LED lights up — bootloader mode is active ✓
+  2. Locate the two small BOOT pads on the PCB (near the top,
+     beside the ESP32-C3 module)
+  3. Hold metal probes / tweezers across BOTH pads to short them
+  4. While keeping the short, plug the Mini USB cable into the
+     WiCAN and into your computer
+  5. Keep the short for 1-2 seconds, then release
+  6. The orange LED lights up — bootloader mode is active ✓
+
+  What to use: metal tweezers work best. A flat-head screwdriver
+  tip, two jumper wire ends, or any conductive metal across both
+  pads simultaneously will work.
 
   If the orange LED does not appear: unplug, wait 3 seconds, and
-  repeat. The button must be held at the exact moment USB power
+  repeat. The pads must be shorted at the exact moment USB power
   is applied.
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
