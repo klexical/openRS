@@ -1,7 +1,23 @@
 # Changelog
 
 All notable changes to the openRS_ Android app are documented here.
-Firmware changes are tracked separately in [firmware releases](https://github.com/klexical/openRS_/releases/tag/fw-v1.0.0).
+Firmware changes are tracked separately in [firmware releases](https://github.com/klexical/openRS_/releases).
+
+---
+
+## [v1.2.4] — 2026-03-01
+
+### Fixed — TPMS formula aligned to DigiCluster reference
+
+Replaced the `exportedPIDs.txt` formula `(((A×256)+B)/3 + 22/3) × 0.145` with the DigiCluster `can0_hs.json` formula `((A×256)+B) / 2.9 × 0.145038`. Both produce the same result at real-world pressures (< 0.1 PSI difference at 35 PSI) but the DigiCluster formula is the explicit reference implementation for this vehicle with no offset term.
+
+### Note — Firmware v1.1
+
+Firmware v1.1 is required for the firmware badge in the app to show `openRS_ v1.1` instead of `WiCAN stock`. The firmware now:
+- Responds to the Android app's `OPENRS?` WebSocket probe with `OPENRS:v1.1`
+- Reads steady-state drive mode from `0x17E` byte 0 lower nibble (was incorrectly reading from `0x1B0` button event frames)
+
+See [firmware release fw-v1.1.0](https://github.com/klexical/openRS_/releases/tag/fw-v1.1.0) for flash instructions.
 
 ---
 

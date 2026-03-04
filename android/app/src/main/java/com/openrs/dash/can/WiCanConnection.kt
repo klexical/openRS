@@ -56,7 +56,7 @@ class WiCanConnection(
         private const val BCM_QUERY_SOC        = "t72680322402800000000\r"  // 0x4028 battery SOC
         private const val BCM_QUERY_BATT_TEMP  = "t72680322402900000000\r"  // 0x4029 battery temp
         private const val BCM_QUERY_CABIN_TEMP = "t72680322DD0400000000\r"  // 0xDD04 cabin temp
-        // TPMS: exportedPIDs.txt [FORD] formula: (((256*A)+B)/3+22/3)*0.145 PSI
+        // TPMS: DigiCluster can0_hs.json formula: ((A*256)+B)/2.9 = kPa, ×0.145038 = PSI
         // BCM address 0x726, response 0x72E. 2-byte response at B4-B5.
         private const val BCM_QUERY_TPMS_LF   = "t72680322281300000000\r"  // 0x2813 LF tyre pressure
         private const val BCM_QUERY_TPMS_RF   = "t72680322281400000000\r"  // 0x2814 RF tyre pressure
@@ -449,12 +449,12 @@ class WiCanConnection(
             0xDD04 -> {  // Cabin temp: (B4 × 10/9) - 45 °C
                 onObdUpdate(currentState.copy(cabinTempC = (b4 * 10.0 / 9.0) - 45.0))
             }
-            // TPMS: [FORD] formula from exportedPIDs.txt — (((256*A)+B)/3 + 22/3) × 0.145 PSI
-            // A=B4 (high byte), B=B5 (low byte). Validated against passive CAN 0x340 LR=35 PSI.
+            // TPMS: DigiCluster can0_hs.json formula — ((A*256)+B)/2.9 kPa × 0.145038 = PSI
+            // A=B4 (high byte), B=B5 (low byte). Same PIDs/address confirmed in DigiCluster.
             0x2813, 0x2814, 0x2816, 0x2815 -> {
                 if (data.size < 6) return
                 val b5 = data[5].toInt() and 0xFF
-                val psi = ((b4 * 256 + b5) / 3.0 + 22.0 / 3.0) * 0.145
+                val psi = (b4 * 256 + b5) / 2.9 * 0.145038
                 if (psi < 5.0 || psi > 70.0) return  // reject implausible readings
                 onObdUpdate(when (did) {
                     0x2813 -> currentState.copy(tirePressLF = psi)

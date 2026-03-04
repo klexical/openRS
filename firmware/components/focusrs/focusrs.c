@@ -30,7 +30,7 @@ static frs_state_t s_state = {
 
 void frs_init(void) {
     frs_nvs_load(&s_state);
-    ESP_LOGI(TAG, "openrs-fw v1.0 — Focus RS module init");
+    ESP_LOGI(TAG, "openrs-fw %s — Focus RS module init", OPENRS_FW_VERSION);
     ESP_LOGI(TAG, "Boot mode: %d, ESC: %d, LC: %d",
              s_state.boot_mode, s_state.esc_mode, s_state.lc_enabled);
 
@@ -41,21 +41,24 @@ void frs_init(void) {
 void frs_parse_can_frame(uint32_t can_id, const uint8_t *data, uint8_t dlc) {
     switch (can_id) {
 
-    case FRS_CAN_ID_AWD_MSG:
-        if (dlc >= 7) {
-            // Drive mode: Motorola bit 55, 4-bit wide
-            // byte 6 bits [7:4]  (Motorola bit 55 = byte6 bit7 down to byte6 bit4)
-            uint8_t raw_mode = (data[6] >> 4) & 0x0F;
+    case FRS_CAN_ID_DRIVE_MODE:
+        // 0x17E DriveModeRequest: steady-state mode in lower nibble of byte 0.
+        // 0=Normal 1=Sport 2=Track 3=Drift. Confirmed from live log analysis.
+        if (dlc >= 1) {
+            uint8_t raw_mode = data[0] & 0x0F;
             if (raw_mode <= FRS_MODE_DRIFT) {
                 s_state.drive_mode = raw_mode;
             }
-            // Capture the frame as a template for button write operations
-            // Only capture when button is RELEASED (byte 1 == 0x5A)
-            if (!s_state.frame_template_valid && dlc >= 8 && data[1] == FRS_BUTTON_RELEASED) {
-                memcpy(s_state.frame_1b0_template, data, 8);
-                s_state.frame_template_valid = true;
-                ESP_LOGI(TAG, "0x1B0 frame template captured");
-            }
+        }
+        break;
+
+    case FRS_CAN_ID_AWD_MSG:
+        // 0x1B0: button transition event only — used for write template capture.
+        // Do NOT read drive mode from here; it only fires on dial button press/release.
+        if (!s_state.frame_template_valid && dlc >= 8 && data[1] == FRS_BUTTON_RELEASED) {
+            memcpy(s_state.frame_1b0_template, data, 8);
+            s_state.frame_template_valid = true;
+            ESP_LOGI(TAG, "0x1B0 frame template captured");
         }
         break;
 

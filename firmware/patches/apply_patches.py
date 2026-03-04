@@ -9,12 +9,17 @@ Modifications applied:
   2. config_server.c  — AP password default: @meatpi# → openrs2024
   3. config_server.c  — Add /api/frs GET+POST endpoint
   4. config_server.c  — Bump max_uri_handlers 18 → 20
-  5. main.c           — #include "focusrs.h"
-  6. main.c           — frs_init() call after nvs_flash_init()
-  7. main.c           — frs_parse_can_frame() call in can_rx_task
-  8. main.c           — frs_set_can_tx_fn() registration in app_main
-  9. main/CMakeLists  — add focusrs to REQUIRES
+  5. config_server.c  — OPENRS? WebSocket probe handler (responds OPENRS:<version>)
+  6. main.c           — #include "focusrs.h"
+  7. main.c           — frs_init() call after nvs_flash_init()
+  8. main.c           — frs_parse_can_frame() call in can_rx_task
+  9. main.c           — frs_set_can_tx_fn() registration in app_main
+ 10. main/CMakeLists  — add focusrs to REQUIRES
 """
+
+# Version string returned to the Android app when it sends "OPENRS?\r".
+# Must match OPENRS_FW_VERSION in components/focusrs/focusrs.h.
+OPENRS_FW_VERSION = "v1.1"
 
 import sys
 import os
@@ -148,6 +153,48 @@ static const httpd_uri_t frs_post_uri = {
 
     write(path, c)
 
+def patch_ws_probe(base):
+    """Insert an OPENRS? identity probe handler into the WiCAN WebSocket receive path.
+
+    The Android app sends "OPENRS?\\r" immediately after connecting. Stock WiCAN
+    ignores it (slcan_parse_frame returns an error silently); openrs-fw intercepts
+    it before the SLCAN parser and replies "OPENRS:<version>\\r\\n" so the app can
+    confirm it is talking to custom firmware and unlock extra features.
+    """
+    path = os.path.join(base, "main", "config_server.c")
+    c = read(path)
+
+    PROBE_CODE = (
+        '\n    /* openrs-fw: firmware identity probe ─────────────────────────────────\n'
+        '     * The Android app sends "OPENRS?\\r" on connect. Reply before SLCAN.\n'
+        '     */\n'
+        '    if (ws_pkt.payload != NULL && ws_pkt.len >= 7 &&\n'
+        '        strncmp((char *)ws_pkt.payload, "OPENRS?", 7) == 0) {\n'
+        '        const char *reply = "OPENRS:' + OPENRS_FW_VERSION + '\\r\\n";\n'
+        '        httpd_ws_frame_t rpl;\n'
+        '        memset(&rpl, 0, sizeof(rpl));\n'
+        '        rpl.final      = true;\n'
+        '        rpl.type       = HTTPD_WS_TYPE_TEXT;\n'
+        '        rpl.payload    = (uint8_t *)reply;\n'
+        '        rpl.len        = strlen(reply);\n'
+        '        httpd_ws_send_frame(req, &rpl);\n'
+        '        return ESP_OK;\n'
+        '    }\n'
+    )
+
+    ANCHOR = "slcan_parse_frame("
+    MARKER = "OPENRS?"
+
+    if MARKER in c:
+        print("  skipped: OPENRS? probe handler already present")
+    elif ANCHOR in c:
+        c = c.replace(ANCHOR, PROBE_CODE + "    " + ANCHOR, 1)
+        write(path, c)
+    else:
+        print("  WARNING: slcan_parse_frame() not found in config_server.c "
+              "— OPENRS? probe NOT inserted. Check wican-fw source version.")
+
+
 def patch_main(base):
     path = os.path.join(base, "main", "main.c")
     c = read(path)
@@ -253,6 +300,7 @@ if __name__ == "__main__":
     print(f"\nApplying openrs-fw patches to: {base}\n")
     patch_wifi_network(base)
     patch_config_server(base)
+    patch_ws_probe(base)
     patch_main(base)
     patch_cmake(base)
     print("\nAll patches applied successfully.\n")
