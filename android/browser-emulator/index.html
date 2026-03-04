@@ -1009,11 +1009,12 @@ function ctrlHtml(v) {
 
 /* ── AA page builders ── */
 function aaDash(v) {
+  const tl = tempLabel();
   return `
     <div class="aa-gauge-row">
-      ${gaugeBox('BOOST', f1(v.boostPsi), 'PSI')}
-      ${gaugeBox('RPM',   ri(v.rpm),      '',   true)}
-      ${gaugeBox('SPEED', ri(v.speedMph), 'MPH')}
+      ${gaugeBox('BOOST', displayBoost(v.boostKpa || (v.boostPsi * 6.89476 + 101.325)), boostLabel())}
+      ${gaugeBox('RPM',   ri(v.rpm),                              '',          true)}
+      ${gaugeBox('SPEED', ri(displaySpeed(v.speedKph)),           speedLabel())}
     </div>
     <div class="aa-info-row">
       ${cell('THROTTLE', pct(v.throttlePct))}
@@ -1022,9 +1023,9 @@ function aaDash(v) {
       ${cell('TORQUE',   ri(v.torqueAtTrans)+' Nm')}
     </div>
     <div class="aa-info-row">
-      ${cell('OIL',     toF(v.oilTempC)+'°F')}
-      ${cell('COOLANT', toF(v.coolantTempC)+'°F')}
-      ${cell('INTAKE',  toF(v.intakeTempC)+'°F')}
+      ${cell('OIL',     displayTemp(v.oilTempC)+tl)}
+      ${cell('COOLANT', displayTemp(v.coolantTempC)+tl)}
+      ${cell('INTAKE',  displayTemp(v.intakeTempC)+tl)}
       ${cell('BATT',    f1(v.batteryVoltage)+'V')}
     </div>
     <div class="aa-info-row">
@@ -1050,7 +1051,7 @@ function aaAwd(v) {
       <div class="split-mid"><div class="split-val">${v.frontRearSplit}</div><div class="split-sub">FRONT / REAR</div></div>
       ${wheelBox('FR', f1(v.wheelSpeedFR))}
     </div>
-    <div class="sec-lbl">▼ PTU: ${toF(v.ptuTempC)}°F ▼</div>
+    <div class="sec-lbl">▼ PTU: ${displayTemp(v.ptuTempC)}${tempLabel()} ▼</div>
     <div style="display:flex;justify-content:space-between;max-width:400px;margin:0 auto;font-size:11px;color:var(--dim)">
       <span>L ${v.awdLeftTorque} Nm</span><span>${v.awdRightTorque} Nm R</span>
     </div>
@@ -1061,7 +1062,7 @@ function aaAwd(v) {
     <div class="aa-axle">
       ${wheelBox('RL', f1(v.wheelSpeedRL))}
       <div class="split-mid">
-        <div style="font-size:13px;color:var(--dim)">RDU: ${toF(v.rduTempC)}°F</div>
+        <div style="font-size:13px;color:var(--dim)">RDU: ${displayTemp(v.rduTempC)}${tempLabel()}</div>
         <div class="split-sub">Max: ${v.awdMaxTorque} Nm</div>
       </div>
       ${wheelBox('RR', f1(v.wheelSpeedRR))}
@@ -1082,13 +1083,13 @@ function aaPerf(v) {
       ${cell('COMBINED', f2(v.combinedG)+' g')}
       ${cell('STEER',    f1(v.steeringAngle)+'°')}
       ${cell('YAW',      f1(v.yawRate)+'°/s')}
-      ${cell('SPEED',    ri(v.speedMph)+' MPH')}
+      ${cell('SPEED',    ri(displaySpeed(v.speedKph))+' '+speedLabel())}
     </div>
     <div class="aa-info-row">
-      ${cell('PEAK LAT',   f2(v.peakLateralG)+' g',   'gold')}
-      ${cell('PEAK LON',   f2(v.peakLongitudinalG)+' g','gold')}
-      ${cell('PEAK BOOST', f1(v.peakBoostPsi)+' PSI', 'gold')}
-      ${cell('PEAK RPM',   ri(v.peakRpm),              'gold')}
+      ${cell('PEAK LAT',   f2(v.peakLateralG)+' g',                                         'gold')}
+      ${cell('PEAK LON',   f2(v.peakLongitudinalG)+' g',                                    'gold')}
+      ${cell('PEAK BOOST', displayBoost(v.peakBoostPsi * 6.89476 + 101.325)+' '+boostLabel(),'gold')}
+      ${cell('PEAK RPM',   ri(v.peakRpm),                                                    'gold')}
       ${cell('THROTTLE',   pct(v.throttlePct))}
       ${cell('BRAKE',      f1(v.brakePressure)+' bar')}
     </div>
@@ -1101,19 +1102,20 @@ function aaTemps(v) {
   const rduCls  = v.rduTempC  > 110 ? 'hot' : v.rduTempC  > 100 ? 'warm' : '';
   const ptuCls  = v.ptuTempC  > 110 ? 'hot' : v.ptuTempC  > 100 ? 'warm' : '';
   const catCls  = v.catalyticTempC > 700 ? 'hot' : v.catalyticTempC > 500 ? 'warm' : '';
+  const tl = tempLabel();
   return `
     <div class="aa-temp-row">
-      ${tempGauge('ENGINE OIL',  toF(v.oilTempC),     '°F', oilCls)}
-      ${tempGauge('COOLANT',     toF(v.coolantTempC), '°F', clntCls)}
-      ${tempGauge('INTAKE AIR',  toF(v.intakeTempC),  '°F')}
-      ${tempGauge('AMBIENT',     toF(v.ambientTempC), '°F')}
+      ${tempGauge('ENGINE OIL',  displayTemp(v.oilTempC),       tl, oilCls)}
+      ${tempGauge('COOLANT',     displayTemp(v.coolantTempC),   tl, clntCls)}
+      ${tempGauge('INTAKE AIR',  displayTemp(v.intakeTempC),    tl)}
+      ${tempGauge('AMBIENT',     displayTemp(v.ambientTempC),   tl)}
     </div>
     <div style="height:10px"></div>
     <div class="aa-temp-row">
-      ${tempGauge('RDU (REAR DIFF)', toF(v.rduTempC),         '°F', rduCls)}
-      ${tempGauge('PTU (TRANSFER)',  toF(v.ptuTempC),         '°F', ptuCls)}
-      ${tempGauge('CHARGE AIR',     toF(v.chargeAirTempC),   '°F')}
-      ${tempGauge('CATALYTIC',      toF(v.catalyticTempC),   '°F', catCls)}
+      ${tempGauge('RDU (REAR DIFF)', displayTemp(v.rduTempC),       tl, rduCls)}
+      ${tempGauge('PTU (TRANSFER)',  displayTemp(v.ptuTempC),       tl, ptuCls)}
+      ${tempGauge('CHARGE AIR',     displayTemp(v.chargeAirTempC), tl)}
+      ${tempGauge('CATALYTIC',      displayTemp(v.catalyticTempC), tl, catCls)}
     </div>
     ${v.isReadyToRace ? '<div class="rtr">READY TO RACE</div>' : ''}`;
 }
@@ -1144,8 +1146,8 @@ function aaTune(v) {
     <div class="aa-info-row">
       ${cell('VCT-I',    f1(v.vctIntakeAngle)+'°')}
       ${cell('VCT-E',    f1(v.vctExhaustAngle)+'°')}
-      ${cell('CHG AIR',  toF(v.chargeAirTempC)+'°F')}
-      ${cell('CAT TEMP', toF(v.catalyticTempC)+'°F')}
+      ${cell('CHG AIR',  displayTemp(v.chargeAirTempC)+tempLabel())}
+      ${cell('CAT TEMP', displayTemp(v.catalyticTempC)+tempLabel())}
       ${cell('OIL LIFE', v.oilLifePct>=0?pct(v.oilLifePct):'--')}
       ${cell('BARO',     ri(v.barometricPressure)+' kPa')}
     </div>`;
@@ -1184,6 +1186,8 @@ function aaTpms(v) {
 }
 
 function aaCtrl(v) {
+  const isFw = settings.firmware === 'openRS_';
+  const featTitle = isFw ? 'FEATURES — openrs-fw active' : 'FEATURES — requires openrs-fw';
   return `
     <div class="aa-ctrl-grid">
       <div class="aa-ctrl-panel">
@@ -1194,31 +1198,33 @@ function aaCtrl(v) {
           <button class="aa-mode-btn ${modeBtnCls(v.driveMode,'Track')}"   data-mode="Track">T</button>
           <button class="aa-mode-btn ${modeBtnCls(v.driveMode,'Drift')}"   data-mode="Drift">D</button>
         </div>
-        <div class="ctrl-row" style="margin-top:8px">
-          <span class="ctrl-label" style="font-size:12px">BOOT MODE (NVS)</span>
-          <span class="ctrl-val">${v.bootMode}</span>
-        </div>
+        <div style="font-size:10px;color:var(--dim);margin-top:6px;text-align:center">Use steering wheel button to change</div>
       </div>
       <div class="aa-ctrl-panel">
-        <div class="ctrl-title">ESC</div>
+        <div class="ctrl-title">ESC STATUS</div>
         <div class="aa-esc-btn-row">
           <button class="aa-esc-btn ${escBtnCls(v.escStatus,'ESC On')}"    data-esc="ESC On">ON</button>
           <button class="aa-esc-btn ${escBtnCls(v.escStatus,'ESC Sport')}" data-esc="ESC Sport">SPORT</button>
           <button class="aa-esc-btn ${escBtnCls(v.escStatus,'ESC Off')}"   data-esc="ESC Off">OFF</button>
         </div>
+        <div style="font-size:10px;color:var(--dim);margin-top:6px;text-align:center">Live CAN state — use car console to change</div>
       </div>
     </div>
     <div class="aa-ctrl-grid" style="margin-top:12px">
       <div class="aa-ctrl-panel">
-        <div class="ctrl-title">FEATURES</div>
+        <div class="ctrl-title">${featTitle}</div>
         <div class="aa-toggle-row" data-toggle="launchControl">
-          <span class="aa-toggle-name">Launch Control</span>
-          <div class="aa-toggle-pill ${v.launchControl?'on':''}" data-toggle="launchControl"></div>
+          <span class="aa-toggle-name" style="color:${isFw?'var(--txt)':'var(--dim)'}">Launch Control</span>
+          <div class="aa-toggle-pill ${isFw&&v.launchControl?'on':''} ${isFw?'':'fw-locked'}" data-toggle="launchControl" data-fw-required="true"></div>
         </div>
         <div class="aa-toggle-row" data-toggle="assKill">
-          <span class="aa-toggle-name">Auto Start/Stop Kill</span>
-          <div class="aa-toggle-pill ${v.assKill?'on':''}" data-toggle="assKill"></div>
+          <span class="aa-toggle-name" style="color:${isFw?'var(--txt)':'var(--dim)'}">Auto Start/Stop Kill</span>
+          <div class="aa-toggle-pill ${isFw&&v.assKill?'on':''} ${isFw?'':'fw-locked'}" data-toggle="assKill" data-fw-required="true"></div>
         </div>
+        ${isFw
+          ? `<div style="font-size:10px;color:var(--grn);margin-top:6px;text-align:center">✓ openRS_ firmware — features unlocked</div>`
+          : `<div style="font-size:10px;color:var(--dim);margin-top:6px;text-align:center">⚡ Flash openrs-fw to enable</div>`
+        }
       </div>
       <div class="aa-ctrl-panel">
         <div class="ctrl-title">CONNECTION</div>
@@ -1227,7 +1233,7 @@ function aaCtrl(v) {
         <div class="conn-row"><span class="conn-key">PORT</span><span class="conn-val">80</span></div>
         <div class="conn-row"><span class="conn-key">PROTOCOL</span><span class="conn-val">WebSocket SLCAN</span></div>
         <div class="conn-row"><span class="conn-key">CAN</span><span class="conn-val">500 kbps</span></div>
-        <div class="fw-note" style="margin-top:8px">Write controls require <span>openrs-fw</span></div>
+        <div class="conn-row"><span class="conn-key">FIRMWARE</span><span class="conn-val" style="color:${isFw?'var(--grn)':'var(--dim)'}">${settings.firmware}</span></div>
       </div>
     </div>`;
 }
