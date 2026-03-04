@@ -139,13 +139,13 @@ All display preferences are configurable and persist across restarts:
 - JDK 17+
 - Android SDK 35
 
-### Build & Install
+### Build
 
 ```bash
 git clone https://github.com/klexical/openRS.git
-cd openRS/"Android App"
-./gradlew assembleDebug
-adb install app/build/outputs/apk/debug/app-debug.apk
+cd openRS/android
+./gradlew assembleRelease
+# Output: app/build/outputs/apk/release/app-release-unsigned.apk
 ```
 
 ### Browser Emulator (no hardware required)
