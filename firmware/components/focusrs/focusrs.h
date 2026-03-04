@@ -7,6 +7,9 @@
 extern "C" {
 #endif
 
+// ── Firmware version (returned to Android app via OPENRS? probe) ───────────
+#define OPENRS_FW_VERSION   "v1.1"
+
 // ── Drive mode values ──────────────────────────────────────────
 #define FRS_MODE_NORMAL  0
 #define FRS_MODE_SPORT   1
@@ -20,7 +23,11 @@ extern "C" {
 
 // ── CAN IDs ────────────────────────────────────────────────────
 // HS-CAN (OBD pins 6/14 @ 500kbps)
-#define FRS_CAN_ID_AWD_MSG    0x1B0   // Drive mode (read: bits 55–58) + button (write: byte 1)
+// 0x17E (BO_ 382 DriveModeRequest): steady-state drive mode in lower nibble of byte 0.
+//   0=Normal 1=Sport 2=Track 3=Drift. Used for READ only.
+// 0x1B0: drive mode dial transition/button event. Used for WRITE (button simulation) only.
+#define FRS_CAN_ID_DRIVE_MODE 0x17E   // Steady-state drive mode — READ
+#define FRS_CAN_ID_AWD_MSG    0x1B0   // Button event frame    — WRITE template
 #define FRS_CAN_ID_ESC_ABS    0x1C0   // ESC mode (bits 13–14)
 
 // Drive mode button byte values (0x1B0 byte 1)
