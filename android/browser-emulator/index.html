@@ -583,6 +583,7 @@
         <span class="transport-badge wifi" id="aa-transport">WiFi</span>
         <span class="aa-conn on" id="aa-conn-badge">● CONNECTED</span>
         <span class="aa-fps-note" id="aa-fps">12 fps</span>
+        <span id="aa-settings" style="font-size:16px;cursor:pointer;color:var(--dim);user-select:none;margin-left:6px" title="Settings">⚙</span>
       </div>
     </div>
     <div class="aa-back-bar" id="aa-back-bar" style="display:none">
@@ -594,6 +595,7 @@
       <button data-screen="perf">PERF</button>
       <button data-screen="temps">TEMPS</button>
       <button data-screen="ctrl">CTRL ⚡</button>
+      <button data-screen="diag">DIAG</button>
       <button data-screen="menu">MENU ☰</button>
     </div>
   </div>
@@ -1185,6 +1187,11 @@ function aaTpms(v) {
     </div>`;
 }
 
+function aaDiag(v) {
+  // Reuse diagHtml but swap the snap-btn ID to avoid DOM ID clash with phone tab
+  return diagHtml(v).replace('id="snap-btn"', 'id="aa-snap-btn"');
+}
+
 function aaCtrl(v) {
   const isFw = settings.firmware === 'openRS_';
   const featTitle = isFw ? 'FEATURES — openrs-fw active' : 'FEATURES — requires openrs-fw';
@@ -1247,6 +1254,7 @@ function aaMenu() {
     ['tune',  'TUNE',  'AFR, timing, fuel trims, VCT, OBD'],
     ['tpms',  'TPMS',  'Tire pressure & temperature, 4 corners'],
     ['ctrl',  'CTRL ⚡','Drive mode, ESC, Launch Control, ASS kill, connection'],
+    ['diag',  'DIAG',  'Session stats, frame inventory, snapshot export'],
   ];
   return `<ul class="aa-menu-list">${items.map(([k,t,d])=>
     `<li data-screen="${k}"><span class="aa-menu-tit">${t}</span><span class="aa-menu-desc">${d}</span></li>`
@@ -1328,6 +1336,7 @@ function renderAA() {
     tune:  ['TUNE — OBD',               aaTune(vs)],
     tpms:  ['TPMS+',                     aaTpms(vs)],
     ctrl:  ['CTRL ⚡',                    aaCtrl(vs)],
+    diag:  ['DIAG',                      aaDiag(vs)],
     menu:  [brandHtml + ' <span style="color:var(--dim);font-size:14px">MENU</span>', aaMenu()],
   };
 
@@ -1351,6 +1360,15 @@ function renderAA() {
     renderAA();
   });
 
+  // DIAG snapshot button (AA)
+  const aaSnap = document.getElementById('aa-snap-btn');
+  if (aaSnap) aaSnap.addEventListener('click', () => {
+    aaSnap.innerHTML = '<div style="font-size:13px;font-weight:700;color:var(--dim)">BUILDING SNAPSHOT…</div>';
+    setTimeout(() => {
+      aaSnap.innerHTML = '<div style="font-size:13px;font-weight:700;color:var(--grn)">✓ SNAPSHOT READY — share dialog would open on device</div><div style="font-size:10px;color:var(--dim);margin-top:4px">This is a browser emulator — on Android this opens the system share sheet</div>';
+    }, 1200);
+  });
+
   // CTRL interactivity (AA)
   bodyEl.querySelectorAll('[data-mode]').forEach(btn => {
     btn.addEventListener('click', () => {
@@ -1369,6 +1387,12 @@ function renderAA() {
   });
   bodyEl.querySelectorAll('.aa-toggle-pill').forEach(pill => {
     pill.addEventListener('click', () => {
+      if (pill.dataset.fwRequired && settings.firmware !== 'openRS_') {
+        // Show a brief flash on the pill to indicate it's locked
+        pill.style.outline = '2px solid var(--red)';
+        setTimeout(() => { pill.style.outline = ''; }, 600);
+        return;
+      }
       const key = pill.dataset.toggle;
       uiState[key] = !uiState[key];
       vs = {...vs, [key]: uiState[key]};
@@ -1521,6 +1545,7 @@ function closeSettings() {
   document.getElementById('settings-overlay').style.display = 'none';
 }
 document.getElementById('h-settings').addEventListener('click', openSettings);
+document.getElementById('aa-settings').addEventListener('click', openSettings);
 document.getElementById('settings-close').addEventListener('click', closeSettings);
 document.getElementById('settings-overlay').addEventListener('click', e => {
   if (e.target === document.getElementById('settings-overlay')) closeSettings();
