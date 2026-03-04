@@ -167,16 +167,21 @@ object CanDecoder {
 
             // ── 0x340: PCMmsg17 (HS-CAN) + MS-CAN TPMS (if bridged via GWM) ───
             // RS_HS.dbc PCMmsg17: AmbientAirTemp : 63|8@0− → byte7 signed × 0.25 °C
-            // DigiCluster can1_ms.json: TPMS PSI direct bytes 2-5 (LF/RF/LR/RR).
-            // Sensors sleep when stationary — all-zero TPMS → retain last pressures.
-            // Valid PSI range: 5–60. Out-of-range → keep last known good value.
+            // DigiCluster can1_ms.json: TPMS PSI bytes 2-5 (LF/RF/LR/RR).
+            // Encoding: 1 raw unit = 3.6 kPa → PSI = raw × 3.6 / 6.895
+            // Confirmed: 0x43 (67 raw) = 35.0 PSI (winter-adjusted from ~40 PSI).
+            // Sensors sleep when stationary — raw 0 → null → retain last known pressure.
+            // Valid result range: 5–80 PSI. Out-of-range → keep last known good value.
             ID_TPMS -> if (n >= 8) {
-                fun validPsi(raw: Int): Double? =
-                    if (raw in 5..60) raw.toDouble() else null
-                val lf = validPsi(ubyte(data, 2))
-                val rf = validPsi(ubyte(data, 3))
-                val lr = validPsi(ubyte(data, 4))
-                val rr = validPsi(ubyte(data, 5))
+                fun tpmsPsi(raw: Int): Double? {
+                    if (raw == 0) return null
+                    val psi = raw * 3.6 / 6.895
+                    return if (psi < 5.0 || psi > 80.0) null else psi
+                }
+                val lf = tpmsPsi(ubyte(data, 2))
+                val rf = tpmsPsi(ubyte(data, 3))
+                val lr = tpmsPsi(ubyte(data, 4))
+                val rr = tpmsPsi(ubyte(data, 5))
                 // Ambient from byte 7 — signed int8 × 0.25 °C (PCMmsg17)
                 val ambient = data[7].toInt().toDouble() * 0.25
                 val ambientValid = ambient in -50.0..60.0

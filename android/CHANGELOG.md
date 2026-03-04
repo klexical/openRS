@@ -5,6 +5,21 @@ Firmware changes are tracked separately in [firmware releases](https://github.co
 
 ---
 
+## [v1.1.6] — 2026-03-01
+
+### Fixed — TPMS formula (tires showing no data)
+- The TPMS pressure bytes in CAN frame `0x340` use a **3.6 kPa per unit** encoding, not direct PSI.
+- Formula corrected to: **PSI = raw × 3.6 ÷ 6.895** (e.g. raw `0x43` = 67 → 35.0 PSI).
+- The previous decoder treated raw bytes as PSI directly and capped acceptance at 60, causing a raw value of 67 (which represents a perfectly normal ~35 PSI tire in winter) to be rejected entirely — all four tires showed blank.
+- Valid result range updated to **5–80 PSI** (converted, not raw). Sleeping sensors (raw = 0) correctly display no data and retain last known pressure.
+
+### Fixed — Firmware detection always showing "WiCAN stock" despite openRS_ firmware
+- The previous probe used a **20-frame grace window** to wait for the `OPENRS:` response. At ~1,700 fps, those 20 frames are consumed in approximately **12 milliseconds** — before the firmware can even process the probe command and reply.
+- Replaced the frame-count check with a **3-second elapsed-time window**. The app now continues checking every incoming frame for the `OPENRS:` identifier for up to 3 seconds before falling back to "WiCAN stock."
+- Users with openRS_ firmware will now see correct firmware detection in the DIAG tab and diagnostic logs.
+
+---
+
 ## [v1.1.5] — 2026-03-01
 
 ### Added — SLCAN raw frame log (Option C)
