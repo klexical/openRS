@@ -416,6 +416,35 @@ class MainActivity : ComponentActivity() {
             DataCell("LAT G",  "${"%.2f".format(vs.lateralG)}g",   modifier = Modifier.weight(1f))
             DataCell("LON G",  "${"%.2f".format(vs.longitudinalG)}g", modifier = Modifier.weight(1f))
         }
+
+        // Odometer row with tap-to-toggle km ↔ mi
+        var odomInMiles by remember { mutableStateOf(false) }
+        if (vs.odometerKm >= 0) {
+            val odomLabel = if (odomInMiles) "ODO (mi)" else "ODO (km)"
+            val odomValue = if (odomInMiles)
+                "${"%.0f".format(vs.odometerKm * 0.621371)} mi"
+            else
+                "${"%.0f".format(vs.odometerKm.toDouble())} km"
+            Row(Modifier.fillMaxWidth()) {
+                Box(
+                    Modifier.fillMaxWidth()
+                        .background(Surf, RoundedCornerShape(10.dp))
+                        .border(1.dp, Brd, RoundedCornerShape(10.dp))
+                        .clickable { odomInMiles = !odomInMiles }
+                        .padding(horizontal = 12.dp, vertical = 8.dp),
+                ) {
+                    Row(
+                        Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        UIText(odomLabel, 10.sp, Dim, FontWeight.SemiBold, 1.sp)
+                        MonoText(odomValue, 16.sp, Frost)
+                    }
+                    UIText("tap to toggle", 9.sp, Dim, modifier = Modifier.align(Alignment.CenterEnd).padding(end = 70.dp))
+                }
+            }
+        }
     }
 }
 
@@ -485,7 +514,7 @@ class MainActivity : ComponentActivity() {
             val hasTip = vs.tipActualKpa > 50
             DataCell("TIP ACT",   if (hasTip) "$tipActVal $tipLbl" else placeholder, modifier = Modifier.weight(1f))
             DataCell("TIP DES",   if (hasTip) "$tipDesVal $tipLbl" else placeholder, modifier = Modifier.weight(1f))
-            DataCell("FUEL RAIL", if (vs.fuelRailPsi > 0) "${"%.0f".format(vs.fuelRailPsi)} PSI" else placeholder, modifier = Modifier.weight(1f))
+            DataCell("HP FUEL",   if (vs.hpFuelRailPsi >= 0) "${"%.0f".format(vs.hpFuelRailPsi)} PSI" else placeholder, modifier = Modifier.weight(1f))
         }
 
         // Engine Management
@@ -1050,36 +1079,95 @@ private fun tempColorShade(c: Double, warnC: Double, critC: Double) = when {
 
                 DrawerDivider()
 
-                // Features
+                // Features — LC / ASS with live RSProt probe data
                 DrawerSection(if (isFw) "Features — openrs-fw active" else "Features — requires openrs-fw v1.0") {
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(5.dp)) {
-                        listOf("Launch Control", "Auto S/S Kill").forEach { feat ->
-                            Box(
-                                Modifier.weight(1f)
-                                    .background(Surf2, RoundedCornerShape(7.dp))
-                                    .border(1.dp, Brd, RoundedCornerShape(7.dp))
-                                    .clickable {
-                                        if (!isFw) scope.launch {
-                                            snackbarHostState.showSnackbar("Requires openrs-fw — flash to unlock")
-                                        }
-                                    }
-                                    .padding(10.dp)
-                                    .then(if (!isFw) Modifier.then(Modifier) else Modifier)
-                            ) {
-                                Column {
-                                    UIText(feat, 11.sp, if (isFw) Frost else Dim, FontWeight.SemiBold)
-                                    MonoText(if (isFw) "● ON" else "○ OFF", 10.sp, if (isFw) Grn else Dim)
+                        // Launch Control card
+                        Box(
+                            Modifier.weight(1f)
+                                .background(Surf2, RoundedCornerShape(7.dp))
+                                .border(1.dp, Brd, RoundedCornerShape(7.dp))
+                                .padding(10.dp)
+                        ) {
+                            Column {
+                                UIText("Launch Control", 11.sp, Frost, FontWeight.SemiBold)
+                                val lcText = when {
+                                    vs.lcArmed == true  -> "● ARMED"
+                                    vs.lcArmed == false -> "○ STANDBY"
+                                    isFw                -> "… PROBING"
+                                    else                -> "○ N/A"
                                 }
-                                if (!isFw) Box(Modifier.matchParentSize().background(Color.Black.copy(alpha = 0.35f), RoundedCornerShape(7.dp)))
+                                val lcColor = when {
+                                    vs.lcArmed == true -> Grn
+                                    isFw               -> Amber
+                                    else               -> Dim
+                                }
+                                MonoText(lcText, 10.sp, lcColor)
+                                if (vs.lcRpmTarget > 0)
+                                    UIText("${vs.lcRpmTarget} RPM", 9.sp, Dim)
+                            }
+                        }
+                        // Auto Start-Stop card
+                        Box(
+                            Modifier.weight(1f)
+                                .background(Surf2, RoundedCornerShape(7.dp))
+                                .border(1.dp, Brd, RoundedCornerShape(7.dp))
+                                .padding(10.dp)
+                        ) {
+                            Column {
+                                UIText("Auto Start-Stop", 11.sp, Frost, FontWeight.SemiBold)
+                                val assText = when {
+                                    vs.assEnabled == true  -> "● ACTIVE"
+                                    vs.assEnabled == false -> "○ OFF"
+                                    isFw                   -> "… PROBING"
+                                    else                   -> "○ N/A"
+                                }
+                                val assColor = when {
+                                    vs.assEnabled == true -> Grn
+                                    isFw                  -> Amber
+                                    else                  -> Dim
+                                }
+                                MonoText(assText, 10.sp, assColor)
                             }
                         }
                     }
                     Spacer(Modifier.height(6.dp))
                     UIText(
                         if (isFw) "✓ openRS_ firmware detected — features unlocked."
-                        else "⚡ Flash openrs-fw to unlock CAN write, LC, Auto S/S Kill & more.",
+                        else "⚡ Flash openrs-fw to unlock CAN write, LC, Auto Start-Stop & more.",
                         10.sp, if (isFw) Grn else Amber
                     )
+                }
+
+                DrawerDivider()
+
+                // Module Status — RDU, PDC, FENG (from extended session polling)
+                DrawerSection("Module Status") {
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(5.dp)) {
+                        listOf(
+                            Triple("RDU",  vs.rduEnabled,  "Rear Drive Unit"),
+                            Triple("PDC",  vs.pdcEnabled,  "Pull Drift Comp"),
+                            Triple("FENG", vs.fengEnabled, "Engine Sound")
+                        ).forEach { (label, state, _) ->
+                            Column(
+                                Modifier.weight(1f)
+                                    .background(Surf2, RoundedCornerShape(7.dp))
+                                    .border(1.dp, Brd, RoundedCornerShape(7.dp))
+                                    .padding(8.dp),
+                                horizontalAlignment = Alignment.CenterHorizontally
+                            ) {
+                                UIText(label, 11.sp, Frost, FontWeight.SemiBold)
+                                val (dot, col) = when (state) {
+                                    true  -> "● ON"  to Grn
+                                    false -> "○ OFF" to Dim
+                                    null  -> "… —"   to Amber
+                                }
+                                MonoText(dot, 10.sp, col)
+                            }
+                        }
+                    }
+                    Spacer(Modifier.height(6.dp))
+                    UIText("Polled via extended diagnostic session (60 s cycle).", 10.sp, Dim)
                 }
 
                 DrawerDivider()

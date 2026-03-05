@@ -5,6 +5,62 @@ Firmware changes are tracked separately in [firmware releases](https://github.co
 
 ---
 
+## [v1.2.8] — 2026-03-05
+
+### Added — Extended diagnostic session polling (UDS 10 03 + Mode 22)
+
+New polling loop (T+15 s after connect, 60 s cycle) opens a UDS extended diagnostic session (service `10 03`) per module before issuing Mode 22 reads. Required for confirmed Daft Racing DIDs.
+
+| Feature | Module | Address | DID | Source |
+|---------|--------|---------|-----|--------|
+| RDU status (rear drive unit on/off) | AWD | `0x703 → 0x70B` | `0xEE0B` | Daft Racing `rset.py` ✓ |
+| PDC status (pull drift compensation) | PSCM | `0x730 → 0x738` | `0xFD07` | Daft Racing `rset.py` ✓ |
+| FENG status (fake engine noise generator) | `0x727 → 0x72F` | `0x72F` | `0xEE03` | Daft Racing `rset.py` ✓ |
+| LC/ASS status (launch control & auto start-stop) | RSProt | `0x731 → 0x739` | Probed | Runtime DID discovery |
+
+All three confirmed DIDs display live on/off status in the new **Module Status** section of the hamburger menu.
+
+RSProt LC and Auto Start-Stop DIDs are currently probed at runtime (candidate DIDs `0xDE00`–`0xDE02`). Any positive response is logged to the diagnostic debug buffer for confirmation. Once verified, they will be hardcoded in a future release.
+
+### Added — New PCM Mode 22 PIDs (9 additional)
+
+All polled on the existing PCM header (`0x7E0 → 0x7E8`), 30 s cycle:
+
+| Parameter | DID | Formula | Displayed in |
+|-----------|-----|---------|--------------|
+| AFR Actual (wideband) | `0xF434` | `((A×256)+B) × 0.0004486` | Power tab |
+| AFR Desired | `0xF444` | `A × 0.1144` | Power tab |
+| TIP Actual | `0x033E` | `((A×256)+B) / 903.81` kPa | Power tab |
+| TIP Desired | `0x0466` | same | Power tab |
+| VCT Intake Angle | `0x0318` | `(signed(A)×256+B) / 16` ° | Power tab |
+| VCT Exhaust Angle | `0x0319` | same | Power tab |
+| Oil Life | `0x054B` | `A` % | Power tab |
+| HP Fuel Rail Pressure | `0xF422` | `((A×256)+B) × 1.45038` PSI | Power tab |
+| Fuel Level (Mode 22) | `0xF42F` | `A × 100/255` % | Dash tab |
+
+### Fixed — Fuel level reading
+
+Passive CAN frame `0x380` (`FuelLevelFiltered`) can encode up to 102% per the DBC spec, causing the display to show "101%" on a full tank. Two fixes applied:
+1. Passive decode now clamps to 100% max.
+2. PCM Mode 22 DID `0xF42F` (clean 0–100% range) overwrites the passive value every 30 s.
+
+### Added — HP Fuel Rail Pressure
+
+Power tab "FUEL RAIL" cell now shows high-pressure direct-injection fuel rail pressure in PSI (DID `0xF422`, up to 3,500 PSI), replacing the legacy Mode 01 PID 22 low-pressure value.
+
+### Added — Odometer with km / mi toggle
+
+Odometer (from BCM DID `0xDD01`, already polled since v1.2.x) now displays in the Dash tab below the G-force row. Tap the cell to toggle between kilometres and miles.
+
+### Changed — Hamburger Features section
+
+Launch Control and Auto Start-Stop cards now show live RSProt probe status:
+- **ARMED / STANDBY / PROBING** for Launch Control
+- **ACTIVE / OFF / PROBING** for Auto Start-Stop
+- LC RPM target displayed when known (variable per user tune)
+
+---
+
 ## [v1.2.7] — 2026-03-04
 
 ### Fixed — Drive mode Track/Drift corrected (requires firmware v1.3)

@@ -86,31 +86,89 @@ class WiCanConnection(
         // ── PCM OBD Mode 22 polling (ISO-TP over SLCAN) ────────────────────
         // Request address 0x7E0 (PCM), response address 0x7E8.
         // Sources: research/exportedPIDs.txt + research/Digi Cluster/protocol/can0_hs.json
+        //          research/Ford DID.csv
         const val PCM_RESPONSE_ID = 0x7E8
         // ETC angles: exportedPIDs [FORD]Throttle Position — ((A*256)+B)*(100/8192) deg
-        private const val PCM_QUERY_ETC_ACTUAL  = "t7E080322093C00000000\r"  // 0x093C ETC actual
-        private const val PCM_QUERY_ETC_DESIRED = "t7E080322091A00000000\r"  // 0x091A ETC desired
+        private const val PCM_QUERY_ETC_ACTUAL   = "t7E080322093C00000000\r"  // 0x093C ETC actual
+        private const val PCM_QUERY_ETC_DESIRED  = "t7E080322091A00000000\r"  // 0x091A ETC desired
         // Wastegate DC: exportedPIDs [Focus] Turbo Wastegate % — A/128*100
-        private const val PCM_QUERY_WGDC        = "t7E080322046200000000\r"  // 0x0462 WGDC
+        private const val PCM_QUERY_WGDC         = "t7E080322046200000000\r"  // 0x0462 WGDC
         // Knock retard cyl1: exportedPIDs — ((signed(A)*256)+B)/-512
-        private const val PCM_QUERY_KR_CYL1     = "t7E08032203EC00000000\r"  // 0x03EC KR cyl 1
+        private const val PCM_QUERY_KR_CYL1      = "t7E08032203EC00000000\r"  // 0x03EC KR cyl 1
         // Octane adjust ratio: exportedPIDs — (signed(a)*256+b)/16384
-        private const val PCM_QUERY_OAR         = "t7E08032203E800000000\r"  // 0x03E8 OAR
+        private const val PCM_QUERY_OAR          = "t7E08032203E800000000\r"  // 0x03E8 OAR
         // Charge air temp: DigiCluster can0_hs charge_air_temp_22 — (signed(A)*256+B)/64 °C
-        private const val PCM_QUERY_CHARGE_AIR  = "t7E080322046100000000\r"  // 0x0461 charge air
+        private const val PCM_QUERY_CHARGE_AIR   = "t7E080322046100000000\r"  // 0x0461 charge air
         // CAT temp: DigiCluster can0_hs cat_temp_22 — ((A*256)+B)/10 - 40 °C
-        private const val PCM_QUERY_CAT_TEMP    = "t7E080322F43C00000000\r"  // 0xF43C catalyst
+        private const val PCM_QUERY_CAT_TEMP     = "t7E080322F43C00000000\r"  // 0xF43C catalyst
+        // AFR: Ford DID.csv 0xF434 — ((A*256)+B)*0.0004486 AFR:1 (14.7/32768 ≈ 0.0004486)
+        private const val PCM_QUERY_AFR_ACTUAL   = "t7E080322F43400000000\r"  // 0xF434 wideband AFR
+        // AFR desired: Ford DID.csv 0xF444 — A*0.1144 AFR:1
+        private const val PCM_QUERY_AFR_DESIRED  = "t7E080322F44400000000\r"  // 0xF444 target AFR
+        // TIP: DigiCluster can0_hs — ((A*256)+B)/903.81 kPa
+        private const val PCM_QUERY_TIP_ACTUAL   = "t7E080322033e00000000\r"   // 0x033E TIP actual
+        private const val PCM_QUERY_TIP_DESIRED  = "t7E080322046600000000\r"  // 0x0466 TIP desired
+        // VCT angles: Ford DID.csv 0x0318/0x0319 — (signed(A)*256+B)/16 deg
+        private const val PCM_QUERY_VCT_INTAKE   = "t7E080322031800000000\r"  // 0x0318 VCT-I angle
+        private const val PCM_QUERY_VCT_EXHAUST  = "t7E080322031900000000\r"  // 0x0319 VCT-E angle
+        // Oil life: Ford DID.csv 0x054B — A % (single byte, direct)
+        private const val PCM_QUERY_OIL_LIFE     = "t7E080322054B00000000\r"  // 0x054B oil life %
+        // HP fuel rail pressure: Ford DID.csv 0xF422 — ((A*256)+B)*1.45038 PSI
+        private const val PCM_QUERY_HP_FUEL_RAIL = "t7E080322F42200000000\r"  // 0xF422 HPFP actual
+        // Fuel level: Ford DID.csv 0xF42F — A*100/255 % (more accurate than passive 0x380)
+        private const val PCM_QUERY_FUEL_LEVEL   = "t7E080322F42F00000000\r"  // 0xF42F fuel level %
         private val PCM_QUERIES = listOf(
             PCM_QUERY_ETC_ACTUAL, PCM_QUERY_ETC_DESIRED,
             PCM_QUERY_WGDC, PCM_QUERY_KR_CYL1, PCM_QUERY_OAR,
-            PCM_QUERY_CHARGE_AIR, PCM_QUERY_CAT_TEMP
+            PCM_QUERY_CHARGE_AIR, PCM_QUERY_CAT_TEMP,
+            PCM_QUERY_AFR_ACTUAL, PCM_QUERY_AFR_DESIRED,
+            PCM_QUERY_TIP_ACTUAL, PCM_QUERY_TIP_DESIRED,
+            PCM_QUERY_VCT_INTAKE, PCM_QUERY_VCT_EXHAUST,
+            PCM_QUERY_OIL_LIFE, PCM_QUERY_HP_FUEL_RAIL, PCM_QUERY_FUEL_LEVEL
         )
-        /** How long between PCM poll cycles (ms). Matched to BCM so cycles interleave
-         *  rather than overlap — BCM starts at T+5 s, PCM starts at T+20 s (midpoint
-         *  of BCM's 30 s rest window), keeping WiCAN TX load evenly distributed. */
+        /** How long between PCM poll cycles (ms). BCM starts at T+5 s, PCM at T+20 s so
+         *  cycles interleave. Extended-session poll starts at T+15 s (60 s interval). */
         private const val PCM_POLL_INTERVAL_MS  = 30_000L
         private const val PCM_QUERY_GAP_MS      =    200L
         private const val PCM_INITIAL_DELAY_MS  = 20_000L
+
+        // ── Extended diagnostic session polling (UDS 10 03 + Mode 22) ──────
+        // Required for: RDU status (AWD), PDC status (PSCM), FENG status, RSProt probe.
+        // Sources: Daft Racing rset.py (confirmed: 0xEE0B, 0xFD07, 0xEE03)
+        //          RSProt candidates: probed at runtime (no confirmed source available)
+        //
+        // Protocol: send DiagnosticSessionControl(03) first → module confirms with 50 03
+        //           then send Mode 22 read → module responds with 62 DID DATA on response ID
+        //           Session expires after ~5 s with no TesterPresent (fine for read-only).
+        //
+        // Response IDs (standard Ford +8 offset):
+        const val PSCM_RESPONSE_ID    = 0x738   // 0x730 + 8
+        const val FENG_RESPONSE_ID    = 0x72F   // 0x727 + 8
+        const val RSPROT_RESPONSE_ID  = 0x739   // 0x731 + 8
+
+        // Extended session open frames (02 10 03 00 00 00 00 00)
+        private const val EXT_SESSION_AWD    = "t70380210030000000000\r"
+        private const val EXT_SESSION_PSCM   = "t73080210030000000000\r"
+        private const val EXT_SESSION_FENG   = "t72780210030000000000\r"
+        private const val EXT_SESSION_RSPROT = "t73180210030000000000\r"
+
+        // Confirmed DIDs (Daft Racing rset.py)
+        private const val AWD_QUERY_RDU_STATUS = "t70380322ee0b00000000\r" // 0xEE0B RDU on/off
+        private const val PSCM_QUERY_PDC       = "t73080322fd0700000000\r" // 0xFD07 pull drift comp
+        private const val FENG_QUERY_STATUS    = "t72780322ee0300000000\r" // 0xEE03 fake engine noise
+
+        // RSProt probe candidates — unconfirmed; any 0x62 response will be logged + parsed
+        private val RSPROT_PROBE_QUERIES = listOf(
+            "t73180322de0000000000\r",  // 0xDE00 — LC armed candidate
+            "t73180322de0100000000\r",  // 0xDE01 — LC RPM candidate
+            "t73180322de0200000000\r",  // 0xDE02 — ASS enabled candidate
+            "t73180322ee0100000000\r",  // 0xEE01 — candidate (pattern: EE0B=RDU, EE03=FENG)
+            "t73180322fd0100000000\r",  // 0xFD01 — candidate (pattern: FD07=PDC)
+        )
+        private const val EXT_POLL_INTERVAL_MS  = 60_000L
+        private const val EXT_INITIAL_DELAY_MS  = 15_000L
+        private const val EXT_SESSION_GAP_MS    =    150L  // delay after session open
+        private const val EXT_QUERY_GAP_MS      =    300L
     }
 
     sealed class State {
@@ -215,6 +273,45 @@ class WiCanConnection(
                     }
                 }
 
+                // ── Extended diagnostic session poller ─────────────────────
+                // Polls confirmed DIDs (RDU/PDC/FENG via Daft Racing rset.py) and
+                // probes RSProt for LC/ASS status. Each module needs a UDS extended
+                // session (10 03) opened first, then a Mode 22 read. Sessions expire
+                // after ~5 s — no TesterPresent keepalive needed for read-only access.
+                // Starts at T+15 s (between BCM T+5 s and PCM T+20 s), 60 s cycle.
+                val extJob = launch {
+                    delay(EXT_INITIAL_DELAY_MS)
+                    while (isActive) {
+                        // AWD: RDU status (confirmed 0xEE0B)
+                        try {
+                            sendWsText(out, EXT_SESSION_AWD);   delay(EXT_SESSION_GAP_MS)
+                            sendWsText(out, AWD_QUERY_RDU_STATUS); delay(EXT_QUERY_GAP_MS)
+                        } catch (_: Exception) { }
+
+                        // PSCM: Pull Drift Compensation (confirmed 0xFD07)
+                        try {
+                            sendWsText(out, EXT_SESSION_PSCM);  delay(EXT_SESSION_GAP_MS)
+                            sendWsText(out, PSCM_QUERY_PDC);    delay(EXT_QUERY_GAP_MS)
+                        } catch (_: Exception) { }
+
+                        // FENG: Fake Engine Noise Generator (confirmed 0xEE03)
+                        try {
+                            sendWsText(out, EXT_SESSION_FENG);  delay(EXT_SESSION_GAP_MS)
+                            sendWsText(out, FENG_QUERY_STATUS); delay(EXT_QUERY_GAP_MS)
+                        } catch (_: Exception) { }
+
+                        // RSProt: probe candidate DIDs for LC/ASS (unconfirmed)
+                        RSPROT_PROBE_QUERIES.forEach { q ->
+                            try {
+                                sendWsText(out, EXT_SESSION_RSPROT); delay(EXT_SESSION_GAP_MS)
+                                sendWsText(out, q);                  delay(EXT_QUERY_GAP_MS)
+                            } catch (_: Exception) { }
+                        }
+
+                        delay(EXT_POLL_INTERVAL_MS)
+                    }
+                }
+
                 // ── New-ID discovery for debug tab ─────────────
                 val seenIds   = mutableSetOf<Int>()
                 var debugCount = 0
@@ -272,9 +369,27 @@ class WiCanConnection(
                         continue
                     }
 
-                    // ── PCM OBD response (ETC, WGDC, KR, OAR, charge air, CAT) ─
+                    // ── PCM OBD response ───────────────────────────────────────
                     if (frame.first == PCM_RESPONSE_ID) {
                         parsePcmResponse(frame.second, getCurrentState(), onObdUpdate)
+                        continue
+                    }
+
+                    // ── PSCM extended session response (PDC status, 0x738) ──────
+                    if (frame.first == PSCM_RESPONSE_ID) {
+                        parsePscmResponse(frame.second, getCurrentState(), onObdUpdate)
+                        continue
+                    }
+
+                    // ── FENG extended session response (0x72F) ─────────────────
+                    if (frame.first == FENG_RESPONSE_ID) {
+                        parseFengResponse(frame.second, getCurrentState(), onObdUpdate)
+                        continue
+                    }
+
+                    // ── RSProt extended session response (probe, 0x739) ─────────
+                    if (frame.first == RSPROT_RESPONSE_ID) {
+                        parseRsprotResponse(frame.second, getCurrentState(), onObdUpdate)
                         continue
                     }
 
@@ -488,9 +603,9 @@ class WiCanConnection(
         val did = ((data[2].toInt() and 0xFF) shl 8) or (data[3].toInt() and 0xFF)
         val b4  = data[4].toInt() and 0xFF
         when (did) {
-            0x1E8A -> {  // RDU oil temp: B4 − 40 °C
-                onObdUpdate(currentState.copy(rduTempC = (b4 - 40).toDouble()))
-            }
+            0x1E8A -> onObdUpdate(currentState.copy(rduTempC = (b4 - 40).toDouble()))
+            // RDU on/off: Daft Racing rset.py confirmed DID 0xEE0B (extended session)
+            0xEE0B -> onObdUpdate(currentState.copy(rduEnabled = b4 == 0x01))
         }
     }
 
@@ -549,6 +664,102 @@ class WiCanConnection(
             0xF43C -> onObdUpdate(currentState.copy(
                 catalyticTempC = ((b4 shl 8) or b5) / 10.0 - 40.0
             ))
+            // AFR actual — ((A*256)+B) * (14.7/32768) ≈ 0.0004486 AFR:1
+            0xF434 -> {
+                val afr = ((b4 shl 8) or b5) * 0.0004486
+                onObdUpdate(currentState.copy(afrActual = afr, lambdaActual = afr / 14.7))
+            }
+            // AFR desired — A * 0.1144 AFR:1 (Ford DID.csv: single byte)
+            0xF444 -> onObdUpdate(currentState.copy(afrDesired = b4 * 0.1144))
+            // TIP actual/desired — ((A*256)+B)/903.81 kPa
+            0x033E -> onObdUpdate(currentState.copy(tipActualKpa  = ((b4 shl 8) or b5) / 903.81))
+            0x0466 -> onObdUpdate(currentState.copy(tipDesiredKpa = ((b4 shl 8) or b5) / 903.81))
+            // VCT angles — (signed(A)*256+B)/16 degrees
+            0x0318 -> onObdUpdate(currentState.copy(
+                vctIntakeAngle = ((b4s.toByte().toInt() shl 8) or b5) / 16.0
+            ))
+            0x0319 -> onObdUpdate(currentState.copy(
+                vctExhaustAngle = ((b4s.toByte().toInt() shl 8) or b5) / 16.0
+            ))
+            // Oil life — A % direct (0-255 raw → 0-100 % via A)
+            0x054B -> onObdUpdate(currentState.copy(oilLifePct = b4.toDouble()))
+            // HP fuel rail pressure — ((A*256)+B)*1.45038 PSI (Ford DID.csv)
+            0xF422 -> onObdUpdate(currentState.copy(
+                hpFuelRailPsi = ((b4 shl 8) or b5) * 1.45038
+            ))
+            // Fuel level — A*100/255 % (more accurate than passive 0x380 broadcast)
+            0xF42F -> onObdUpdate(currentState.copy(
+                fuelLevelPct = (b4 * 100.0 / 255.0).coerceIn(0.0, 100.0)
+            ))
+        }
+    }
+
+    /**
+     * Parse an ISO-TP response from the PSCM (CAN ID 0x738).
+     * Extended session (10 03) required before Mode 22 read.
+     * Source: Daft Racing rset.py — DID 0xFD07 confirmed.
+     */
+    private fun parsePscmResponse(
+        data: ByteArray,
+        currentState: VehicleState,
+        onObdUpdate: (VehicleState) -> Unit
+    ) {
+        if (data.size < 5) return
+        if ((data[1].toInt() and 0xFF) != 0x62) return
+        val did = ((data[2].toInt() and 0xFF) shl 8) or (data[3].toInt() and 0xFF)
+        val b4  = data[4].toInt() and 0xFF
+        when (did) {
+            // Pull Drift Compensation: Daft Racing rset.py confirmed DID 0xFD07
+            0xFD07 -> onObdUpdate(currentState.copy(pdcEnabled = b4 == 0x01))
+        }
+    }
+
+    /**
+     * Parse an ISO-TP response from the FENG module (CAN ID 0x72F).
+     * Extended session (10 03) required before Mode 22 read.
+     * Source: Daft Racing rset.py — DID 0xEE03 confirmed.
+     */
+    private fun parseFengResponse(
+        data: ByteArray,
+        currentState: VehicleState,
+        onObdUpdate: (VehicleState) -> Unit
+    ) {
+        if (data.size < 5) return
+        if ((data[1].toInt() and 0xFF) != 0x62) return
+        val did = ((data[2].toInt() and 0xFF) shl 8) or (data[3].toInt() and 0xFF)
+        val b4  = data[4].toInt() and 0xFF
+        when (did) {
+            // Fake Engine Noise Generator: Daft Racing rset.py confirmed DID 0xEE03
+            0xEE03 -> onObdUpdate(currentState.copy(fengEnabled = b4 == 0x01))
+        }
+    }
+
+    /**
+     * Parse an ISO-TP response from RSProt (CAN ID 0x739).
+     * Extended session (10 03) required. DIDs are unconfirmed — this function
+     * handles any 0x62 positive response and logs it for DID discovery.
+     * Known candidates: 0xDE00 (LC armed), 0xDE01 (LC RPM), 0xDE02 (ASS status).
+     */
+    private fun parseRsprotResponse(
+        data: ByteArray,
+        currentState: VehicleState,
+        onObdUpdate: (VehicleState) -> Unit
+    ) {
+        if (data.size < 5) return
+        if ((data[1].toInt() and 0xFF) != 0x62) return
+        val did = ((data[2].toInt() and 0xFF) shl 8) or (data[3].toInt() and 0xFF)
+        val b4  = data[4].toInt() and 0xFF
+        val b5  = if (data.size > 5) data[5].toInt() and 0xFF else 0
+
+        // Log every positive response to assist DID discovery
+        addDebugLine("RSProt 0x%04X → B4=0x%02X B5=0x%02X".format(did, b4, b5))
+
+        when (did) {
+            0xDE00 -> onObdUpdate(currentState.copy(lcArmed = b4 == 0x01))
+            0xDE01 -> onObdUpdate(currentState.copy(lcRpmTarget = (b4 shl 8) or b5))
+            0xDE02 -> onObdUpdate(currentState.copy(assEnabled = b4 == 0x01))
+            0xEE01 -> addDebugLine("RSProt 0xEE01 → ${b4} (candidate)")
+            0xFD01 -> addDebugLine("RSProt 0xFD01 → ${b4} (candidate)")
         }
     }
 

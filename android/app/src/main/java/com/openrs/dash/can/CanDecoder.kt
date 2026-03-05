@@ -313,8 +313,8 @@ object CanDecoder {
             // Motorola 10-bit: MSB at DBC bit 17 → (data[2]&0x03)<<8 | data[3], × 0.4 %
             ID_FUEL_LEVEL -> if (n >= 4) {
                 val raw = ((data[2].toInt() and 0x03) shl 8) or (data[3].toInt() and 0xFF)
-                val pct = raw * 0.4
-                if (pct < 0.0 || pct > 110.0) null
+                val pct = (raw * 0.4).coerceIn(0.0, 100.0)  // clamp: DBC range [0|102], cap at 100
+                if (pct < 0.0) null
                 else state.copy(fuelLevelPct = pct, lastUpdate = now)
             } else null
 

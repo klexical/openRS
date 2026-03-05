@@ -54,6 +54,7 @@ data class VehicleState(
 
     // ── Oil (Mode 22 via PCM 0x7E0) ───────────────────────
     val oilLifePct: Double = -1.0,         // 0x054B: Oil life remaining (%)
+    val hpFuelRailPsi: Double = -1.0,      // 0xF422: HP fuel rail pressure (PSI, direct injection)
 
     // ── Ignition Correction (Mode 22 via PCM 0x7E0) ───────
     val ignCorrCyl1: Double = 0.0,         // 0x03EC: Knock correction cyl 1 (deg)
@@ -100,13 +101,22 @@ data class VehicleState(
     val eBrake: Boolean = false,           // Emergency brake status
     val reverseStatus: Boolean = false,    // Reverse gear engaged
 
-    // ── BCM OBD (Mode 22 via BCM 0x726) — future polling ───
+    // ── BCM OBD (Mode 22 via BCM 0x726) ────────────────────
     val odometerKm: Long = -1L,            // 0x22DD01: [B4:B6] km (3-byte)
     val batterySoc: Double = -1.0,         // 0x224028: B4 % (start/stop SoC)
     val batteryTempC: Double = -99.0,      // 0x224029: B4-40 °C (12V battery)
     val cabinTempC: Double = -99.0,        // 0x22DD04: (B4×10/9)-45 °C (interior)
 
-    // ── Nutron-only ─────────────────────────────────────────
+    // ── Extended Session OBD (Mode 22 + extended session 0x03) ─
+    // Sources: Daft Racing rset.py (confirmed DIDs), RSProt (probed)
+    val rduEnabled: Boolean? = null,       // AWD 0x703 DID 0xEE0B: rear drive unit active
+    val pdcEnabled: Boolean? = null,       // PSCM 0x730 DID 0xFD07: pull drift compensation
+    val fengEnabled: Boolean? = null,      // 0x727  DID 0xEE03: fake engine noise generator
+    val lcArmed: Boolean? = null,          // RSProt 0x731 probe: launch control armed
+    val lcRpmTarget: Int = -1,             // RSProt 0x731 probe: LC RPM setpoint (-1 = unknown)
+    val assEnabled: Boolean? = null,       // RSProt 0x731 probe: auto start-stop status
+
+    // ── Legacy Nutron-only (unused, kept for compat) ─────────
     val lambdaValue: Double = 0.0,
     val launchControl: Boolean = false,
     val driftFury: Boolean = false,
