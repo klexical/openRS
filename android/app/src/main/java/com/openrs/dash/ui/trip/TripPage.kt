@@ -52,6 +52,9 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import com.openrs.dash.BuildConfig
 import com.openrs.dash.data.DriveMode
 import com.openrs.dash.data.PeakType
@@ -77,9 +80,15 @@ import com.openrs.dash.ui.Surf
 import com.openrs.dash.ui.Surf2
 import com.openrs.dash.ui.UIText
 import com.openrs.dash.ui.UserPrefs
+import androidx.compose.ui.platform.LocalView
+import androidx.core.view.ViewCompat
+import androidx.core.view.WindowInsetsCompat
+import com.google.android.gms.location.LocationServices
 import com.openrs.dash.ui.Warn
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.suspendCancellableCoroutine
 import org.osmdroid.config.Configuration
+import kotlin.coroutines.resume
 import org.osmdroid.tileprovider.tilesource.XYTileSource
 import org.osmdroid.util.GeoPoint
 import org.osmdroid.views.MapView
@@ -152,6 +161,13 @@ fun TripPage(
     var showSummary by remember { mutableStateOf(false) }
     val sheetState  = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 
+    // ── Recording dot animation (was in TripHeader) ────────────────────────────
+    val infiniteTransition = rememberInfiniteTransition(label = "rec")
+    val recAlpha by infiniteTransition.animateFloat(
+        initialValue = 1f, targetValue = 0.2f, label = "recDot",
+        animationSpec = infiniteRepeatable(tween(700, easing = EaseInOut), RepeatMode.Reverse)
+    )
+
     // ── Polyline segments — rebuilt only when point list grows or mode changes ──
     val segments = remember(tripState.points.size, colorMode) {
         tripState.points.zipWithNext().map { (a, b) ->
@@ -177,21 +193,26 @@ fun TripPage(
         }
     }
 
+    // Read window insets ONCE from Android's View layer (stable, not affected by
+    // permission-dialog dismiss animations that briefly set Compose LocalWindowInsets to 0).
+    val view = LocalView.current
+    val density = androidx.compose.ui.platform.LocalDensity.current
+    val topPad = remember(view) {
+        val insets = ViewCompat.getRootWindowInsets(view)
+            ?.getInsets(WindowInsetsCompat.Type.systemBars())
+        if (insets != null) with(density) { insets.top.toDp() } else 0.dp
+    }
+    val bottomPad = remember(view) {
+        val insets = ViewCompat.getRootWindowInsets(view)
+            ?.getInsets(WindowInsetsCompat.Type.systemBars())
+        if (insets != null) with(density) { insets.bottom.toDp() } else 0.dp
+    }
+    // Edge-to-edge: no top padding on outer Box — map fills behind status bar,
+    // floating controls are positioned below the status bar using topPad.
     Box(Modifier.fillMaxSize().background(Bg)) {
         Column(Modifier.fillMaxSize()) {
 
-            // ── Header ───────────────────────────────────────────────────────
-            TripHeader(
-                isRecording = tripState.isRecording,
-                colorMode   = colorMode,
-                onColorMode = {
-                    colorMode = if (colorMode == ColorMode.SPEED) ColorMode.DRIVE_MODE
-                                else ColorMode.SPEED
-                },
-                onDismiss = onDismiss
-            )
-
-            // ── Map ──────────────────────────────────────────────────────────
+            // ── Map (edge-to-edge, floating controls) ────────────────────────
             Box(
                 Modifier
                     .fillMaxWidth()
@@ -204,18 +225,65 @@ fun TripPage(
                         modifier  = Modifier.fillMaxSize()
                     )
 
-                    // Weather overlay (top-right corner of map)
+                    // ── Floating back arrow (top-left, below status bar) ──────
+                    Box(
+                        Modifier
+                            .align(Alignment.TopStart)
+                            .padding(top = topPad + 8.dp, start = 12.dp)
+                            .size(32.dp)
+                            .background(Bg.copy(alpha = 0.82f), RoundedCornerShape(8.dp))
+                            .border(1.dp, Brd, RoundedCornerShape(8.dp))
+                            .clickable { onDismiss() },
+                        contentAlignment = Alignment.Center
+                    ) { UIText("←", 14.sp, Mid) }
+
+                    // ── Floating SPD/MODE toggle (top-right, below status bar) ─
+                    Box(
+                        Modifier
+                            .align(Alignment.TopEnd)
+                            .padding(top = topPad + 8.dp, end = 12.dp)
+                            .background(Bg.copy(alpha = 0.82f), RoundedCornerShape(4.dp))
+                            .border(1.dp, Brd, RoundedCornerShape(4.dp))
+                            .clickable {
+                                colorMode = if (colorMode == ColorMode.SPEED) ColorMode.DRIVE_MODE
+                                            else ColorMode.SPEED
+                            }
+                            .padding(horizontal = 8.dp, vertical = 4.dp)
+                    ) {
+                        MonoLabel(
+                            if (colorMode == ColorMode.SPEED) "SPD" else "MODE",
+                            9.sp, accent, FontWeight.Bold, 0.15.sp
+                        )
+                    }
+
+                    // ── Floating REC indicator (top-center, only when recording) ─
+                    if (tripState.isRecording) {
+                        Row(
+                            Modifier
+                                .align(Alignment.TopCenter)
+                                .padding(top = topPad + 10.dp)
+                                .background(Bg.copy(alpha = 0.82f), RoundedCornerShape(4.dp))
+                                .padding(horizontal = 8.dp, vertical = 4.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(5.dp)
+                        ) {
+                            Box(Modifier.size(7.dp).clip(CircleShape).background(Orange.copy(alpha = recAlpha)))
+                            MonoLabel("REC", 9.sp, Orange, FontWeight.Bold, 0.2.sp)
+                        }
+                    }
+
+                    // ── Weather overlay (top-right corner, below SPD toggle) ──
                     tripState.currentWeather?.let { weather ->
                         WeatherCard(
                             weather  = weather,
                             prefs    = prefs,
                             modifier = Modifier
                                 .align(Alignment.TopEnd)
-                                .padding(8.dp)
+                                .padding(top = topPad + 46.dp, end = 8.dp)
                         )
                     }
 
-                    // Color legend strip (bottom-left of map)
+                    // ── Color legend strip (bottom-left of map) ───────────────
                     ColorLegend(
                         colorMode = colorMode,
                         modifier  = Modifier
@@ -224,9 +292,9 @@ fun TripPage(
                     )
 
                 } else {
-                    // Permission prompt
+                    // Permission prompt — push content below status bar
                     Box(
-                        Modifier.fillMaxSize().background(Surf),
+                        Modifier.fillMaxSize().background(Surf).padding(top = topPad),
                         contentAlignment = Alignment.Center
                     ) {
                         Column(
@@ -234,6 +302,16 @@ fun TripPage(
                             verticalArrangement = Arrangement.spacedBy(12.dp),
                             modifier = Modifier.padding(24.dp)
                         ) {
+                            // Back arrow floated even on permission screen
+                            Box(
+                                Modifier
+                                    .align(Alignment.Start)
+                                    .size(32.dp)
+                                    .background(Surf2, RoundedCornerShape(8.dp))
+                                    .border(1.dp, Brd, RoundedCornerShape(8.dp))
+                                    .clickable { onDismiss() },
+                                contentAlignment = Alignment.Center
+                            ) { UIText("←", 14.sp, Mid) }
                             MonoText(
                                 "Location access required\nfor trip tracking",
                                 14.sp, Mid, textAlign = TextAlign.Center
@@ -317,7 +395,10 @@ fun TripPage(
                                 onStartTrip()
                         }
                     },
-                    modifier = Modifier.fillMaxWidth().height(44.dp),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(44.dp)
+                        .padding(bottom = bottomPad),
                     shape    = RoundedCornerShape(8.dp),
                     colors   = ButtonDefaults.buttonColors(
                         containerColor = if (tripState.isRecording) Orange else accent
@@ -358,9 +439,11 @@ fun TripPage(
 
 /**
  * OpenStreetMap map using CartoDB Dark Matter tiles.
- * Polyline segments and markers are rebuilt whenever [tripState] changes.
- * Camera auto-follows the latest recorded point, guarded against constant
- * redraws by a non-state int ref.
+ *
+ * Overlay management is incremental — polylines are added as new segments arrive
+ * rather than cleared and rebuilt every second, which eliminates the flash.
+ * The position marker is moved in-place rather than removed and re-added.
+ * Camera only animates when a trip first starts, then lets the user pan freely.
  */
 @Composable
 private fun OsmTripMap(
@@ -368,8 +451,38 @@ private fun OsmTripMap(
     segments: List<Pair<List<GeoPoint>, Color>>,
     modifier: Modifier = Modifier
 ) {
-    val ctx = LocalContext.current
-    val lastCameraSizeRef = remember { intArrayOf(-1) }
+    val ctx            = LocalContext.current
+    val lifecycleOwner = LocalLifecycleOwner.current
+
+    // mapRef uses mutableStateOf so the factory write triggers a recomposition,
+    // ensuring AndroidView.update runs AFTER Android lays out the MapView (non-zero size).
+    // All other refs are plain arrays — they don't need to drive recomposition.
+    val mapRef            = remember { mutableStateOf<MapView?>(null) }
+    val posMarkerRef      = remember { arrayOfNulls<Marker>(1) }
+    val renderedSegCount  = remember { intArrayOf(0) }
+    val prevSegmentsHash  = remember { intArrayOf(-1) }
+    val peakMarkerCount   = remember { intArrayOf(0) }
+    val centeredOnStart   = remember { booleanArrayOf(false) }
+
+    // Center map on user's last known GPS location once, so we don't show dark ocean at (0,0)
+    LaunchedEffect(Unit) {
+        try {
+            val fusedClient = LocationServices.getFusedLocationProviderClient(ctx)
+            val location = suspendCancellableCoroutine { cont ->
+                fusedClient.lastLocation
+                    .addOnSuccessListener { cont.resume(it) }
+                    .addOnFailureListener { cont.resume(null) }
+            }
+            val map = mapRef.value
+            if (location != null && map != null) {
+                map.controller.animateTo(GeoPoint(location.latitude, location.longitude))
+            } else {
+                // No location yet — zoom out so dark ocean isn't the entire view
+                mapRef.value?.controller?.setZoom(3.0)
+            }
+        } catch (_: SecurityException) {
+        }
+    }
 
     AndroidView(
         factory = { context ->
@@ -385,63 +498,91 @@ private fun OsmTripMap(
                 zoomController.setVisibility(
                     org.osmdroid.views.CustomZoomButtonsController.Visibility.NEVER
                 )
+                onResume()  // enable tile downloading before first layout
+            }.also {
+                mapRef.value = it   // mutableStateOf write → triggers recomposition → update runs after layout
+                it.post { it.invalidate() }  // redraw after first layout frame with correct dimensions
             }
         },
         update = { mapView ->
-            mapView.overlays.clear()
+            // ── Polylines — incremental ───────────────────────────────────────
+            val newHash = System.identityHashCode(segments)
+            if (newHash != prevSegmentsHash[0]) {
+                val fullRebuild = segments.size <= renderedSegCount[0]
+                if (fullRebuild) {
+                    // Color mode changed or trip reset — remove existing polylines
+                    mapView.overlays.removeAll { it is org.osmdroid.views.overlay.Polyline }
+                    renderedSegCount[0] = 0
+                }
+                // Add only segments we haven't drawn yet
+                segments.drop(renderedSegCount[0]).forEach { (pts, color) ->
+                    if (pts.size >= 2) {
+                        org.osmdroid.views.overlay.Polyline(mapView).apply {
+                            setPoints(pts)
+                            outlinePaint.color       = color.toArgb()
+                            outlinePaint.strokeWidth = 10f
+                            outlinePaint.strokeCap   = android.graphics.Paint.Cap.ROUND
+                            outlinePaint.isAntiAlias = true
+                        }.also { mapView.overlays.add(it) }
+                    }
+                }
+                renderedSegCount[0] = segments.size
+                prevSegmentsHash[0] = newHash
+            }
 
-            // Route polyline segments
-            segments.forEach { (geoPoints, color) ->
-                if (geoPoints.size >= 2) {
-                    org.osmdroid.views.overlay.Polyline(mapView).apply {
-                        setPoints(geoPoints)
-                        outlinePaint.color       = color.toArgb()
-                        outlinePaint.strokeWidth = 10f
-                        outlinePaint.strokeCap   = android.graphics.Paint.Cap.ROUND
-                        outlinePaint.isAntiAlias = true
+            // ── Position marker — move in place, never remove/re-add ──────────
+            tripState.points.lastOrNull()?.let { pt ->
+                val gp       = GeoPoint(pt.lat, pt.lng)
+                val existing = posMarkerRef[0]
+                if (existing != null && mapView.overlays.contains(existing)) {
+                    existing.position = gp
+                } else {
+                    val m = Marker(mapView).apply {
+                        position = gp
+                        setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_CENTER)
+                        icon  = createPositionDot(ctx)
+                        title = null
+                    }
+                    mapView.overlays.add(m)
+                    posMarkerRef[0] = m
+                }
+            }
+
+            // ── Peak / RTR markers — rebuild only when count grows ────────────
+            val targetPeaks = tripState.peakEvents.size +
+                if (tripState.rtrAchievedPoint != null) 1 else 0
+            if (targetPeaks != peakMarkerCount[0]) {
+                mapView.overlays.removeAll { it is Marker && it !== posMarkerRef[0] }
+                tripState.peakEvents.forEach { event ->
+                    Marker(mapView).apply {
+                        position = GeoPoint(event.lat, event.lng)
+                        title    = event.type.label
+                        snippet  = when (event.type) {
+                            PeakType.RPM       -> "%.0f rpm".format(event.value)
+                            PeakType.BOOST     -> "%.1f psi".format(event.value)
+                            PeakType.LATERAL_G -> "%.2f g".format(event.value)
+                        }
                     }.also { mapView.overlays.add(it) }
                 }
+                tripState.rtrAchievedPoint?.let { pt ->
+                    Marker(mapView).apply {
+                        position = GeoPoint(pt.lat, pt.lng)
+                        title    = "Race Ready"
+                        snippet  = "RTR achieved here"
+                    }.also { mapView.overlays.add(it) }
+                }
+                peakMarkerCount[0] = targetPeaks
             }
 
-            // Current position dot
-            tripState.points.lastOrNull()?.let { pt ->
-                Marker(mapView).apply {
-                    position = GeoPoint(pt.lat, pt.lng)
-                    setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_CENTER)
-                    icon  = createPositionDot(ctx)
-                    title = null
-                }.also { mapView.overlays.add(it) }
-            }
-
-            // Peak event markers
-            tripState.peakEvents.forEach { event ->
-                Marker(mapView).apply {
-                    position = GeoPoint(event.lat, event.lng)
-                    title    = event.type.label
-                    snippet  = when (event.type) {
-                        PeakType.RPM       -> "%.0f rpm".format(event.value)
-                        PeakType.BOOST     -> "%.1f psi".format(event.value)
-                        PeakType.LATERAL_G -> "%.2f g".format(event.value)
-                    }
-                }.also { mapView.overlays.add(it) }
-            }
-
-            // Race-Ready marker
-            tripState.rtrAchievedPoint?.let { pt ->
-                Marker(mapView).apply {
-                    position = GeoPoint(pt.lat, pt.lng)
-                    title    = "Race Ready"
-                    snippet  = "RTR achieved here"
-                }.also { mapView.overlays.add(it) }
-            }
-
-            // Camera: animate only when a new GPS point is added
-            val currentSize = tripState.points.size
-            if (currentSize != lastCameraSizeRef[0]) {
-                tripState.points.lastOrNull()?.let { pt ->
+            // ── Camera — center once when trip starts, then hands-free ────────
+            if (tripState.isRecording && tripState.points.size == 1 && !centeredOnStart[0]) {
+                tripState.points.first().let { pt ->
                     mapView.controller.animateTo(GeoPoint(pt.lat, pt.lng))
                 }
-                lastCameraSizeRef[0] = currentSize
+                centeredOnStart[0] = true
+            }
+            if (!tripState.isRecording) {
+                centeredOnStart[0] = false  // reset so next trip re-centres
             }
 
             mapView.invalidate()
@@ -449,79 +590,28 @@ private fun OsmTripMap(
         modifier = modifier
     )
 
-    // OSMDroid lifecycle
-    DisposableEffect(Unit) {
-        onDispose { /* AndroidView handles detach */ }
-    }
-}
-
-// ═══════════════════════════════════════════════════════════════════════════
-// TRIP HEADER
-// ═══════════════════════════════════════════════════════════════════════════
-
-@Composable
-private fun TripHeader(
-    isRecording: Boolean,
-    colorMode: ColorMode,
-    onColorMode: () -> Unit,
-    onDismiss: () -> Unit
-) {
-    val accent = LocalThemeAccent.current
-    val infiniteTransition = rememberInfiniteTransition(label = "rec")
-    val recAlpha by infiniteTransition.animateFloat(
-        initialValue = 1f, targetValue = 0.2f, label = "recDot",
-        animationSpec = infiniteRepeatable(tween(700, easing = EaseInOut), RepeatMode.Reverse)
-    )
-
-    Row(
-        Modifier
-            .fillMaxWidth()
-            .background(Surf)
-            .border(1.dp, Brd)
-            .padding(horizontal = 12.dp, vertical = 8.dp),
-        horizontalArrangement = Arrangement.SpaceBetween,
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Box(
-            Modifier
-                .size(28.dp)
-                .background(Surf2, RoundedCornerShape(6.dp))
-                .border(1.dp, Brd, RoundedCornerShape(6.dp))
-                .clickable { onDismiss() },
-            contentAlignment = Alignment.Center
-        ) { UIText("←", 14.sp, Mid) }
-
-        Spacer(Modifier.width(8.dp))
-
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(6.dp),
-            modifier = Modifier.weight(1f)
-        ) {
-            MonoLabel("TRIP MAP", 11.sp, Frost, FontWeight.Bold, 0.2.sp)
-            if (isRecording) {
-                Box(
-                    Modifier.size(7.dp).clip(CircleShape)
-                        .background(Orange.copy(alpha = recAlpha))
-                )
-                MonoLabel("REC", 9.sp, Orange, FontWeight.Bold, 0.2.sp)
+    // OSMDroid requires explicit lifecycle callbacks to load tiles and release resources
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            when (event) {
+                Lifecycle.Event.ON_RESUME -> mapRef.value?.onResume()
+                Lifecycle.Event.ON_PAUSE  -> mapRef.value?.onPause()
+                else -> {}
             }
         }
-
-        Box(
-            Modifier
-                .background(Surf2, RoundedCornerShape(4.dp))
-                .border(1.dp, Brd, RoundedCornerShape(4.dp))
-                .clickable { onColorMode() }
-                .padding(horizontal = 8.dp, vertical = 4.dp)
-        ) {
-            MonoLabel(
-                if (colorMode == ColorMode.SPEED) "SPD" else "MODE",
-                9.sp, accent, FontWeight.Bold, 0.15.sp
-            )
+        lifecycleOwner.lifecycle.addObserver(observer)
+        if (lifecycleOwner.lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED)) {
+            mapRef.value?.onResume()
+        }
+        onDispose {
+            lifecycleOwner.lifecycle.removeObserver(observer)
+            mapRef.value?.onPause()
         }
     }
 }
+
+// TripHeader removed — back arrow, SPD toggle, and REC indicator are now
+// floating overlays directly on the map. See TripPage composable.
 
 // ═══════════════════════════════════════════════════════════════════════════
 // WEATHER CARD
