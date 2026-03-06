@@ -44,6 +44,14 @@ object AppSettings {
     const val DEFAULT_AUTO_RECONNECT     = true
     const val DEFAULT_RECONNECT_INTERVAL = 10   // seconds
 
+    // ── Theme ────────────────────────────────────────────────────────────────
+    const val KEY_THEME_ID     = "theme_id"
+    const val DEFAULT_THEME_ID = "cyan"          // RS Nitrous Blue default
+
+    // ── Temperature preset ───────────────────────────────────────────────────
+    const val KEY_TEMP_PRESET     = "temp_preset"
+    const val DEFAULT_TEMP_PRESET = "street"     // "street" | "track" | "race"
+
     // ── Read helpers ────────────────────────────────────────────────────────
 
     fun getHost(ctx: Context): String =
@@ -76,6 +84,12 @@ object AppSettings {
     fun getReconnectInterval(ctx: Context): Int =
         prefs(ctx).getInt(KEY_RECONNECT_INTERVAL, DEFAULT_RECONNECT_INTERVAL)
 
+    fun getThemeId(ctx: Context): String =
+        prefs(ctx).getString(KEY_THEME_ID, DEFAULT_THEME_ID) ?: DEFAULT_THEME_ID
+
+    fun getTempPreset(ctx: Context): String =
+        prefs(ctx).getString(KEY_TEMP_PRESET, DEFAULT_TEMP_PRESET) ?: DEFAULT_TEMP_PRESET
+
     // ── Write helpers ────────────────────────────────────────────────────────
 
     fun save(ctx: Context, host: String, port: Int) {
@@ -95,18 +109,22 @@ object AppSettings {
             putBoolean(KEY_SCREEN_ON,  p.screenOn)
             putBoolean(KEY_AUTO_RECONNECT,    p.autoReconnect)
             putInt   (KEY_RECONNECT_INTERVAL, p.reconnectIntervalSec)
+            putString(KEY_THEME_ID,    p.themeId)
+            putString(KEY_TEMP_PRESET, p.tempPreset)
         }
     }
 
     fun load(ctx: Context): UserPrefs = UserPrefs(
-        speedUnit          = getSpeedUnit(ctx),
-        tempUnit           = getTempUnit(ctx),
-        boostUnit          = getBoostUnit(ctx),
-        tireUnit           = getTireUnit(ctx),
-        tireLowPsi         = getTireLowPsi(ctx),
-        screenOn           = getScreenOn(ctx),
-        autoReconnect      = getAutoReconnect(ctx),
-        reconnectIntervalSec = getReconnectInterval(ctx)
+        speedUnit            = getSpeedUnit(ctx),
+        tempUnit             = getTempUnit(ctx),
+        boostUnit            = getBoostUnit(ctx),
+        tireUnit             = getTireUnit(ctx),
+        tireLowPsi           = getTireLowPsi(ctx),
+        screenOn             = getScreenOn(ctx),
+        autoReconnect        = getAutoReconnect(ctx),
+        reconnectIntervalSec = getReconnectInterval(ctx),
+        themeId              = getThemeId(ctx),
+        tempPreset           = getTempPreset(ctx)
     )
 
     private fun prefs(ctx: Context) =
