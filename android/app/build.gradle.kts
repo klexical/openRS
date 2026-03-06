@@ -78,12 +78,6 @@ android {
 }
 
 dependencies {
-    // ── aauto-sdk (unofficial) — custom full-screen AA UI identical to phone app
-    implementation(fileTree(mapOf("dir" to "libs", "include" to listOf("*.aar"))))
-
-    // ── Android Auto (Car App Library — kept for RSDashCarAppService fallback) ────
-    implementation("androidx.car.app:app:1.4.0")
-
     // ── Jetpack Compose (Phone UI) ──────────────────────────
     val composeBom = platform("androidx.compose:compose-bom:2024.11.00")
     implementation(composeBom)

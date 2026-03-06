@@ -28,35 +28,9 @@
         </activity>
 
         <service
-            android:name=".auto.RSDashCarAppService"
-            android:exported="true">
-            <intent-filter>
-                <action android:name="androidx.car.app.CarAppService" />
-                <category android:name="androidx.car.app.category.IOT" />
-            </intent-filter>
-        </service>
-
-        <service
             android:name=".service.CanDataService"
             android:exported="false"
             android:foregroundServiceType="connectedDevice" />
-
-        <!-- Custom Android Auto Activity (aauto-sdk) — full Compose UI on head unit -->
-        <activity
-            android:name=".auto.CarDashActivity"
-            android:exported="true"
-            android:launchMode="singleTask"
-            android:theme="@style/Theme.OpenRS"
-            android:configChanges="orientation|screenSize|keyboardHidden">
-            <intent-filter>
-                <action android:name="android.intent.action.MAIN" />
-                <category android:name="com.google.android.gms.car.category.PROJECTION" />
-            </intent-filter>
-        </activity>
-
-        <meta-data
-            android:name="com.google.android.gms.car.application"
-            android:resource="@xml/automotive_app_desc" />
 
         <!-- FileProvider for sharing diagnostic ZIP files -->
         <provider
