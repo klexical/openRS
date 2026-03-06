@@ -30,6 +30,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
@@ -47,22 +48,49 @@ import com.openrs.dash.data.VehicleState
 import com.openrs.dash.service.CanDataService
 import kotlin.math.roundToInt
 
-// ── Brand colours (unchanged from design system) ────────────────────────────
-val Bg      = Color(0xFF0A0A0A)
-val Surf    = Color(0xFF141414)
-val Surf2   = Color(0xFF1C1C1C)
-val Surf3   = Color(0xFF242424)
-val Brd     = Color(0xFF2A2A2A)
-val Frost   = Color(0xFFF5F6F4)
-val Dim     = Color(0xFF555555)
-val Mid     = Color(0xFF888888)
-val Accent  = Color(0xFF00AEEF)
-val AccentD = Color(0xFF0077A8)
-val Grn     = Color(0xFF22C55E)
-val Amber   = Color(0xFFF59E0B)
-val Red     = Color(0xFFEF4444)
+// ═══════════════════════════════════════════════════════════════════════════
+// DESIGN SYSTEM — F1 PALETTE
+// ═══════════════════════════════════════════════════════════════════════════
 
-// ── Fonts ──────────────────────────────────────────────────────────────────
+// Core backgrounds (deep navy-black)
+val Bg      = Color(0xFF05070A)
+val Surf    = Color(0xFF0A0D12)
+val Surf2   = Color(0xFF0F141C)
+val Surf3   = Color(0xFF141B26)
+
+// Borders and text
+val Brd     = Color(0xFF162030)     // Default border (dark navy)
+val Frost   = Color(0xFFE8F4FF)     // Primary text (near-white, blue tint)
+val Dim     = Color(0xFF3D5A72)     // Muted / dim text
+val Mid     = Color(0xFF7A9AB8)     // Medium emphasis
+
+// Accent colors
+val Accent  = Color(0xFF00D2FF)     // Cyan — primary interactive
+val AccentD = Color(0xFF0099BB)     // Darker cyan
+val Orange  = Color(0xFFFF4D00)     // Orange-red — aggressive/hot
+val Ok      = Color(0xFF00FF88)     // Neon green — good/ok
+val Warn    = Color(0xFFFFCC00)     // Gold — attention/warm
+
+// Aliases (keep backwards-compat with composables using old names)
+val Grn   get() = Ok
+val Amber get() = Warn
+val Red   get() = Orange
+
+// ── CompositionLocal for theme accent ─────────────────────────────────────
+val LocalThemeAccent = compositionLocalOf { Accent }
+
+// ═══════════════════════════════════════════════════════════════════════════
+// FONTS
+// ═══════════════════════════════════════════════════════════════════════════
+
+val OrbitronFamily = FontFamily(
+    Font(R.font.orbitron_regular, FontWeight.Normal),
+    Font(R.font.orbitron_bold,    FontWeight.Bold)
+)
+val JetBrainsMonoFamily = FontFamily(
+    Font(R.font.jetbrains_mono_regular, FontWeight.Normal),
+    Font(R.font.jetbrains_mono_bold,    FontWeight.Bold)
+)
 val ShareTechMono = FontFamily(Font(R.font.share_tech_mono, FontWeight.Normal))
 val BarlowCond    = FontFamily(
     Font(R.font.barlow_condensed_regular,  FontWeight.Normal),
@@ -71,21 +99,62 @@ val BarlowCond    = FontFamily(
     Font(R.font.barlow_condensed_bold,     FontWeight.Bold)
 )
 
-// ── Typographic helpers ─────────────────────────────────────────────────────
-/** All numeric readouts — Share Tech Mono */
-@Composable fun MonoText(text: String, fontSize: androidx.compose.ui.unit.TextUnit,
-    color: Color = Frost, fontWeight: FontWeight = FontWeight.Normal,
-    textAlign: TextAlign = TextAlign.Start, modifier: Modifier = Modifier) =
-    Text(text, fontSize = fontSize, fontFamily = ShareTechMono, color = color,
-        fontWeight = fontWeight, textAlign = textAlign, modifier = modifier)
+// ═══════════════════════════════════════════════════════════════════════════
+// TYPOGRAPHY HELPERS
+// ═══════════════════════════════════════════════════════════════════════════
 
-/** Labels and UI text — Barlow Condensed */
-@Composable fun UIText(text: String, fontSize: androidx.compose.ui.unit.TextUnit,
-    color: Color = Frost, fontWeight: FontWeight = FontWeight.Normal,
+/** Large hero numeric values — Orbitron Bold */
+@Composable fun HeroNum(
+    text: String,
+    fontSize: androidx.compose.ui.unit.TextUnit,
+    color: Color = Frost,
+    modifier: Modifier = Modifier
+) = Text(
+    text, fontSize = fontSize, fontFamily = OrbitronFamily, color = color,
+    fontWeight = FontWeight.Bold, textAlign = TextAlign.Center,
+    lineHeight = fontSize * 1.1f, modifier = modifier
+)
+
+/** Small monospace labels — JetBrains Mono */
+@Composable fun MonoLabel(
+    text: String,
+    fontSize: androidx.compose.ui.unit.TextUnit,
+    color: Color = Dim,
+    fontWeight: FontWeight = FontWeight.Normal,
+    letterSpacing: androidx.compose.ui.unit.TextUnit = 0.15.sp,
+    modifier: Modifier = Modifier
+) = Text(
+    text, fontSize = fontSize, fontFamily = JetBrainsMonoFamily, color = color,
+    fontWeight = fontWeight, letterSpacing = letterSpacing, modifier = modifier
+)
+
+/** Monospace readouts (frame console, raw values) — Share Tech Mono */
+@Composable fun MonoText(
+    text: String,
+    fontSize: androidx.compose.ui.unit.TextUnit,
+    color: Color = Frost,
+    fontWeight: FontWeight = FontWeight.Normal,
+    textAlign: TextAlign = TextAlign.Start,
+    modifier: Modifier = Modifier
+) = Text(
+    text, fontSize = fontSize, fontFamily = ShareTechMono, color = color,
+    fontWeight = fontWeight, textAlign = textAlign, modifier = modifier
+)
+
+/** Body / label text — Barlow Condensed */
+@Composable fun UIText(
+    text: String,
+    fontSize: androidx.compose.ui.unit.TextUnit,
+    color: Color = Frost,
+    fontWeight: FontWeight = FontWeight.Normal,
     letterSpacing: androidx.compose.ui.unit.TextUnit = 0.sp,
-    textAlign: TextAlign = TextAlign.Start, modifier: Modifier = Modifier) =
-    Text(text, fontSize = fontSize, fontFamily = BarlowCond, color = color,
-        fontWeight = fontWeight, letterSpacing = letterSpacing, textAlign = textAlign, modifier = modifier)
+    textAlign: TextAlign = TextAlign.Start,
+    modifier: Modifier = Modifier
+) = Text(
+    text, fontSize = fontSize, fontFamily = BarlowCond, color = color,
+    fontWeight = fontWeight, letterSpacing = letterSpacing, textAlign = textAlign,
+    modifier = modifier
+)
 
 // ═══════════════════════════════════════════════════════════════════════════
 // ACTIVITY
@@ -113,12 +182,11 @@ class MainActivity : ComponentActivity() {
         if (perms.isNotEmpty()) permLauncher.launch(perms.toTypedArray()) else startSvc()
 
         setContent {
-            val vs    by OpenRSDashApp.instance.vehicleState.collectAsState()
-            val prefs by UserPrefsStore.prefs.collectAsState()
-            val debugLines by OpenRSDashApp.instance.debugLines.collectAsState()
-            var tab   by remember { mutableIntStateOf(0) }
-            var drawerOpen    by remember { mutableStateOf(false) }
-            var settingsOpen  by remember { mutableStateOf(false) }
+            val vs          by OpenRSDashApp.instance.vehicleState.collectAsState()
+            val prefs       by UserPrefsStore.prefs.collectAsState()
+            val debugLines  by OpenRSDashApp.instance.debugLines.collectAsState()
+            var tab         by remember { mutableIntStateOf(0) }
+            var settingsOpen by remember { mutableStateOf(false) }
             val snackbarHostState = remember { SnackbarHostState() }
 
             val view = LocalView.current
@@ -126,53 +194,50 @@ class MainActivity : ComponentActivity() {
                 view.keepScreenOn = prefs.screenOn && vs.isConnected
             }
 
-            MaterialTheme(colorScheme = darkColorScheme(background = Bg, surface = Surf, primary = Accent)) {
-                Scaffold(
-                    snackbarHost = { SnackbarHost(snackbarHostState) },
-                    containerColor = Bg
-                ) { innerPadding ->
-                    Box(Modifier.fillMaxSize().padding(innerPadding).background(Bg)
-                        .statusBarsPadding().navigationBarsPadding()) {
-
-                        Column(Modifier.fillMaxSize()) {
-                            AppHeader(
-                                vs           = vs,
-                                onSettings   = { settingsOpen = true },
-                                onConnect    = { service?.startConnection() },
-                                onDisconnect = { service?.stopConnection() },
-                                onReconnect  = { service?.reconnect() }
-                            )
-                            NewTabBar(tab, onSelect = { tab = it }, onDrawer = { drawerOpen = true })
-                            Box(Modifier.weight(1f)) {
-                                when (tab) {
-                                    0 -> DashPage(vs, prefs)
-                                    1 -> PowerPage(vs, prefs)
-                                    2 -> ChassisPage(vs, prefs, onReset = { service?.resetPeaks() })
-                                    3 -> TempsPage(vs, prefs)
-                                    4 -> DiagPage(debugLines, vs)
+            // Provide theme accent to all child composables
+            CompositionLocalProvider(LocalThemeAccent provides prefs.themeAccent) {
+                MaterialTheme(
+                    colorScheme = darkColorScheme(
+                        background = Bg,
+                        surface    = Surf,
+                        primary    = prefs.themeAccent
+                    )
+                ) {
+                    Scaffold(
+                        snackbarHost  = { SnackbarHost(snackbarHostState) },
+                        containerColor = Bg
+                    ) { innerPadding ->
+                        Box(
+                            Modifier.fillMaxSize().padding(innerPadding)
+                                .background(Bg).statusBarsPadding().navigationBarsPadding()
+                        ) {
+                            Column(Modifier.fillMaxSize()) {
+                                AppHeader(
+                                    vs           = vs,
+                                    prefs        = prefs,
+                                    onSettings   = { settingsOpen = true },
+                                    onConnect    = { service?.startConnection() },
+                                    onDisconnect = { service?.stopConnection() },
+                                    onReconnect  = { service?.reconnect() }
+                                )
+                                TabBar(tab, onSelect = { tab = it })
+                                Box(Modifier.weight(1f)) {
+                                    when (tab) {
+                                        0 -> DashPage(vs, prefs)
+                                        1 -> PowerPage(vs, prefs)
+                                        2 -> ChassisPage(vs, prefs, onReset = { service?.resetPeaks() })
+                                        3 -> TempsPage(vs, prefs)
+                                        4 -> DiagPage(debugLines, vs)
+                                        5 -> MorePage(vs, prefs, snackbarHostState, onSettings = { settingsOpen = true })
+                                    }
                                 }
                             }
-                        }
 
-                        // System Drawer (☰)
-                        if (drawerOpen) {
-                            Box(Modifier.fillMaxSize()
-                                .background(Color.Black.copy(alpha = 0.7f))
-                                .clickable { drawerOpen = false })
-                            SystemDrawer(
-                                vs = vs,
-                                snackbarHostState = snackbarHostState,
-                                onDismiss = { drawerOpen = false }
-                            )
+                            // Settings sheet (triggered from header ⚙ or MORE tab)
+                            if (settingsOpen) {
+                                SettingsDialog(onDismiss = { settingsOpen = false })
+                            }
                         }
-
-                        // Settings sheet
-                        if (settingsOpen) {
-                            SettingsDialog(onDismiss = { settingsOpen = false })
-                        }
-
-                        // Drawer open button — bottom right of tab bar
-                        // Placed as floating action via the NewTabBar's menu slot
                     }
                 }
             }
@@ -196,61 +261,76 @@ class MainActivity : ComponentActivity() {
 // ═══════════════════════════════════════════════════════════════════════════
 @Composable fun AppHeader(
     vs: VehicleState,
+    prefs: UserPrefs,
     onSettings: () -> Unit,
     onConnect: () -> Unit,
     onDisconnect: () -> Unit,
     onReconnect: () -> Unit
 ) {
+    val accent = LocalThemeAccent.current
     val modeColor = when (vs.driveMode) {
-        DriveMode.SPORT  -> Grn
-        DriveMode.TRACK  -> Amber
+        DriveMode.SPORT  -> Ok
+        DriveMode.TRACK  -> Warn
         DriveMode.DRIFT  -> Red
-        else             -> Accent
+        else             -> accent
     }
 
-    // Pulsing connection dot animation
+    // Pulsing connection dot
     val infiniteTransition = rememberInfiniteTransition(label = "conn")
     val dotAlpha by infiniteTransition.animateFloat(
         initialValue = 1f, targetValue = 0.3f, label = "dot",
-        animationSpec = infiniteRepeatable(
-            animation = tween(1000, easing = EaseInOut),
-            repeatMode = RepeatMode.Reverse
-        )
+        animationSpec = infiniteRepeatable(tween(1000, easing = EaseInOut), RepeatMode.Reverse)
     )
     val connColor = when {
-        vs.isConnected -> Grn
-        vs.isIdle      -> Amber
+        vs.isConnected -> Ok
+        vs.isIdle      -> Warn
         else           -> Red
     }
 
     Row(
-        Modifier.fillMaxWidth().background(Surf)
+        Modifier.fillMaxWidth()
+            .background(Surf)
             .border(width = 1.dp, color = Brd, shape = RoundedCornerShape(0.dp))
-            .padding(horizontal = 14.dp, vertical = 8.dp),
+            .padding(horizontal = 16.dp, vertical = 9.dp),
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically
     ) {
         // Logo
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            UIText("open", 18.sp, Frost, FontWeight.Bold)
-            UIText("RS", 18.sp, Accent, FontWeight.Bold)
-            UIText("_", 18.sp, Frost, FontWeight.Bold)
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(1.dp)) {
+            Text(
+                "openRS", fontSize = 18.sp, fontFamily = OrbitronFamily,
+                color = Frost, fontWeight = FontWeight.Bold,
+                letterSpacing = 0.05.sp
+            )
+            Text(
+                "_", fontSize = 18.sp, fontFamily = OrbitronFamily,
+                color = accent, fontWeight = FontWeight.Bold
+            )
         }
 
-        // Status items
+        // Right side: drive mode badge, ESC, dot, ⚙
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             // Drive mode badge
             Box(
-                Modifier.background(modeColor, RoundedCornerShape(4.dp))
+                Modifier
+                    .background(modeColor.copy(alpha = 0.15f), RoundedCornerShape(4.dp))
+                    .border(1.dp, modeColor.copy(alpha = 0.4f), RoundedCornerShape(4.dp))
                     .padding(horizontal = 8.dp, vertical = 3.dp)
             ) {
-                UIText(vs.driveMode.label.uppercase(), 11.sp, Color.Black, FontWeight.Bold, 1.sp)
+                MonoLabel(vs.driveMode.label.uppercase(), 10.sp, modeColor, FontWeight.Bold, 0.1.sp)
             }
 
-            // ESC
-            UIText(vs.escStatus.label, 10.sp, Mid, FontWeight.Medium, 0.5.sp)
+            // ESC badge
+            Box(
+                Modifier
+                    .background(accent.copy(alpha = 0.08f), RoundedCornerShape(4.dp))
+                    .border(1.dp, accent.copy(alpha = 0.25f), RoundedCornerShape(4.dp))
+                    .padding(horizontal = 6.dp, vertical = 3.dp)
+            ) {
+                MonoLabel(vs.escStatus.label, 9.sp, accent, letterSpacing = 0.08.sp)
+            }
 
-            // Connection dot
+            // Connection dot (tap to connect/disconnect)
             Box(
                 Modifier.size(8.dp).clip(CircleShape)
                     .background(connColor.copy(alpha = if (vs.isConnected) dotAlpha else 1f))
@@ -263,7 +343,7 @@ class MainActivity : ComponentActivity() {
                     }
             )
 
-            // Settings gear
+            // Settings
             Box(
                 Modifier.size(28.dp)
                     .background(Surf2, RoundedCornerShape(6.dp))
@@ -278,42 +358,48 @@ class MainActivity : ComponentActivity() {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// TAB BAR (4 tabs + ☰ menu)
+// TAB BAR — 6 tabs with icons
 // ═══════════════════════════════════════════════════════════════════════════
-@Composable fun NewTabBar(
-    selected: Int,
-    onSelect: (Int) -> Unit,
-    onDrawer: (() -> Unit)? = null
-) {
-    val tabs = listOf("DASH", "POWER", "CHASSIS", "TEMPS", "DIAG")
+@Composable fun TabBar(selected: Int, onSelect: (Int) -> Unit) {
+    val accent = LocalThemeAccent.current
+    val tabs = listOf(
+        "⚡" to "DASH",
+        "◈" to "POWER",
+        "◎" to "CHASSIS",
+        "△" to "TEMPS",
+        "≡" to "DIAG",
+        "☰" to "MORE"
+    )
     Row(
-        Modifier.fillMaxWidth().background(Surf)
+        Modifier.fillMaxWidth()
+            .background(Surf)
             .border(width = 1.dp, color = Brd, shape = RoundedCornerShape(0.dp))
-            .height(40.dp)
+            .height(52.dp)
     ) {
-        tabs.forEachIndexed { i, label ->
+        tabs.forEachIndexed { i, (icon, label) ->
+            val isActive = i == selected
             Box(
                 Modifier.weight(1f).fillMaxHeight()
                     .clickable { onSelect(i) }
-                    .then(if (i == selected) Modifier.background(Accent.copy(alpha = 0.08f)) else Modifier),
+                    .background(
+                        if (isActive) accent.copy(alpha = 0.05f) else Color.Transparent
+                    ),
                 contentAlignment = Alignment.Center
             ) {
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    UIText(label, 11.sp, if (i == selected) Accent else Dim, FontWeight.Bold, 1.sp)
-                    if (i == selected) {
-                        Box(Modifier.fillMaxWidth(0.6f).height(2.dp)
-                            .background(Accent, RoundedCornerShape(topStart = 2.dp, topEnd = 2.dp)))
-                    }
+                Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
+                    MonoLabel(icon, 13.sp, if (isActive) accent else Dim)
+                    Spacer(Modifier.height(2.dp))
+                    MonoLabel(label, 8.sp, if (isActive) accent else Dim, letterSpacing = 0.12.sp)
+                }
+                // Active underline
+                if (isActive) {
+                    Box(
+                        Modifier.align(Alignment.BottomCenter)
+                            .fillMaxWidth(0.6f).height(2.dp)
+                            .background(accent, RoundedCornerShape(topStart = 2.dp, topEnd = 2.dp))
+                    )
                 }
             }
-        }
-        // ☰ System Drawer button
-        Box(
-            Modifier.width(42.dp).fillMaxHeight()
-                .clickable { onDrawer?.invoke() },
-            contentAlignment = Alignment.Center
-        ) {
-            UIText("☰", 16.sp, Dim)
         }
     }
 }
@@ -322,53 +408,90 @@ class MainActivity : ComponentActivity() {
 // SHARED COMPONENTS
 // ═══════════════════════════════════════════════════════════════════════════
 
-/** Section label with left blue bar */
+/** Section label: small text with extending horizontal rule */
 @Composable fun SectionLabel(text: String, modifier: Modifier = Modifier) {
-    Row(modifier.padding(bottom = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-        Box(Modifier.width(2.dp).height(14.dp).background(Accent))
-        Spacer(Modifier.width(6.dp))
-        UIText(text, 10.sp, Dim, FontWeight.Bold, 2.sp)
+    Row(
+        modifier.padding(bottom = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        MonoLabel(text, 9.sp, Dim, letterSpacing = 0.2.sp)
+        Box(Modifier.weight(1f).height(1.dp).background(Brd))
     }
 }
 
-/** Small data cell — label + mono value */
-@Composable fun DataCell(label: String, value: String, valueColor: Color = Frost, modifier: Modifier = Modifier) {
+/** Data cell — JetBrains Mono label + value */
+@Composable fun DataCell(
+    label: String,
+    value: String,
+    valueColor: Color = Frost,
+    modifier: Modifier = Modifier
+) {
     Column(
-        modifier.background(Surf, RoundedCornerShape(8.dp))
-            .border(1.dp, Brd, RoundedCornerShape(8.dp))
-            .padding(horizontal = 7.dp, vertical = 6.dp)
+        modifier
+            .background(Surf2, RoundedCornerShape(10.dp))
+            .border(1.dp, Brd, RoundedCornerShape(10.dp))
+            .padding(horizontal = 10.dp, vertical = 8.dp)
     ) {
-        UIText(label, 9.sp, Dim, FontWeight.SemiBold, 1.2.sp)
-        Spacer(Modifier.height(2.dp))
+        MonoLabel(label, 8.sp, Dim, letterSpacing = 0.15.sp)
+        Spacer(Modifier.height(3.dp))
         MonoText(value, 14.sp, valueColor)
     }
 }
 
-/** Hero gauge — large reading in a card */
-@Composable fun HeroGauge(
-    label: String, value: String, unit: String,
+/** Hero card — large Orbitron number for BOOST / SPEED / RPM */
+@Composable fun HeroCard(
+    unit: String,
+    value: String,
+    label: String,
+    valueColor: Color,
     modifier: Modifier = Modifier,
-    big: Boolean = false,
-    valueColor: Color = Frost,
-    accentTop: Boolean = false
+    borderAccent: Color? = null
 ) {
-    Box(
-        modifier.background(if (big) Surf2 else Surf, RoundedCornerShape(10.dp))
-            .border(1.dp, if (big) AccentD else Brd, RoundedCornerShape(10.dp))
+    val accent = LocalThemeAccent.current
+    val brd = borderAccent ?: Brd
+    Column(
+        modifier
+            .background(Surf2, RoundedCornerShape(16.dp))
+            .border(1.dp, brd, RoundedCornerShape(16.dp))
+            .padding(horizontal = 8.dp, vertical = 14.dp),
+        horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        if (accentTop || big) {
-            Box(Modifier.fillMaxWidth().height(2.dp)
-                .background(if (big) Accent else Accent.copy(alpha = 0.5f),
-                    RoundedCornerShape(topStart = 10.dp, topEnd = 10.dp)))
+        MonoLabel(unit, 8.sp, Dim, letterSpacing = 0.18.sp)
+        Spacer(Modifier.height(4.dp))
+        HeroNum(value, 26.sp, valueColor, Modifier.fillMaxWidth())
+        Spacer(Modifier.height(4.dp))
+        MonoLabel(label, 8.sp, Dim, letterSpacing = 0.15.sp)
+    }
+}
+
+/** Bar card — label + value + gradient progress bar */
+@Composable fun BarCard(
+    name: String,
+    value: String,
+    fraction: Float,
+    barBrush: Brush,
+    modifier: Modifier = Modifier
+) {
+    Column(
+        modifier
+            .background(Surf2, RoundedCornerShape(12.dp))
+            .border(1.dp, Brd, RoundedCornerShape(12.dp))
+            .padding(12.dp)
+    ) {
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+            MonoLabel(name, 9.sp, Dim, letterSpacing = 0.15.sp)
+            MonoText(value, 13.sp, Frost)
         }
-        Column(
-            Modifier.padding(10.dp, 12.dp, 10.dp, 10.dp),
-            horizontalAlignment = Alignment.CenterHorizontally
+        Spacer(Modifier.height(7.dp))
+        Box(
+            Modifier.fillMaxWidth().height(4.dp)
+                .background(Surf3, RoundedCornerShape(2.dp))
         ) {
-            UIText(label, 9.sp, Dim, FontWeight.SemiBold, 1.5.sp)
-            MonoText(value, if (big) 44.sp else 34.sp, valueColor, textAlign = TextAlign.Center,
-                modifier = Modifier.fillMaxWidth())
-            if (unit.isNotEmpty()) UIText(unit, 10.sp, Dim, letterSpacing = 1.sp)
+            Box(
+                Modifier.fillMaxWidth(fraction.coerceIn(0f, 1f)).fillMaxHeight()
+                    .background(barBrush, RoundedCornerShape(2.dp))
+            )
         }
     }
 }
@@ -377,47 +500,90 @@ class MainActivity : ComponentActivity() {
 // DASH PAGE
 // ═══════════════════════════════════════════════════════════════════════════
 @Composable fun DashPage(vs: VehicleState, p: UserPrefs) {
+    val accent = LocalThemeAccent.current
     val (boostVal, boostLbl) = p.displayBoost(vs.boostKpa)
     val brakeStr = "%.0f".format(vs.brakePressure.coerceIn(0.0, 100.0))
 
-    Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(10.dp),
-        verticalArrangement = Arrangement.spacedBy(6.dp)) {
-
-        // Hero row: Boost | RPM (big, blue) | Speed
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-            HeroGauge("BOOST", boostVal, boostLbl, Modifier.weight(1f), accentTop = true)
-            HeroGauge("RPM", "${vs.rpm.roundToInt()}", "×1000",
-                Modifier.weight(1.3f), big = true, valueColor = Accent)
-            HeroGauge("SPEED", p.displaySpeed(vs.speedKph), p.speedLabel,
-                Modifier.weight(1f), accentTop = true)
+    Column(
+        Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(12.dp),
+        verticalArrangement = Arrangement.spacedBy(10.dp)
+    ) {
+        // ── Hero Row: BOOST | SPEED | RPM ──────────────────────────────────
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            HeroCard(
+                unit = boostLbl, value = boostVal, label = "BOOST",
+                valueColor = Warn,
+                borderAccent = Warn.copy(alpha = 0.25f),
+                modifier = Modifier.weight(1f)
+            )
+            HeroCard(
+                unit = "×1000", value = "%.2f".format(vs.rpm / 1000.0), label = "RPM",
+                valueColor = Red,
+                borderAccent = Red.copy(alpha = 0.2f),
+                modifier = Modifier.weight(1f)
+            )
+            HeroCard(
+                unit = p.speedLabel, value = p.displaySpeed(vs.speedKph), label = "SPEED",
+                valueColor = accent,
+                borderAccent = accent.copy(alpha = 0.25f),
+                modifier = Modifier.weight(1f)
+            )
         }
 
-        // Info grid 4×2
-        val oilColor  = tempColorShade(vs.oilTempC, 120.0, 130.0)
-        val coolColor = tempColorShade(vs.coolantTempC, 105.0, 110.0)
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(5.dp)) {
-            DataCell("THROTTLE", "${vs.throttlePct.roundToInt()}%", valueColor = Accent, modifier = Modifier.weight(1f))
-            DataCell("BRAKE",    "$brakeStr%",                                       modifier = Modifier.weight(1f))
-            DataCell("TORQUE",   "${vs.torqueAtTrans.roundToInt()} Nm",              modifier = Modifier.weight(1f))
-            DataCell("OIL",      "${p.displayTemp(vs.oilTempC)}${p.tempLabel}", valueColor = oilColor, modifier = Modifier.weight(1f))
+        // ── Inputs & Resources bar grid ─────────────────────────────────────
+        SectionLabel("INPUTS & RESOURCES")
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            BarCard(
+                name = "THROTTLE", value = "${vs.throttlePct.roundToInt()}%",
+                fraction = (vs.throttlePct / 100.0).toFloat(),
+                barBrush = Brush.horizontalGradient(listOf(accent.copy(0.4f), accent)),
+                modifier = Modifier.weight(1f)
+            )
+            BarCard(
+                name = "BRAKE", value = "$brakeStr%",
+                fraction = (vs.brakePressure / 100.0).toFloat().coerceIn(0f, 1f),
+                barBrush = Brush.horizontalGradient(listOf(Red.copy(0.4f), Red)),
+                modifier = Modifier.weight(1f)
+            )
         }
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(5.dp)) {
-            DataCell("COOLANT",  "${p.displayTemp(vs.coolantTempC)}${p.tempLabel}", valueColor = coolColor, modifier = Modifier.weight(1f))
-            DataCell("INTAKE",   "${p.displayTemp(vs.intakeTempC)}${p.tempLabel}",  modifier = Modifier.weight(1f))
-            DataCell("FUEL",     "${vs.fuelLevelPct.roundToInt()}%",                modifier = Modifier.weight(1f))
-            DataCell("BATT",     "${"%.1f".format(vs.batteryVoltage)}V",            modifier = Modifier.weight(1f))
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            BarCard(
+                name = "FUEL", value = "${vs.fuelLevelPct.roundToInt()}%",
+                fraction = (vs.fuelLevelPct / 100.0).toFloat(),
+                barBrush = Brush.horizontalGradient(listOf(Ok.copy(0.4f), Ok)),
+                modifier = Modifier.weight(1f)
+            )
+            BarCard(
+                name = "BATTERY", value = "${"%.1f".format(vs.batteryVoltage)}V",
+                fraction = ((vs.batteryVoltage - 10.0) / 6.0).toFloat().coerceIn(0f, 1f),
+                barBrush = Brush.horizontalGradient(listOf(Warn.copy(0.4f), Warn)),
+                modifier = Modifier.weight(1f)
+            )
         }
 
-        // AWD split bar
+        // ── AWD Split ──────────────────────────────────────────────────────
+        SectionLabel("AWD SPLIT")
         AwdSplitBar(vs)
 
-        // G-force mini row
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(5.dp)) {
-            DataCell("LAT G",  "${"%.2f".format(vs.lateralG)}g",   modifier = Modifier.weight(1f))
-            DataCell("LON G",  "${"%.2f".format(vs.longitudinalG)}g", modifier = Modifier.weight(1f))
+        // ── Temps Quick ────────────────────────────────────────────────────
+        SectionLabel("TEMPS QUICK")
+        val oilColor  = tempColorShade(vs.oilTempC, p.oilWarnC, p.oilCritC)
+        val coolColor = tempColorShade(vs.coolantTempC, p.coolWarnC, p.coolCritC)
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            DataCell("OIL",     "${p.displayTemp(vs.oilTempC)}${p.tempLabel}",     valueColor = oilColor,  modifier = Modifier.weight(1f))
+            DataCell("COOLANT", "${p.displayTemp(vs.coolantTempC)}${p.tempLabel}", valueColor = coolColor, modifier = Modifier.weight(1f))
+            DataCell("INTAKE",  "${p.displayTemp(vs.intakeTempC)}${p.tempLabel}",  modifier = Modifier.weight(1f))
+            DataCell("OIL LIFE", if (vs.oilLifePct >= 0) "${vs.oilLifePct.roundToInt()}%" else "—", modifier = Modifier.weight(1f))
         }
 
-        // Odometer row with tap-to-toggle km ↔ mi
+        // ── G-Force mini ──────────────────────────────────────────────────
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            DataCell("LAT G",  "${"%.2f".format(vs.lateralG)}g",      modifier = Modifier.weight(1f))
+            DataCell("LON G",  "${"%.2f".format(vs.longitudinalG)}g", modifier = Modifier.weight(1f))
+            DataCell("TORQUE", "${vs.torqueAtTrans.roundToInt()} Nm",  modifier = Modifier.weight(1f))
+        }
+
+        // ── Odometer toggle ───────────────────────────────────────────────
         var odomInMiles by remember { mutableStateOf(false) }
         val odomLabel = if (odomInMiles) "ODO (mi)" else "ODO (km)"
         val odomValue = when {
@@ -425,331 +591,346 @@ class MainActivity : ComponentActivity() {
             odomInMiles       -> "${"%.0f".format(vs.odometerKm * 0.621371)} mi"
             else              -> "${"%.0f".format(vs.odometerKm.toDouble())} km"
         }
-        Row(Modifier.fillMaxWidth()) {
-            Box(
-                Modifier.fillMaxWidth()
-                    .background(Surf, RoundedCornerShape(10.dp))
-                    .border(1.dp, Brd, RoundedCornerShape(10.dp))
-                    .clickable(enabled = vs.odometerKm >= 0) { odomInMiles = !odomInMiles }
-                    .padding(horizontal = 12.dp, vertical = 8.dp),
+        Box(
+            Modifier.fillMaxWidth()
+                .background(Surf2, RoundedCornerShape(12.dp))
+                .border(1.dp, Brd, RoundedCornerShape(12.dp))
+                .clickable(enabled = vs.odometerKm >= 0) { odomInMiles = !odomInMiles }
+                .padding(horizontal = 14.dp, vertical = 10.dp)
+        ) {
+            Row(
+                Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                Row(
-                    Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    UIText(odomLabel, 10.sp, Dim, FontWeight.SemiBold, 1.sp)
-                    MonoText(odomValue, 16.sp, if (vs.odometerKm >= 0) Frost else Dim)
-                }
-                if (vs.odometerKm >= 0) {
-                    UIText("tap to toggle", 9.sp, Dim, modifier = Modifier.align(Alignment.CenterEnd).padding(end = 70.dp))
-                }
+                MonoLabel(odomLabel, 9.sp, Dim, letterSpacing = 0.15.sp)
+                MonoText(odomValue, 16.sp, if (vs.odometerKm >= 0) Frost else Dim)
+            }
+            if (vs.odometerKm >= 0) {
+                MonoLabel("tap to toggle", 8.sp, Dim,
+                    modifier = Modifier.align(Alignment.CenterEnd).padding(end = 74.dp))
             }
         }
     }
 }
 
 @Composable fun AwdSplitBar(vs: VehicleState) {
-    val rearPct = vs.rearTorquePct.coerceIn(0.0, 100.0).toFloat()
-    val frontPct = (100f - rearPct).coerceIn(0.01f, 99.99f)
-    val rearF    = rearPct.coerceIn(0.01f, 99.99f)
+    val accent = LocalThemeAccent.current
+    val rearPct   = vs.rearTorquePct.coerceIn(0.0, 100.0).toFloat()
+    val frontPct  = (100f - rearPct).coerceIn(0.01f, 99.99f)
+    val rearF     = rearPct.coerceIn(0.01f, 99.99f)
+
     Column(
-        Modifier.fillMaxWidth().background(Surf, RoundedCornerShape(10.dp))
-            .border(1.dp, Brd, RoundedCornerShape(10.dp)).padding(10.dp, 10.dp, 10.dp, 8.dp)
+        Modifier.fillMaxWidth()
+            .background(Surf2, RoundedCornerShape(12.dp))
+            .border(1.dp, Brd, RoundedCornerShape(12.dp))
+            .padding(14.dp)
     ) {
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically) {
-            UIText("AWD SPLIT — FRONT / REAR", 10.sp, Dim, FontWeight.SemiBold, 1.5.sp)
-            MonoText(vs.frontRearSplit, 16.sp, Accent)
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+            Column {
+                MonoLabel("FRONT", 8.sp, Dim, letterSpacing = 0.12.sp)
+                HeroNum("${(100 - rearPct).roundToInt()}%", 18.sp, accent)
+            }
+            Row(
+                Modifier.weight(1f).padding(horizontal = 12.dp).height(10.dp)
+                    .background(Surf3, RoundedCornerShape(5.dp))
+            ) {
+                Box(Modifier.weight(frontPct).fillMaxHeight()
+                    .background(Brush.horizontalGradient(listOf(accent, accent.copy(0.5f))),
+                        RoundedCornerShape(topStart = 5.dp, bottomStart = 5.dp)))
+                Box(Modifier.weight(rearF).fillMaxHeight()
+                    .background(Brush.horizontalGradient(listOf(Ok.copy(0.5f), Ok)),
+                        RoundedCornerShape(topEnd = 5.dp, bottomEnd = 5.dp)))
+            }
+            Column(horizontalAlignment = Alignment.End) {
+                MonoLabel("REAR", 8.sp, Dim, letterSpacing = 0.12.sp)
+                HeroNum("${rearPct.roundToInt()}%", 18.sp, Ok)
+            }
         }
         Spacer(Modifier.height(8.dp))
-        Row(Modifier.fillMaxWidth().height(8.dp).background(Surf3, RoundedCornerShape(4.dp))) {
-            Box(Modifier.weight(frontPct).fillMaxHeight()
-                .background(
-                    androidx.compose.ui.graphics.Brush.horizontalGradient(
-                        listOf(Accent, Accent.copy(alpha = 0.5f))),
-                    RoundedCornerShape(topStart = 4.dp, bottomStart = 4.dp)))
-            Box(Modifier.weight(rearF).fillMaxHeight()
-                .background(
-                    androidx.compose.ui.graphics.Brush.horizontalGradient(
-                        listOf(Grn.copy(alpha = 0.5f), Grn)),
-                    RoundedCornerShape(topEnd = 4.dp, bottomEnd = 4.dp)))
-        }
-        Row(Modifier.fillMaxWidth().padding(top = 4.dp), horizontalArrangement = Arrangement.SpaceBetween) {
-            UIText("← FRONT", 9.sp, Dim)
-            UIText("REAR →", 9.sp, Dim)
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+            MonoText("L ${vs.awdLeftTorque.roundToInt()} Nm", 11.sp, accent)
+            MonoLabel(vs.frontRearSplit, 10.sp, Mid)
+            MonoText("${vs.awdRightTorque.roundToInt()} Nm R", 11.sp, Ok)
         }
     }
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// POWER PAGE (was TUNE)
+// POWER PAGE
 // ═══════════════════════════════════════════════════════════════════════════
 @Composable fun PowerPage(vs: VehicleState, p: UserPrefs) {
+    val accent = LocalThemeAccent.current
     val hasAfr = vs.afrActual > 0
-    val placeholder = "— —"
+    val ph = "— —"
 
-    Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(10.dp),
-        verticalArrangement = Arrangement.spacedBy(10.dp)) {
-
+    Column(
+        Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(12.dp),
+        verticalArrangement = Arrangement.spacedBy(10.dp)
+    ) {
         // AFR hero 3 cards
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-            AfrCard("AFR ACT",  if (hasAfr) "%.2f".format(vs.afrActual) else placeholder, ":1",
-                if (hasAfr) Accent else Dim, Modifier.weight(1f))
-            AfrCard("AFR DES",  if (hasAfr) "%.2f".format(vs.afrDesired) else placeholder, ":1",
-                if (hasAfr) Frost else Dim, Modifier.weight(1f))
-            AfrCard("LAMBDA",   if (hasAfr) "%.3f".format(vs.lambdaActual) else placeholder, "λ",
-                if (hasAfr) Grn else Dim, Modifier.weight(1f))
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            AfrCard("AFR ACT",  if (hasAfr) "%.2f".format(vs.afrActual)   else ph, ":1",
+                if (hasAfr) accent else Dim, Modifier.weight(1f))
+            AfrCard("AFR DES",  if (hasAfr) "%.2f".format(vs.afrDesired)  else ph, ":1",
+                if (hasAfr) Frost else Dim,  Modifier.weight(1f))
+            AfrCard("LAMBDA",   if (hasAfr) "%.3f".format(vs.lambdaActual) else ph, "λ",
+                if (hasAfr) Ok else Dim,     Modifier.weight(1f))
         }
 
-        // Throttle & Boost
-        SectionLabel("Throttle & Boost")
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(5.dp)) {
-            DataCell("ETC ACT", if (vs.etcAngleActual > 0) "${"%.1f".format(vs.etcAngleActual)}°" else placeholder, modifier = Modifier.weight(1f))
-            DataCell("ETC DES", if (vs.etcAngleDesired > 0) "${"%.1f".format(vs.etcAngleDesired)}°" else placeholder, modifier = Modifier.weight(1f))
-            DataCell("WGDC",    if (vs.wgdcDesired > 0) "${"%.0f".format(vs.wgdcDesired)}%" else placeholder, valueColor = Accent, modifier = Modifier.weight(1f))
+        SectionLabel("THROTTLE & BOOST")
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            DataCell("ETC ACT", if (vs.etcAngleActual > 0) "${"%.1f".format(vs.etcAngleActual)}°" else ph, modifier = Modifier.weight(1f))
+            DataCell("ETC DES", if (vs.etcAngleDesired > 0) "${"%.1f".format(vs.etcAngleDesired)}°" else ph, modifier = Modifier.weight(1f))
+            DataCell("WGDC",    if (vs.wgdcDesired > 0) "${"%.0f".format(vs.wgdcDesired)}%" else ph, valueColor = accent, modifier = Modifier.weight(1f))
         }
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(5.dp)) {
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             val (tipActVal, tipLbl) = p.displayBoost(vs.tipActualKpa)
             val (tipDesVal, _)      = p.displayBoost(vs.tipDesiredKpa)
             val hasTip = vs.tipActualKpa > 50
-            DataCell("TIP ACT",   if (hasTip) "$tipActVal $tipLbl" else placeholder, modifier = Modifier.weight(1f))
-            DataCell("TIP DES",   if (hasTip) "$tipDesVal $tipLbl" else placeholder, modifier = Modifier.weight(1f))
-            DataCell("HP FUEL",   if (vs.hpFuelRailPsi >= 0) "${"%.0f".format(vs.hpFuelRailPsi)} PSI" else placeholder, modifier = Modifier.weight(1f))
+            DataCell("TIP ACT", if (hasTip) "$tipActVal $tipLbl" else ph, modifier = Modifier.weight(1f))
+            DataCell("TIP DES", if (hasTip) "$tipDesVal $tipLbl" else ph, modifier = Modifier.weight(1f))
+            DataCell("HP FUEL", if (vs.hpFuelRailPsi >= 0) "${"%.0f".format(vs.hpFuelRailPsi)} PSI" else ph, modifier = Modifier.weight(1f))
         }
 
-        // Engine Management
-        SectionLabel("Engine Management")
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(5.dp)) {
-            DataCell("TIMING", if (vs.timingAdvance != 0.0) "${"%.1f".format(vs.timingAdvance)}°" else placeholder, modifier = Modifier.weight(1f))
-            DataCell("LOAD",   if (vs.calcLoad > 0) "${"%.0f".format(vs.calcLoad)}%" else placeholder,             modifier = Modifier.weight(1f))
-            DataCell("OAR",    if (vs.octaneAdjustRatio != 0.0) "${"%.0f".format(vs.octaneAdjustRatio * 100)}%" else placeholder, modifier = Modifier.weight(1f))
+        SectionLabel("ENGINE MANAGEMENT")
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            DataCell("TIMING", if (vs.timingAdvance != 0.0) "${"%.1f".format(vs.timingAdvance)}°" else ph, modifier = Modifier.weight(1f))
+            DataCell("LOAD",   if (vs.calcLoad > 0) "${"%.0f".format(vs.calcLoad)}%" else ph,              modifier = Modifier.weight(1f))
+            DataCell("OAR",    if (vs.octaneAdjustRatio != 0.0) "${"%.0f".format(vs.octaneAdjustRatio * 100)}%" else ph, modifier = Modifier.weight(1f))
         }
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(5.dp)) {
-            val krColor = if (vs.ignCorrCyl1 < -1.0) Amber else Grn
-            DataCell("KR CYL1", if (vs.ignCorrCyl1 != 0.0) "${"%.2f".format(vs.ignCorrCyl1)}°" else placeholder, valueColor = krColor, modifier = Modifier.weight(1f))
-            DataCell("VCT-I",   if (vs.vctIntakeAngle != 0.0) "${"%.1f".format(vs.vctIntakeAngle)}°" else placeholder, modifier = Modifier.weight(1f))
-            DataCell("VCT-E",   if (vs.vctExhaustAngle != 0.0) "${"%.1f".format(vs.vctExhaustAngle)}°" else placeholder, modifier = Modifier.weight(1f))
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            val krColor = if (vs.ignCorrCyl1 < -1.0) Warn else Ok
+            DataCell("KR CYL1", if (vs.ignCorrCyl1 != 0.0) "${"%.2f".format(vs.ignCorrCyl1)}°" else ph, valueColor = krColor, modifier = Modifier.weight(1f))
+            DataCell("VCT-I",   if (vs.vctIntakeAngle != 0.0) "${"%.1f".format(vs.vctIntakeAngle)}°" else ph, modifier = Modifier.weight(1f))
+            DataCell("VCT-E",   if (vs.vctExhaustAngle != 0.0) "${"%.1f".format(vs.vctExhaustAngle)}°" else ph, modifier = Modifier.weight(1f))
         }
 
-        // Fuel Trims & Misc
-        SectionLabel("Fuel Trims & Misc")
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(5.dp)) {
+        SectionLabel("FUEL TRIMS & AFR")
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             val stftColor = fuelTrimColor(vs.shortFuelTrim)
             val ltftColor = fuelTrimColor(vs.longFuelTrim)
-            DataCell("SHORT FT",  if (vs.shortFuelTrim != 0.0) "${"%.1f".format(vs.shortFuelTrim)}%" else placeholder, valueColor = stftColor, modifier = Modifier.weight(1f))
-            DataCell("LONG FT",   if (vs.longFuelTrim != 0.0) "${"%.1f".format(vs.longFuelTrim)}%" else placeholder, valueColor = ltftColor, modifier = Modifier.weight(1f))
-            DataCell("BARO",      "${vs.barometricPressure.roundToInt()} kPa",                                         modifier = Modifier.weight(1f))
+            DataCell("SHORT FT", if (vs.shortFuelTrim != 0.0) "${"%.1f".format(vs.shortFuelTrim)}%" else ph, valueColor = stftColor, modifier = Modifier.weight(1f))
+            DataCell("LONG FT",  if (vs.longFuelTrim != 0.0) "${"%.1f".format(vs.longFuelTrim)}%" else ph,  valueColor = ltftColor, modifier = Modifier.weight(1f))
+            DataCell("BARO",     "${vs.barometricPressure.roundToInt()} kPa", modifier = Modifier.weight(1f))
         }
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(5.dp)) {
-            DataCell("OIL LIFE", if (vs.oilLifePct >= 0) "${vs.oilLifePct.roundToInt()}%" else placeholder, modifier = Modifier.weight(1f))
-            DataCell("AFR SEN1", if (vs.afrSensor1 > 0) "${"%.2f".format(vs.afrSensor1)}" else placeholder, modifier = Modifier.weight(1f))
-            DataCell("O2 VOLT",  if (vs.o2Voltage > 0) "${"%.3f".format(vs.o2Voltage)}V" else placeholder,  modifier = Modifier.weight(1f))
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            DataCell("OIL LIFE", if (vs.oilLifePct >= 0) "${vs.oilLifePct.roundToInt()}%" else ph, modifier = Modifier.weight(1f))
+            DataCell("AFR SEN1", if (vs.afrSensor1 > 0) "${"%.2f".format(vs.afrSensor1)}" else ph, modifier = Modifier.weight(1f))
+            DataCell("O2 VOLT",  if (vs.o2Voltage > 0) "${"%.3f".format(vs.o2Voltage)}V" else ph,  modifier = Modifier.weight(1f))
         }
     }
 }
 
 @Composable fun AfrCard(label: String, value: String, unit: String, valueColor: Color, modifier: Modifier) {
     Column(
-        modifier.background(Surf, RoundedCornerShape(10.dp))
-            .border(1.dp, Brd, RoundedCornerShape(10.dp))
-            .padding(8.dp),
+        modifier
+            .background(Surf2, RoundedCornerShape(12.dp))
+            .border(1.dp, Brd, RoundedCornerShape(12.dp))
+            .padding(10.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        UIText(label, 9.sp, Dim, FontWeight.SemiBold, 1.sp)
+        MonoLabel(label, 8.sp, Dim, letterSpacing = 0.12.sp)
         Spacer(Modifier.height(4.dp))
-        MonoText(value, 26.sp, valueColor, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth())
-        UIText(unit, 10.sp, Dim)
+        HeroNum(value, 22.sp, valueColor, Modifier.fillMaxWidth())
+        MonoLabel(unit, 9.sp, Dim)
     }
 }
 
 private fun fuelTrimColor(trim: Double) = when {
-    trim > 10.0  -> Amber
+    trim > 10.0  -> Warn
     trim < -10.0 -> Red
-    else         -> Grn
+    else         -> Ok
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
 // CHASSIS PAGE (AWD + G-Force + TPMS)
 // ═══════════════════════════════════════════════════════════════════════════
 @Composable fun ChassisPage(vs: VehicleState, p: UserPrefs, onReset: () -> Unit) {
-    Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(10.dp),
-        verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        AwdSection(vs, p)
+    Column(
+        Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(12.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
         GForceSection(vs, onReset)
+        AwdSection(vs, p)
         TpmsSection(vs, p)
     }
 }
 
 @Composable fun AwdSection(vs: VehicleState, p: UserPrefs) {
-    val total = vs.totalRearTorque
+    val accent = LocalThemeAccent.current
+    val total    = vs.totalRearTorque
     val leftPct  = if (total > 0) (vs.awdLeftTorque / total).toFloat() else 0.5f
     val rightPct = (1f - leftPct).coerceIn(0.01f, 0.99f)
     val leftPctC = leftPct.coerceIn(0.01f, 0.99f)
-
     val avgF = (vs.wheelSpeedFL + vs.wheelSpeedFR) / 2
     val avgR = (vs.wheelSpeedRL + vs.wheelSpeedRR) / 2
     val frDelta = avgR - avgF
     val lrDelta = vs.wheelSpeedRR - vs.wheelSpeedRL
 
     Column(
-        Modifier.fillMaxWidth().background(Surf, RoundedCornerShape(12.dp))
-            .border(1.dp, Brd, RoundedCornerShape(12.dp)).padding(12.dp)
+        Modifier.fillMaxWidth()
+            .background(Surf, RoundedCornerShape(16.dp))
+            .border(1.dp, Brd, RoundedCornerShape(16.dp))
+            .padding(14.dp)
     ) {
-        SectionLabel("AWD — GKN Twinster")
+        SectionLabel("AWD — GKN TWINSTER")
 
-        // Wheel speed grid: FL [split/RDU] FR / RL [blank] RR
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp),
-            verticalAlignment = Alignment.CenterVertically) {
-            // Left column: FL + RL
-            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        Row(
+            Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 WheelCell("FL", "${"%.1f".format(vs.wheelSpeedFL)}", front = true)
                 WheelCell("RL", "${"%.1f".format(vs.wheelSpeedRL)}", front = false)
             }
-            // Center column: split + RDU
-            Column(Modifier.weight(0.7f), horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                MonoText(vs.frontRearSplit, 18.sp, Accent, textAlign = TextAlign.Center,
-                    modifier = Modifier.fillMaxWidth())
-                UIText("F / R", 9.sp, Dim, FontWeight.SemiBold, 1.sp, TextAlign.Center, Modifier.fillMaxWidth())
+            Column(Modifier.weight(0.8f), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                HeroNum(vs.frontRearSplit, 20.sp, accent)
+                MonoLabel("F / R", 8.sp, Dim, letterSpacing = 0.1.sp)
                 Spacer(Modifier.height(4.dp))
                 val rduStr = if (vs.rduTempC > -90) "${p.displayTemp(vs.rduTempC)}${p.tempLabel}" else "—"
-                UIText("RDU", 8.sp, Dim, FontWeight.SemiBold, 1.sp, TextAlign.Center, Modifier.fillMaxWidth())
-                MonoText(rduStr, 12.sp, Mid, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth())
+                MonoLabel("RDU", 8.sp, Dim, letterSpacing = 0.1.sp)
+                MonoText(rduStr, 12.sp, Mid)
             }
-            // Right column: FR + RR
-            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 WheelCell("FR", "${"%.1f".format(vs.wheelSpeedFR)}", front = true)
                 WheelCell("RR", "${"%.1f".format(vs.wheelSpeedRR)}", front = false)
             }
         }
 
-        Spacer(Modifier.height(10.dp))
-
-        // Torque bar
+        Spacer(Modifier.height(12.dp))
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-            MonoText("L ${vs.awdLeftTorque.roundToInt()}Nm", 10.sp, Accent)
-            MonoText("${vs.awdRightTorque.roundToInt()}Nm R", 10.sp, Grn)
+            MonoText("L ${vs.awdLeftTorque.roundToInt()} Nm", 10.sp, accent)
+            MonoText("${vs.awdRightTorque.roundToInt()} Nm R", 10.sp, Ok)
         }
-        Row(Modifier.fillMaxWidth().height(10.dp).background(Surf3, RoundedCornerShape(5.dp))) {
+        Spacer(Modifier.height(4.dp))
+        Row(Modifier.fillMaxWidth().height(8.dp).background(Surf3, RoundedCornerShape(4.dp))) {
             Box(Modifier.weight(leftPctC).fillMaxHeight()
-                .background(androidx.compose.ui.graphics.Brush.horizontalGradient(listOf(Accent, Accent.copy(0.4f))),
-                    RoundedCornerShape(topStart = 5.dp, bottomStart = 5.dp)))
+                .background(Brush.horizontalGradient(listOf(accent, accent.copy(0.4f))),
+                    RoundedCornerShape(topStart = 4.dp, bottomStart = 4.dp)))
             Box(Modifier.weight(rightPct).fillMaxHeight()
-                .background(androidx.compose.ui.graphics.Brush.horizontalGradient(listOf(Grn.copy(0.4f), Grn)),
-                    RoundedCornerShape(topEnd = 5.dp, bottomEnd = 5.dp)))
+                .background(Brush.horizontalGradient(listOf(Ok.copy(0.4f), Ok)),
+                    RoundedCornerShape(topEnd = 4.dp, bottomEnd = 4.dp)))
         }
-        Row(Modifier.fillMaxWidth().padding(top = 4.dp), horizontalArrangement = Arrangement.SpaceBetween) {
-            UIText("REAR BIAS ${vs.rearLeftRightBias}", 9.sp, Dim)
-            UIText("L/R DELTA ${"%.1f".format(lrDelta)}", 9.sp, Dim)
-        }
-
         Spacer(Modifier.height(8.dp))
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(5.dp)) {
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            DataCell("REAR BIAS", vs.rearLeftRightBias, modifier = Modifier.weight(1f))
+            DataCell("L/R DELTA", "${"%.1f".format(lrDelta)} km/h", modifier = Modifier.weight(1f))
             DataCell("F/R DELTA", "${"%.1f".format(frDelta)} km/h", modifier = Modifier.weight(1f))
-            DataCell("MAX TQ",    "${vs.awdMaxTorque.roundToInt()} Nm",  modifier = Modifier.weight(1f))
         }
     }
 }
 
 @Composable fun WheelCell(label: String, speed: String, front: Boolean) {
-    val accentColor = if (front) Accent.copy(alpha = 0.4f) else Grn.copy(alpha = 0.3f)
+    val accent = LocalThemeAccent.current
+    val borderColor = if (front) accent.copy(alpha = 0.35f) else Ok.copy(alpha = 0.3f)
     Column(
-        Modifier.fillMaxWidth().background(Surf2, RoundedCornerShape(8.dp))
-            .border(1.dp, accentColor, RoundedCornerShape(8.dp)).padding(8.dp),
+        Modifier.fillMaxWidth()
+            .background(Surf2, RoundedCornerShape(10.dp))
+            .border(1.dp, borderColor, RoundedCornerShape(10.dp))
+            .padding(8.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        UIText(label, 9.sp, Dim, FontWeight.SemiBold, 1.sp)
+        MonoLabel(label, 9.sp, Dim, letterSpacing = 0.12.sp)
+        Spacer(Modifier.height(2.dp))
         MonoText(speed, 16.sp, Frost)
     }
 }
 
 @Composable fun GForceSection(vs: VehicleState, onReset: () -> Unit) {
     Column(
-        Modifier.fillMaxWidth().background(Surf, RoundedCornerShape(12.dp))
-            .border(1.dp, Brd, RoundedCornerShape(12.dp)).padding(12.dp)
+        Modifier.fillMaxWidth()
+            .background(Surf, RoundedCornerShape(16.dp))
+            .border(1.dp, Brd, RoundedCornerShape(16.dp))
+            .padding(14.dp)
     ) {
-        SectionLabel("G-Force & Dynamics")
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-            GfCard("LAT G",    "${"%.2f".format(vs.lateralG)}",    "↑ ${"%.2f".format(vs.peakLateralG)}",    Modifier.weight(1f))
-            GfCard("LON G",    "${"%.2f".format(vs.longitudinalG)}","↑ ${"%.2f".format(vs.peakLongitudinalG)}", Modifier.weight(1f))
-            GfCard("COMBINED", "${"%.2f".format(vs.combinedG)}",   "",                                         Modifier.weight(1f))
+        SectionLabel("G-FORCE & DYNAMICS")
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            GfCard("LAT G",    "${"%.2f".format(vs.lateralG)}",      "▲ ${"%.2f".format(vs.peakLateralG)}",    Modifier.weight(1f))
+            GfCard("LON G",    "${"%.2f".format(vs.longitudinalG)}", "▲ ${"%.2f".format(vs.peakLongitudinalG)}", Modifier.weight(1f))
+            GfCard("COMBINED", "${"%.2f".format(vs.combinedG)}",     "", Modifier.weight(1f))
         }
-        Spacer(Modifier.height(6.dp))
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-            GfCard("YAW",   "${"%.1f".format(vs.yawRate)}°/s", "",  Modifier.weight(1f))
+        Spacer(Modifier.height(8.dp))
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            GfCard("YAW",   "${"%.1f".format(vs.yawRate)}°/s", "", Modifier.weight(1f))
             GfCard("STEER", "${"%.1f".format(vs.steeringAngle)}°",  "", Modifier.weight(1f))
-            // Reset button inline
-            Box(Modifier.weight(1f).background(Surf2, RoundedCornerShape(8.dp))
-                .border(1.dp, Brd, RoundedCornerShape(8.dp))
-                .clickable { onReset() }.padding(vertical = 12.dp),
-                contentAlignment = Alignment.Center) {
-                UIText("↺ PEAKS", 11.sp, Dim, FontWeight.SemiBold, 1.5.sp)
+            Box(
+                Modifier.weight(1f)
+                    .background(Surf2, RoundedCornerShape(10.dp))
+                    .border(1.dp, Brd, RoundedCornerShape(10.dp))
+                    .clickable { onReset() }
+                    .padding(vertical = 12.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                MonoLabel("↺ PEAKS", 10.sp, Dim, letterSpacing = 0.15.sp)
             }
         }
     }
 }
 
 @Composable fun GfCard(label: String, value: String, peak: String, modifier: Modifier) {
+    val accent = LocalThemeAccent.current
     Column(
-        modifier.background(Surf2, RoundedCornerShape(8.dp))
-            .border(1.dp, Brd, RoundedCornerShape(8.dp)).padding(8.dp),
+        modifier
+            .background(Surf2, RoundedCornerShape(10.dp))
+            .border(1.dp, Brd, RoundedCornerShape(10.dp))
+            .padding(8.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        UIText(label, 9.sp, Dim, FontWeight.SemiBold, 1.sp)
-        Spacer(Modifier.height(2.dp))
-        MonoText(value, 20.sp, Frost, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth())
+        MonoLabel(label, 8.sp, Dim, letterSpacing = 0.12.sp)
+        Spacer(Modifier.height(3.dp))
+        MonoText(value, 18.sp, Frost, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth())
         if (peak.isNotEmpty()) {
-            MonoText(peak, 10.sp, Accent, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth())
+            MonoText(peak, 9.sp, accent, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth())
         }
     }
 }
 
 @Composable fun TpmsSection(vs: VehicleState, p: UserPrefs) {
     Column(
-        Modifier.fillMaxWidth().background(Surf, RoundedCornerShape(12.dp))
-            .border(1.dp, Brd, RoundedCornerShape(12.dp)).padding(12.dp)
+        Modifier.fillMaxWidth()
+            .background(Surf, RoundedCornerShape(16.dp))
+            .border(1.dp, Brd, RoundedCornerShape(16.dp))
+            .padding(14.dp)
     ) {
-        SectionLabel("TPMS — Tire Pressure")
+        SectionLabel("TPMS — TIRE PRESSURE")
 
         if (!vs.hasTpmsData) {
-            // Ghost waiting state
-            Box(Modifier.fillMaxWidth().padding(vertical = 12.dp), contentAlignment = Alignment.Center) {
+            Box(Modifier.fillMaxWidth().padding(vertical = 16.dp), contentAlignment = Alignment.Center) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    // Simple car outline SVG representation using boxes
                     CarOutlinePlaceholder()
                     Spacer(Modifier.height(12.dp))
-                    UIText("WAITING FOR SENSOR DATA", 11.sp, Dim, FontWeight.SemiBold, 2.sp, TextAlign.Center)
-                    UIText("Sensors transmit when wheels are rolling", 10.sp, Dim.copy(alpha = 0.7f),
-                        textAlign = TextAlign.Center, modifier = Modifier.padding(top = 4.dp))
+                    MonoLabel("WAITING FOR SENSOR DATA", 10.sp, Dim, letterSpacing = 0.15.sp)
+                    Spacer(Modifier.height(4.dp))
+                    MonoLabel("Sensors transmit when wheels are rolling", 9.sp, Dim.copy(alpha = 0.7f))
                 }
             }
         } else {
-            // Tires around car outline
             val lowThreshold = p.tireLowPsi.toDouble()
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp),
-                verticalAlignment = Alignment.CenterVertically) {
-                // Left tires
-                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
+                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     TireCard("LF", vs.tirePressLF, p, lowThreshold)
                     TireCard("LR", vs.tirePressLR, p, lowThreshold)
                 }
-                // Car outline center
-                Box(Modifier.width(52.dp), contentAlignment = Alignment.Center) {
+                Box(Modifier.width(56.dp), contentAlignment = Alignment.Center) {
                     CarOutlinePlaceholder(compact = true)
                 }
-                // Right tires
-                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     TireCard("RF", vs.tirePressRF, p, lowThreshold)
                     TireCard("RR", vs.tirePressRR, p, lowThreshold)
                 }
             }
             if (vs.anyTireLow(lowThreshold)) {
-                Spacer(Modifier.height(8.dp))
-                Box(Modifier.fillMaxWidth().background(Red.copy(alpha = 0.1f), RoundedCornerShape(6.dp))
-                    .border(1.dp, Red.copy(alpha = 0.5f), RoundedCornerShape(6.dp)).padding(8.dp),
-                    contentAlignment = Alignment.Center) {
-                    UIText("⚠ LOW TIRE PRESSURE", 11.sp, Red, FontWeight.Bold, 1.5.sp)
+                Spacer(Modifier.height(10.dp))
+                Box(
+                    Modifier.fillMaxWidth()
+                        .background(Red.copy(alpha = 0.1f), RoundedCornerShape(8.dp))
+                        .border(1.dp, Red.copy(alpha = 0.5f), RoundedCornerShape(8.dp))
+                        .padding(10.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    MonoLabel("⚠ LOW TIRE PRESSURE", 10.sp, Red, letterSpacing = 0.2.sp)
                 }
             }
         }
@@ -757,25 +938,25 @@ private fun fuelTrimColor(trim: Double) = when {
 }
 
 @Composable fun TireCard(label: String, psi: Double, p: UserPrefs, lowThreshold: Double) {
-    val isLow = psi in 0.0..(lowThreshold - 0.001)
+    val isLow     = psi in 0.0..(lowThreshold - 0.001)
     val isMissing = psi < 0
     val tireColor = when {
         isMissing -> Dim
         isLow     -> Red
-        psi > 40.0 -> Amber
-        else      -> Grn
+        psi > 40.0 -> Warn
+        else      -> Ok
     }
     Column(
-        Modifier.fillMaxWidth().background(Surf2, RoundedCornerShape(8.dp))
-            .border(1.dp, if (isLow) Red.copy(0.5f) else Brd, RoundedCornerShape(8.dp))
-            .padding(8.dp, 6.dp),
+        Modifier.fillMaxWidth()
+            .background(Surf2, RoundedCornerShape(10.dp))
+            .border(1.dp, if (isLow) Red.copy(0.5f) else Brd, RoundedCornerShape(10.dp))
+            .padding(8.dp, 7.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        UIText(label, 9.sp, Dim, FontWeight.SemiBold, 1.sp)
-        Spacer(Modifier.height(3.dp))
-        MonoText(if (isMissing) "—" else p.displayTire(psi), 18.sp, tireColor, textAlign = TextAlign.Center,
-            modifier = Modifier.fillMaxWidth())
-        UIText(p.tireLabel, 9.sp, Dim, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth())
+        MonoLabel(label, 9.sp, Dim, letterSpacing = 0.12.sp)
+        Spacer(Modifier.height(4.dp))
+        HeroNum(if (isMissing) "—" else p.displayTire(psi), 18.sp, tireColor)
+        MonoLabel(p.tireLabel, 8.sp, Dim, letterSpacing = 0.1.sp)
     }
 }
 
@@ -783,30 +964,17 @@ private fun fuelTrimColor(trim: Double) = when {
     val w = if (compact) 48.dp else 72.dp
     val h = if (compact) 96.dp else 128.dp
     Box(Modifier.width(w).height(h), contentAlignment = Alignment.Center) {
-        // Body
         Box(Modifier.width(w * 0.7f).height(h * 0.7f)
             .background(Surf2, RoundedCornerShape(10.dp))
             .border(1.dp, Brd.copy(alpha = 0.7f), RoundedCornerShape(10.dp)))
-        // FL wheel
-        Box(Modifier.size(w * 0.18f, h * 0.14f)
-            .offset(x = -w * 0.4f, y = -h * 0.28f)
-            .background(Surf3, RoundedCornerShape(3.dp))
-            .border(1.dp, Dim, RoundedCornerShape(3.dp)))
-        // FR wheel
-        Box(Modifier.size(w * 0.18f, h * 0.14f)
-            .offset(x = w * 0.4f, y = -h * 0.28f)
-            .background(Surf3, RoundedCornerShape(3.dp))
-            .border(1.dp, Dim, RoundedCornerShape(3.dp)))
-        // RL wheel
-        Box(Modifier.size(w * 0.18f, h * 0.14f)
-            .offset(x = -w * 0.4f, y = h * 0.28f)
-            .background(Surf3, RoundedCornerShape(3.dp))
-            .border(1.dp, Dim, RoundedCornerShape(3.dp)))
-        // RR wheel
-        Box(Modifier.size(w * 0.18f, h * 0.14f)
-            .offset(x = w * 0.4f, y = h * 0.28f)
-            .background(Surf3, RoundedCornerShape(3.dp))
-            .border(1.dp, Dim, RoundedCornerShape(3.dp)))
+        Box(Modifier.size(w * 0.18f, h * 0.14f).offset(x = -w * 0.4f, y = -h * 0.28f)
+            .background(Surf3, RoundedCornerShape(3.dp)).border(1.dp, Dim, RoundedCornerShape(3.dp)))
+        Box(Modifier.size(w * 0.18f, h * 0.14f).offset(x = w * 0.4f, y = -h * 0.28f)
+            .background(Surf3, RoundedCornerShape(3.dp)).border(1.dp, Dim, RoundedCornerShape(3.dp)))
+        Box(Modifier.size(w * 0.18f, h * 0.14f).offset(x = -w * 0.4f, y = h * 0.28f)
+            .background(Surf3, RoundedCornerShape(3.dp)).border(1.dp, Dim, RoundedCornerShape(3.dp)))
+        Box(Modifier.size(w * 0.18f, h * 0.14f).offset(x = w * 0.4f, y = h * 0.28f)
+            .background(Surf3, RoundedCornerShape(3.dp)).border(1.dp, Dim, RoundedCornerShape(3.dp)))
     }
 }
 
@@ -814,34 +982,49 @@ private fun fuelTrimColor(trim: Double) = when {
 // TEMPS PAGE
 // ═══════════════════════════════════════════════════════════════════════════
 @Composable fun TempsPage(vs: VehicleState, p: UserPrefs) {
-    Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(10.dp),
-        verticalArrangement = Arrangement.spacedBy(8.dp)) {
-
-        // RTR Banner
+    Column(
+        Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(12.dp),
+        verticalArrangement = Arrangement.spacedBy(10.dp)
+    ) {
+        // Warm-up / RTR banner
         RtrBanner(vs, p)
 
-        // Temp grid 2-col
-        val tempItems = listOf(
-            TempSpec("ENGINE OIL", p.displayTemp(vs.oilTempC),     p.tempLabel, vs.oilTempC,      120.0, 130.0, "INFERRED"),
-            TempSpec("COOLANT",    p.displayTemp(vs.coolantTempC),  p.tempLabel, vs.coolantTempC,  105.0, 110.0, ""),
-            TempSpec("INTAKE AIR", p.displayTemp(vs.intakeTempC),   p.tempLabel, vs.intakeTempC,   60.0,  80.0,  ""),
-            TempSpec("AMBIENT",    p.displayTemp(vs.ambientTempC),  p.tempLabel, vs.ambientTempC,  40.0,  50.0,  ""),
-            TempSpec("RDU (REAR DIFF)", p.displayTemp(vs.rduTempC.takeIf { it > -90 } ?: 0.0), p.tempLabel, vs.rduTempC.takeIf { it > -90 } ?: 0.0, 80.0, 100.0,
-                if (vs.rduTempC <= -90) "POLLING" else ""),
-            TempSpec("PTU (TRANSFER)",  p.displayTemp(vs.ptuTempC), p.tempLabel, vs.ptuTempC,      80.0, 100.0,  ""),
-            TempSpec("CHARGE AIR",      if (vs.chargeAirTempC != 0.0) p.displayTemp(vs.chargeAirTempC) else "— —", p.tempLabel, vs.chargeAirTempC, 60.0, 80.0,
-                if (vs.chargeAirTempC == 0.0) "POLLING" else ""),
-            TempSpec("CATALYTIC",       if (vs.catalyticTempC != 0.0) p.displayTemp(vs.catalyticTempC) else "— —", p.tempLabel, vs.catalyticTempC, 700.0, 800.0,
-                if (vs.catalyticTempC == 0.0) "POLLING" else ""),
-            TempSpec("CABIN",      if (vs.cabinTempC > -90) p.displayTemp(vs.cabinTempC) else "— —", p.tempLabel, vs.cabinTempC.takeIf { it > -90 } ?: 0.0, 35.0, 45.0, "BCM"),
-            TempSpec("BATT TEMP",  if (vs.batteryTempC > -90) p.displayTemp(vs.batteryTempC) else "— —", p.tempLabel, vs.batteryTempC.takeIf { it > -90 } ?: 0.0, 40.0, 60.0, "BCM"),
-        )
+        // Temperature preset indicator
+        TempPresetBadge(p)
 
+        // Temp grid 2-col
+        SectionLabel("TEMPERATURES")
+        val tempItems = listOf(
+            TempSpec("ENGINE OIL",    p.displayTemp(vs.oilTempC),     p.tempLabel, vs.oilTempC,
+                p.oilWarnC, p.oilCritC, "INFERRED"),
+            TempSpec("COOLANT",       p.displayTemp(vs.coolantTempC), p.tempLabel, vs.coolantTempC,
+                p.coolWarnC, p.coolCritC, ""),
+            TempSpec("INTAKE AIR",    p.displayTemp(vs.intakeTempC),  p.tempLabel, vs.intakeTempC,
+                p.intakeWarnC, p.intakeCritC, ""),
+            TempSpec("AMBIENT",       p.displayTemp(vs.ambientTempC), p.tempLabel, vs.ambientTempC,
+                40.0, 50.0, ""),
+            TempSpec("RDU (REAR)",
+                if (vs.rduTempC > -90) p.displayTemp(vs.rduTempC) else "— —", p.tempLabel,
+                vs.rduTempC.takeIf { it > -90 } ?: 0.0,
+                p.rduWarnC, p.rduCritC, if (vs.rduTempC <= -90) "POLLING" else ""),
+            TempSpec("PTU (TRANSFER)", p.displayTemp(vs.ptuTempC), p.tempLabel, vs.ptuTempC,
+                p.rduWarnC, p.rduCritC, ""),
+            TempSpec("CHARGE AIR",
+                if (vs.chargeAirTempC != 0.0) p.displayTemp(vs.chargeAirTempC) else "— —", p.tempLabel,
+                vs.chargeAirTempC, 60.0, 80.0, if (vs.chargeAirTempC == 0.0) "POLLING" else ""),
+            TempSpec("CATALYTIC",
+                if (vs.catalyticTempC != 0.0) p.displayTemp(vs.catalyticTempC) else "— —", p.tempLabel,
+                vs.catalyticTempC, 700.0, 800.0, if (vs.catalyticTempC == 0.0) "POLLING" else ""),
+            TempSpec("CABIN",
+                if (vs.cabinTempC > -90) p.displayTemp(vs.cabinTempC) else "— —", p.tempLabel,
+                vs.cabinTempC.takeIf { it > -90 } ?: 0.0, 35.0, 45.0, "BCM"),
+            TempSpec("BATT TEMP",
+                if (vs.batteryTempC > -90) p.displayTemp(vs.batteryTempC) else "— —", p.tempLabel,
+                vs.batteryTempC.takeIf { it > -90 } ?: 0.0, 40.0, 60.0, "BCM"),
+        )
         tempItems.chunked(2).forEach { pair ->
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                pair.forEach { spec ->
-                    TempCard(spec, Modifier.weight(1f))
-                }
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                pair.forEach { spec -> TempCard(spec, Modifier.weight(1f)) }
                 if (pair.size == 1) Spacer(Modifier.weight(1f))
             }
         }
@@ -854,26 +1037,77 @@ data class TempSpec(
 )
 
 @Composable fun RtrBanner(vs: VehicleState, p: UserPrefs) {
-    val rtrMsg = vs.rtrStatus
-    val isReady = rtrMsg == null
-    val dotColor = if (isReady) Grn else Amber
+    val isReady = p.isRaceReady(vs.oilTempC, vs.coolantTempC)
+    val dotColor = if (isReady) Ok else Warn
     val infiniteTransition = rememberInfiniteTransition(label = "rtr")
     val dotAlpha by infiniteTransition.animateFloat(
         initialValue = 1f, targetValue = if (isReady) 1f else 0.3f, label = "rtrDot",
         animationSpec = infiniteRepeatable(tween(800, easing = EaseInOut), RepeatMode.Reverse)
     )
+    val bannerBrush = if (isReady)
+        Brush.horizontalGradient(listOf(Ok.copy(alpha = 0.08f), Ok.copy(alpha = 0.04f)))
+    else
+        Brush.horizontalGradient(listOf(Warn.copy(alpha = 0.08f), Warn.copy(alpha = 0.04f)))
+    val bannerBorder = if (isReady) Ok.copy(alpha = 0.2f) else Warn.copy(alpha = 0.2f)
+
     Row(
-        Modifier.fillMaxWidth().background(Surf2, RoundedCornerShape(10.dp))
-            .border(1.dp, Brd, RoundedCornerShape(10.dp)).padding(12.dp),
+        Modifier.fillMaxWidth()
+            .background(bannerBrush, RoundedCornerShape(12.dp))
+            .border(1.dp, bannerBorder, RoundedCornerShape(12.dp))
+            .padding(14.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Box(Modifier.size(11.dp).clip(CircleShape).background(dotColor.copy(alpha = dotAlpha)))
-        Spacer(Modifier.width(10.dp))
+        Box(Modifier.size(10.dp).clip(CircleShape).background(dotColor.copy(alpha = dotAlpha)))
+        Spacer(Modifier.width(12.dp))
         Column {
-            UIText(if (isReady) "RACE READY" else "WARMING UP — NOT RACE READY",
-                13.sp, Frost, FontWeight.SemiBold, 1.sp)
-            if (!isReady && rtrMsg != null) {
-                UIText(rtrMsg, 10.sp, Dim, modifier = Modifier.padding(top = 2.dp))
+            UIText(
+                if (isReady) "RACE READY" else "WARMING UP — NOT RACE READY",
+                13.sp, Frost, FontWeight.SemiBold, 0.5.sp
+            )
+            if (!isReady) {
+                val oilMin = when (p.tempPreset) { "race" -> 85.0; "track" -> 80.0; else -> 70.0 }
+                val coolMin = when (p.tempPreset) { "race" -> 80.0; "track" -> 75.0; else -> 70.0 }
+                MonoLabel(
+                    "Oil ${p.displayTemp(vs.oilTempC)}${p.tempLabel} < ${p.displayTemp(oilMin)}  " +
+                    "· Coolant ${p.displayTemp(vs.coolantTempC)}${p.tempLabel} < ${p.displayTemp(coolMin)}",
+                    9.sp, Warn, modifier = Modifier.padding(top = 2.dp)
+                )
+            }
+        }
+    }
+}
+
+@Composable fun TempPresetBadge(p: UserPrefs) {
+    val ctx = LocalContext.current
+    Row(
+        Modifier.fillMaxWidth()
+            .background(Surf2, RoundedCornerShape(10.dp))
+            .border(1.dp, Brd, RoundedCornerShape(10.dp))
+            .padding(12.dp),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Column {
+            MonoLabel("THRESHOLD PRESET", 8.sp, Dim, letterSpacing = 0.15.sp)
+            Spacer(Modifier.height(2.dp))
+            UIText(p.tempPresetName, 14.sp, Frost, FontWeight.SemiBold)
+        }
+        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            listOf("street" to "STREET", "track" to "TRACK", "race" to "RACE").forEach { (id, label) ->
+                val isActive = p.tempPreset == id
+                val color    = when (id) { "race" -> Red; "track" -> Warn; else -> Ok }
+                Box(
+                    Modifier
+                        .background(
+                            if (isActive) color.copy(alpha = 0.15f) else Surf3,
+                            RoundedCornerShape(6.dp)
+                        )
+                        .border(1.dp, if (isActive) color.copy(alpha = 0.5f) else Brd, RoundedCornerShape(6.dp))
+                        .clickable { UserPrefsStore.update(ctx) { it.copy(tempPreset = id) } }
+                        .padding(horizontal = 10.dp, vertical = 5.dp)
+                ) {
+                    MonoLabel(label, 9.sp, if (isActive) color else Dim, letterSpacing = 0.1.sp)
+                }
             }
         }
     }
@@ -881,121 +1115,175 @@ data class TempSpec(
 
 @Composable fun TempCard(spec: TempSpec, modifier: Modifier) {
     val tempColor = tempColorShade(spec.tempC, spec.warnC, spec.critC)
+    val barPct = if (spec.critC > 0) (spec.tempC / spec.critC).toFloat().coerceIn(0f, 1f) else 0f
     val barColor = when {
-        spec.tempC <= 0        -> Accent.copy(alpha = 0.3f)
-        spec.tempC < spec.warnC -> Grn.copy(alpha = 0.5f)
-        spec.tempC < spec.critC -> Amber.copy(alpha = 0.6f)
-        else                   -> Red
+        spec.tempC <= 0         -> Surf3
+        spec.tempC < spec.warnC -> Ok.copy(alpha = 0.6f)
+        spec.tempC < spec.critC -> Warn.copy(alpha = 0.7f)
+        else                    -> Red
     }
-    Box(modifier.background(Surf, RoundedCornerShape(12.dp))
-        .border(1.dp, Brd, RoundedCornerShape(12.dp))) {
+    val isPlaceholder = spec.value == "— —"
+
+    Box(
+        modifier
+            .background(Surf2, RoundedCornerShape(14.dp))
+            .border(1.dp, Brd, RoundedCornerShape(14.dp))
+    ) {
         Column(Modifier.padding(12.dp)) {
-            UIText(spec.label, 9.sp, Dim, FontWeight.SemiBold, 1.5.sp)
-            Spacer(Modifier.height(5.dp))
-            val displayVal = if (spec.value == "— —") spec.value else spec.value
-            val valueColor = if (spec.value == "— —") Dim else tempColor
-            val valueFontSize = if (spec.value == "— —") 22.sp else 34.sp
-            MonoText(displayVal, valueFontSize, valueColor)
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                UIText(spec.unit, 11.sp, Dim)
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                MonoLabel(spec.label, 8.sp, Dim, letterSpacing = 0.12.sp)
                 if (spec.sub.isNotEmpty()) {
-                    Spacer(Modifier.width(4.dp))
-                    UIText("(${spec.sub})", 9.sp, Dim.copy(alpha = 0.7f))
+                    MonoLabel(spec.sub, 7.sp, Dim.copy(alpha = 0.7f))
+                }
+            }
+            Spacer(Modifier.height(6.dp))
+            if (isPlaceholder) {
+                MonoText("— —", 24.sp, Dim)
+            } else {
+                HeroNum(spec.value, 24.sp, tempColor)
+            }
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                MonoLabel(spec.unit, 10.sp, Dim)
+            }
+            Spacer(Modifier.height(8.dp))
+            // Threshold bar
+            Box(
+                Modifier.fillMaxWidth().height(3.dp)
+                    .background(Surf3, RoundedCornerShape(2.dp))
+            ) {
+                if (!isPlaceholder && barPct > 0) {
+                    Box(Modifier.fillMaxWidth(barPct).fillMaxHeight()
+                        .background(barColor, RoundedCornerShape(2.dp)))
                 }
             }
         }
-        // Color bar at bottom
-        Box(Modifier.fillMaxWidth().height(3.dp)
-            .background(barColor, RoundedCornerShape(bottomStart = 12.dp, bottomEnd = 12.dp))
-            .align(Alignment.BottomCenter))
     }
 }
 
 private fun tempColorShade(c: Double, warnC: Double, critC: Double) = when {
     c <= 0      -> Dim
     c >= critC  -> Red
-    c >= warnC  -> Amber
-    c >= warnC * 0.6 -> Grn
+    c >= warnC  -> Warn
+    c >= warnC * 0.6 -> Ok
     else        -> Frost
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// DIAG PAGE (restored)
+// DIAG PAGE
 // ═══════════════════════════════════════════════════════════════════════════
 @Composable fun DiagPage(lines: List<String>, vs: VehicleState) {
     val ctx   = LocalContext.current
     val scope = rememberCoroutineScope()
+    val accent = LocalThemeAccent.current
     var exporting by remember { mutableStateOf(false) }
 
-    Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(10.dp)) {
-        UIText("DIAGNOSTICS", 12.sp, Amber, FontWeight.Bold, 2.sp)
-        Spacer(Modifier.height(6.dp))
+    Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(12.dp)) {
+        SectionLabel("DIAGNOSTICS")
+        Spacer(Modifier.height(4.dp))
 
         val sessionMs  = DiagnosticLogger.sessionDurationMs
         val frameCount = DiagnosticLogger.frameInventorySnapshot.values.sumOf { it.totalReceived }
         val issueCount = DiagnosticLogger.frameInventorySnapshot.values.sumOf { it.validationIssues.size }
 
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(5.dp)) {
-            DataCell("FPS",   "${vs.framesPerSecond.roundToInt()}", modifier = Modifier.weight(1f))
-            DataCell("MODE",  vs.dataMode,                          modifier = Modifier.weight(1f))
-            DataCell("CONN",  if (vs.isConnected) "LIVE" else "OFF",
-                valueColor = if (vs.isConnected) Grn else Red,    modifier = Modifier.weight(1f))
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            DataCell("FPS",    "${vs.framesPerSecond.roundToInt()}", modifier = Modifier.weight(1f))
+            DataCell("STATUS", if (vs.isConnected) "LIVE" else "OFF",
+                valueColor = if (vs.isConnected) Ok else Red, modifier = Modifier.weight(1f))
+            DataCell("MODE",   vs.dataMode, modifier = Modifier.weight(1f))
         }
-        Spacer(Modifier.height(5.dp))
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(5.dp)) {
+        Spacer(Modifier.height(6.dp))
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
             DataCell("SESSION", DiagnosticLogger.formatDuration(sessionMs), modifier = Modifier.weight(1f))
             DataCell("FRAMES",  "$frameCount",                              modifier = Modifier.weight(1f))
             DataCell("IDs",     "${DiagnosticLogger.frameInventorySnapshot.size}", modifier = Modifier.weight(1f))
         }
 
         if (issueCount > 0) {
-            Spacer(Modifier.height(4.dp))
-            UIText("⚠ $issueCount validation issue(s) — capture snapshot to review", 10.sp, Amber)
+            Spacer(Modifier.height(6.dp))
+            MonoLabel("⚠ $issueCount validation issue(s) — capture snapshot to review", 9.sp, Warn)
         }
 
-        Spacer(Modifier.height(10.dp))
-        Box(Modifier.fillMaxWidth()
-            .background(if (!exporting) Accent else Dim, RoundedCornerShape(6.dp))
-            .clickable(enabled = !exporting) {
-                exporting = true
-                scope.launch { DiagnosticExporter.share(ctx); exporting = false }
-            }.padding(vertical = 11.dp), contentAlignment = Alignment.Center) {
-            UIText(
-                if (exporting) "BUILDING..." else "↑ CAPTURE & SHARE SNAPSHOT",
-                12.sp, if (!exporting) Color(0xFF0A0A0A) else Frost, FontWeight.Bold, 2.sp
+        Spacer(Modifier.height(12.dp))
+        Box(
+            Modifier.fillMaxWidth()
+                .background(
+                    if (!exporting) Brush.horizontalGradient(listOf(accent.copy(0.1f), accent.copy(0.05f)))
+                    else Brush.horizontalGradient(listOf(Dim.copy(0.1f), Dim.copy(0.05f))),
+                    RoundedCornerShape(10.dp)
+                )
+                .border(1.dp, if (!exporting) accent.copy(0.3f) else Dim.copy(0.3f), RoundedCornerShape(10.dp))
+                .clickable(enabled = !exporting) {
+                    exporting = true
+                    scope.launch { DiagnosticExporter.share(ctx); exporting = false }
+                }
+                .padding(vertical = 13.dp),
+            contentAlignment = Alignment.Center
+        ) {
+            MonoLabel(
+                if (exporting) "BUILDING..." else "↑  CAPTURE & SHARE SNAPSHOT",
+                12.sp, if (!exporting) accent else Dim, letterSpacing = 0.1.sp
             )
         }
         Spacer(Modifier.height(4.dp))
-        UIText("Exports a ZIP (summary .txt + full .json + SLCAN raw log) via share sheet.",
-            9.sp, Dim, modifier = Modifier.padding(bottom = 12.dp))
+        MonoLabel("Exports ZIP (summary + raw log + JSON) via share sheet.", 9.sp, Dim,
+            modifier = Modifier.padding(bottom = 12.dp))
 
         HorizontalDivider(color = Brd)
-        Spacer(Modifier.height(8.dp))
-        UIText("Live WiCAN output (last ${lines.size} lines, newest ↓):", 9.sp, Dim)
+        Spacer(Modifier.height(10.dp))
+        SectionLabel("LIVE CAN OUTPUT")
         Spacer(Modifier.height(4.dp))
-        lines.forEach { line ->
-            MonoText(line, 10.sp, Frost, modifier = Modifier.padding(vertical = 1.dp))
-        }
-        if (lines.isEmpty() && vs.isConnected) {
-            UIText("Connected — waiting for first CAN frame...", 10.sp, Amber)
-        } else if (lines.isEmpty()) {
-            UIText("Connect to WiCAN to see raw output.", 10.sp, Dim)
+
+        // Console box
+        Column(
+            Modifier.fillMaxWidth()
+                .background(Color(0xFF060810), RoundedCornerShape(10.dp))
+                .border(1.dp, Brd, RoundedCornerShape(10.dp))
+                .padding(10.dp)
+        ) {
+            val displayLines = lines.takeLast(20)
+            if (displayLines.isEmpty() && vs.isConnected) {
+                MonoLabel("Connected — waiting for first CAN frame...", 10.sp, Warn)
+            } else if (displayLines.isEmpty()) {
+                MonoLabel("Connect to WiCAN to see raw output.", 10.sp, Dim)
+            } else {
+                displayLines.forEach { line ->
+                    val parts = line.trim().split(" ", limit = 2)
+                    Row(Modifier.padding(vertical = 1.dp)) {
+                        if (parts.size >= 2) {
+                            MonoLabel(parts[0], 10.sp, Warn, letterSpacing = 0.05.sp)
+                            Spacer(Modifier.width(12.dp))
+                            MonoText(parts[1], 10.sp, Mid)
+                        } else {
+                            MonoText(line, 10.sp, Mid)
+                        }
+                    }
+                }
+            }
         }
 
         val inv = DiagnosticLogger.frameInventorySnapshot
         if (inv.isNotEmpty()) {
-            Spacer(Modifier.height(12.dp))
-            HorizontalDivider(color = Brd)
-            Spacer(Modifier.height(8.dp))
-            UIText("FRAME INVENTORY (${inv.size} IDs)", 9.sp, Dim, FontWeight.Bold, 2.sp)
+            Spacer(Modifier.height(14.dp))
+            SectionLabel("FRAME INVENTORY (${inv.size} IDs)")
             Spacer(Modifier.height(4.dp))
-            inv.entries.sortedBy { it.key }.forEach { (id, info) ->
-                val decoded  = if (info.lastDecoded.isEmpty()) "(no decoder)" else info.lastDecoded
-                val issColor = if (info.validationIssues.isNotEmpty()) Amber else Dim
-                MonoText("0x%03X  ×%-6d  %s".format(id, info.totalReceived, decoded.take(45)),
-                    9.sp, issColor, modifier = Modifier.padding(vertical = 1.dp))
-                info.validationIssues.forEach { issue ->
-                    MonoText("         ⚠ $issue", 9.sp, Amber)
+            Column(
+                Modifier.fillMaxWidth()
+                    .background(Surf2, RoundedCornerShape(10.dp))
+                    .border(1.dp, Brd, RoundedCornerShape(10.dp))
+                    .padding(10.dp),
+                verticalArrangement = Arrangement.spacedBy(4.dp)
+            ) {
+                inv.entries.sortedBy { it.key }.forEach { (id, info) ->
+                    val decoded  = if (info.lastDecoded.isEmpty()) "(no decoder)" else info.lastDecoded
+                    val issColor = if (info.validationIssues.isNotEmpty()) Warn else Mid
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                        MonoText("0x%03X".format(id), 9.sp, accent)
+                        MonoText("×${info.totalReceived}", 9.sp, Dim)
+                        MonoText(decoded.take(32), 9.sp, issColor, modifier = Modifier.weight(1f).padding(start = 8.dp))
+                    }
+                    info.validationIssues.forEach { issue ->
+                        MonoLabel("  ⚠ $issue", 8.sp, Warn)
+                    }
                 }
             }
         }
@@ -1003,210 +1291,319 @@ private fun tempColorShade(c: Double, warnC: Double, critC: Double) = when {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// SYSTEM DRAWER (☰)
+// MORE PAGE (replaces drawer — Drive Mode, ESC, Features, Themes, Settings)
 // ═══════════════════════════════════════════════════════════════════════════
-@Composable fun SystemDrawer(
+@Composable fun MorePage(
     vs: VehicleState,
+    p: UserPrefs,
     snackbarHostState: SnackbarHostState,
-    onDismiss: () -> Unit
+    onSettings: () -> Unit
 ) {
     val isFw  by OpenRSDashApp.instance.isOpenRsFirmware.collectAsState()
     val scope = rememberCoroutineScope()
-    val sessionMs = DiagnosticLogger.sessionDurationMs
-    val ctx = LocalContext.current
+    val ctx   = LocalContext.current
     var exporting by remember { mutableStateOf(false) }
+    val accent = LocalThemeAccent.current
 
-    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.BottomCenter) {
-        Column(
-            Modifier.fillMaxWidth()
-                .background(Surf, RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp))
-                .border(width = 1.dp, color = Brd,
-                    shape = RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp))
-        ) {
-            // Handle bar
-            Box(Modifier.fillMaxWidth().padding(vertical = 12.dp), contentAlignment = Alignment.Center) {
-                Box(Modifier.width(40.dp).height(4.dp).background(Brd, RoundedCornerShape(2.dp)))
+    Column(
+        Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(12.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+
+        // ── Drive Mode ───────────────────────────────────────────────────
+        MoreSection("DRIVE MODE") {
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                listOf(DriveMode.NORMAL to "N", DriveMode.SPORT to "S",
+                       DriveMode.TRACK to "T", DriveMode.DRIFT to "D")
+                    .forEach { (mode, letter) ->
+                        val isActive = vs.driveMode == mode
+                        val modeAccent = when (mode) {
+                            DriveMode.SPORT -> Ok
+                            DriveMode.TRACK -> Warn
+                            DriveMode.DRIFT -> Red
+                            else            -> accent
+                        }
+                        Column(
+                            Modifier.weight(1f)
+                                .background(if (isActive) modeAccent.copy(0.1f) else Surf2, RoundedCornerShape(10.dp))
+                                .border(1.dp, if (isActive) modeAccent else Brd, RoundedCornerShape(10.dp))
+                                .padding(vertical = 12.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally
+                        ) {
+                            HeroNum(letter, 20.sp, if (isActive) modeAccent else Frost)
+                            Spacer(Modifier.height(2.dp))
+                            MonoLabel(mode.label.uppercase(), 8.sp, if (isActive) modeAccent else Dim, letterSpacing = 0.1.sp)
+                        }
+                    }
             }
+            Spacer(Modifier.height(6.dp))
+            MonoLabel("Read-only mirror of CAN 0x1B0. Use steering wheel MODE button.", 9.sp, Dim)
+        }
 
-            Column(Modifier.verticalScroll(rememberScrollState()).padding(bottom = 24.dp)) {
-                // Drive Mode
-                DrawerSection("Drive Mode") {
-                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(5.dp)) {
-                        listOf(DriveMode.NORMAL to "N", DriveMode.SPORT to "S",
-                               DriveMode.TRACK to "T", DriveMode.DRIFT to "D")
-                            .forEach { (mode, letter) ->
-                                val isActive = vs.driveMode == mode
-                                Column(
-                                    Modifier.weight(1f)
-                                        .background(if (isActive) Accent.copy(0.1f) else Surf2, RoundedCornerShape(7.dp))
-                                        .border(1.dp, if (isActive) Accent else Brd, RoundedCornerShape(7.dp))
-                                        .padding(vertical = 9.dp),
-                                    horizontalAlignment = Alignment.CenterHorizontally
-                                ) {
-                                    MonoText(letter, 17.sp, if (isActive) Accent else Frost, FontWeight.Bold)
-                                    UIText(mode.label.uppercase(), 9.sp, Dim, FontWeight.Medium, 0.5.sp, TextAlign.Center)
-                                }
-                            }
-                    }
-                    Spacer(Modifier.height(6.dp))
-                    UIText("Read-only mirror of CAN 0x1B0. Use steering wheel MODE button.", 10.sp, Dim)
-                }
+        HorizontalDivider(color = Brd)
 
-                DrawerDivider()
-
-                // ESC
-                DrawerSection("Electronic Stability Control") {
-                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(5.dp)) {
-                        listOf(EscStatus.ON to "ESC ON", EscStatus.PARTIAL to "SPORT", EscStatus.OFF to "ESC OFF")
-                            .forEach { (status, label) ->
-                                val isActive = vs.escStatus == status
-                                val color = when (status) {
-                                    EscStatus.ON -> Grn; EscStatus.PARTIAL -> Amber; else -> Red
-                                }
-                                Box(
-                                    Modifier.weight(1f)
-                                        .background(if (isActive) color.copy(0.1f) else Surf2, RoundedCornerShape(7.dp))
-                                        .border(1.dp, if (isActive) color else Brd, RoundedCornerShape(7.dp))
-                                        .padding(vertical = 10.dp),
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    UIText(label, 12.sp, if (isActive) color else Dim, FontWeight.Bold, 0.5.sp)
-                                }
-                            }
-                    }
-                    Spacer(Modifier.height(6.dp))
-                    UIText("Current: ${vs.escStatus.label} (CAN 0x1C0). Use ESC button in car.", 10.sp, Dim)
-                }
-
-                DrawerDivider()
-
-                // Features — LC / ASS with live RSProt probe data
-                DrawerSection(if (isFw) "Features — openrs-fw active" else "Features — requires openrs-fw v1.0") {
-                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(5.dp)) {
-                        // Launch Control card
+        // ── ESC ──────────────────────────────────────────────────────────
+        MoreSection("ELECTRONIC STABILITY CONTROL") {
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                listOf(EscStatus.ON to "ESC ON", EscStatus.PARTIAL to "SPORT", EscStatus.OFF to "ESC OFF")
+                    .forEach { (status, label) ->
+                        val isActive = vs.escStatus == status
+                        val color = when (status) {
+                            EscStatus.ON -> Ok; EscStatus.PARTIAL -> Warn; else -> Red
+                        }
                         Box(
                             Modifier.weight(1f)
-                                .background(Surf2, RoundedCornerShape(7.dp))
-                                .border(1.dp, Brd, RoundedCornerShape(7.dp))
-                                .padding(10.dp)
+                                .background(if (isActive) color.copy(0.1f) else Surf2, RoundedCornerShape(10.dp))
+                                .border(1.dp, if (isActive) color else Brd, RoundedCornerShape(10.dp))
+                                .padding(vertical = 12.dp),
+                            contentAlignment = Alignment.Center
                         ) {
-                            Column {
-                                UIText("Launch Control", 11.sp, Frost, FontWeight.SemiBold)
-                                val lcText = when {
-                                    vs.lcArmed == true  -> "● ARMED"
-                                    vs.lcArmed == false -> "○ STANDBY"
-                                    isFw                -> "… PROBING"
-                                    else                -> "○ N/A"
-                                }
-                                val lcColor = when {
-                                    vs.lcArmed == true -> Grn
-                                    isFw               -> Amber
-                                    else               -> Dim
-                                }
-                                MonoText(lcText, 10.sp, lcColor)
-                                if (vs.lcRpmTarget > 0)
-                                    UIText("${vs.lcRpmTarget} RPM", 9.sp, Dim)
-                            }
-                        }
-                        // Auto Start-Stop card
-                        Box(
-                            Modifier.weight(1f)
-                                .background(Surf2, RoundedCornerShape(7.dp))
-                                .border(1.dp, Brd, RoundedCornerShape(7.dp))
-                                .padding(10.dp)
-                        ) {
-                            Column {
-                                UIText("Auto Start-Stop", 11.sp, Frost, FontWeight.SemiBold)
-                                val assText = when {
-                                    vs.assEnabled == true  -> "● ACTIVE"
-                                    vs.assEnabled == false -> "○ OFF"
-                                    isFw                   -> "… PROBING"
-                                    else                   -> "○ N/A"
-                                }
-                                val assColor = when {
-                                    vs.assEnabled == true -> Grn
-                                    isFw                  -> Amber
-                                    else                  -> Dim
-                                }
-                                MonoText(assText, 10.sp, assColor)
-                            }
+                            MonoLabel(label, 10.sp, if (isActive) color else Dim, letterSpacing = 0.08.sp)
                         }
                     }
-                    Spacer(Modifier.height(6.dp))
-                    UIText(
-                        if (isFw) "✓ openRS_ firmware detected — features unlocked."
-                        else "⚡ Flash openrs-fw to unlock CAN write, LC, Auto Start-Stop & more.",
-                        10.sp, if (isFw) Grn else Amber
+            }
+            Spacer(Modifier.height(6.dp))
+            MonoLabel("Current: ${vs.escStatus.label} (CAN 0x1C0). Use ESC button in car.", 9.sp, Dim)
+        }
+
+        HorizontalDivider(color = Brd)
+
+        // ── OpenRS-FW Features ───────────────────────────────────────────
+        MoreSection(if (isFw) "OPENRS-FW ACTIVE" else "FEATURES — REQUIRES openrs-fw v1.0") {
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                // Launch Control
+                Column(
+                    Modifier.weight(1f)
+                        .background(Surf2, RoundedCornerShape(10.dp))
+                        .border(1.dp, Brd, RoundedCornerShape(10.dp))
+                        .padding(12.dp)
+                ) {
+                    UIText("Launch Control", 12.sp, Frost, FontWeight.SemiBold)
+                    Spacer(Modifier.height(4.dp))
+                    val lcText = when {
+                        vs.lcArmed == true  -> "● ARMED"
+                        vs.lcArmed == false -> "○ STANDBY"
+                        isFw                -> "… PROBING"
+                        else                -> "○ N/A"
+                    }
+                    val lcColor = when {
+                        vs.lcArmed == true -> Ok
+                        isFw               -> Warn
+                        else               -> Dim
+                    }
+                    MonoText(lcText, 10.sp, lcColor)
+                    if (vs.lcRpmTarget > 0) {
+                        Spacer(Modifier.height(2.dp))
+                        MonoLabel("${vs.lcRpmTarget} RPM", 9.sp, Dim)
+                    }
+                }
+                // Auto Start-Stop
+                Column(
+                    Modifier.weight(1f)
+                        .background(Surf2, RoundedCornerShape(10.dp))
+                        .border(1.dp, Brd, RoundedCornerShape(10.dp))
+                        .padding(12.dp)
+                ) {
+                    UIText("Auto Start-Stop", 12.sp, Frost, FontWeight.SemiBold)
+                    Spacer(Modifier.height(4.dp))
+                    val assText = when {
+                        vs.assEnabled == true  -> "● ACTIVE"
+                        vs.assEnabled == false -> "○ OFF"
+                        isFw                   -> "… PROBING"
+                        else                   -> "○ N/A"
+                    }
+                    val assColor = when {
+                        vs.assEnabled == true -> Ok
+                        isFw                  -> Warn
+                        else                  -> Dim
+                    }
+                    MonoText(assText, 10.sp, assColor)
+                }
+            }
+            Spacer(Modifier.height(8.dp))
+            Row(
+                Modifier.fillMaxWidth()
+                    .background(
+                        if (isFw) Ok.copy(alpha = 0.06f) else Red.copy(alpha = 0.06f),
+                        RoundedCornerShape(8.dp)
                     )
-                }
+                    .border(1.dp, if (isFw) Ok.copy(0.2f) else Red.copy(0.2f), RoundedCornerShape(8.dp))
+                    .padding(10.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                MonoLabel(
+                    if (isFw) "✓  openRS_ firmware detected — features active."
+                    else "⚡  Flash openrs-fw to unlock CAN write, LC, Auto Start-Stop & more.",
+                    9.sp, if (isFw) Ok else Red, letterSpacing = 0.05.sp
+                )
+            }
+        }
 
-                DrawerDivider()
+        HorizontalDivider(color = Brd)
 
-                // Module Status — RDU, PDC, FENG (from extended session polling)
-                DrawerSection("Module Status") {
-                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(5.dp)) {
-                        listOf(
-                            Triple("RDU",  vs.rduEnabled,  "Rear Drive Unit"),
-                            Triple("PDC",  vs.pdcEnabled,  "Pull Drift Comp"),
-                            Triple("FENG", vs.fengEnabled, "Engine Sound")
-                        ).forEach { (label, state, _) ->
-                            Column(
-                                Modifier.weight(1f)
-                                    .background(Surf2, RoundedCornerShape(7.dp))
-                                    .border(1.dp, Brd, RoundedCornerShape(7.dp))
-                                    .padding(8.dp),
-                                horizontalAlignment = Alignment.CenterHorizontally
-                            ) {
-                                UIText(label, 11.sp, Frost, FontWeight.SemiBold)
-                                val (dot, col) = when (state) {
-                                    true  -> "● ON"  to Grn
-                                    false -> "○ OFF" to Dim
-                                    null  -> "… —"   to Amber
-                                }
-                                MonoText(dot, 10.sp, col)
-                            }
+        // ── Module Status ────────────────────────────────────────────────
+        MoreSection("MODULE STATUS") {
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                listOf(
+                    Triple("RDU",  vs.rduEnabled,  "Rear Drive Unit"),
+                    Triple("PDC",  vs.pdcEnabled,  "Pull Drift Comp"),
+                    Triple("FENG", vs.fengEnabled, "Engine Sound")
+                ).forEach { (label, state, subtitle) ->
+                    Column(
+                        Modifier.weight(1f)
+                            .background(Surf2, RoundedCornerShape(10.dp))
+                            .border(1.dp, Brd, RoundedCornerShape(10.dp))
+                            .padding(10.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        UIText(label, 12.sp, Frost, FontWeight.SemiBold)
+                        Spacer(Modifier.height(4.dp))
+                        val (dot, col) = when (state) {
+                            true  -> "● ON"  to Ok
+                            false -> "○ OFF" to Dim
+                            null  -> "…"     to Warn
                         }
+                        MonoText(dot, 10.sp, col)
+                        Spacer(Modifier.height(2.dp))
+                        MonoLabel(subtitle, 8.sp, Dim, letterSpacing = 0.08.sp)
                     }
-                    Spacer(Modifier.height(6.dp))
-                    UIText("Polled via extended diagnostic session (60 s cycle).", 10.sp, Dim)
                 }
+            }
+            Spacer(Modifier.height(6.dp))
+            MonoLabel("Polled via extended diagnostic session (60 s cycle).", 9.sp, Dim)
+        }
 
-                DrawerDivider()
+        HorizontalDivider(color = Brd)
 
-                // Connection & Diagnostics
-                DrawerSection("Connection & Diagnostics") {
-                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(5.dp)) {
-                        DataCell("STATUS", if (vs.isConnected) "LIVE" else "OFFLINE",
-                            valueColor = if (vs.isConnected) Grn else Red, modifier = Modifier.weight(1f))
-                        DataCell("MODE", vs.dataMode,                           modifier = Modifier.weight(1f))
-                        DataCell("FPS",  "${vs.framesPerSecond.roundToInt()}", modifier = Modifier.weight(1f))
-                        DataCell("SESSION", DiagnosticLogger.formatDuration(sessionMs), modifier = Modifier.weight(1f))
+        // ── RS Theme ─────────────────────────────────────────────────────
+        MoreSection("THEME — RS PAINT COLOUR") {
+            ThemePicker(p)
+        }
+
+        HorizontalDivider(color = Brd)
+
+        // ── Connection & Diagnostics ─────────────────────────────────────
+        MoreSection("CONNECTION & DIAGNOSTICS") {
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                DataCell("STATUS", if (vs.isConnected) "LIVE" else "OFFLINE",
+                    valueColor = if (vs.isConnected) Ok else Red, modifier = Modifier.weight(1f))
+                DataCell("MODE", vs.dataMode, modifier = Modifier.weight(1f))
+                DataCell("FPS",  "${vs.framesPerSecond.roundToInt()}", modifier = Modifier.weight(1f))
+                DataCell("SESSION", DiagnosticLogger.formatDuration(DiagnosticLogger.sessionDurationMs),
+                    modifier = Modifier.weight(1f))
+            }
+            Spacer(Modifier.height(10.dp))
+            Box(
+                Modifier.fillMaxWidth()
+                    .background(Brush.horizontalGradient(listOf(accent.copy(0.1f), accent.copy(0.05f))), RoundedCornerShape(10.dp))
+                    .border(1.dp, accent.copy(0.3f), RoundedCornerShape(10.dp))
+                    .clickable(enabled = !exporting) {
+                        exporting = true
+                        scope.launch { DiagnosticExporter.share(ctx); exporting = false }
                     }
-                    Spacer(Modifier.height(8.dp))
-                    Box(Modifier.fillMaxWidth()
-                        .background(Accent.copy(alpha = 0.1f), RoundedCornerShape(7.dp))
-                        .border(1.dp, AccentD, RoundedCornerShape(7.dp))
-                        .clickable(enabled = !exporting) {
-                            exporting = true
-                            scope.launch { DiagnosticExporter.share(ctx); exporting = false }
-                        }.padding(vertical = 10.dp), contentAlignment = Alignment.Center) {
-                        UIText(if (exporting) "BUILDING..." else "↑ CAPTURE & SHARE SNAPSHOT",
-                            12.sp, Accent, FontWeight.Bold, 1.sp)
+                    .padding(vertical = 13.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                MonoLabel(
+                    if (exporting) "BUILDING..." else "↑  CAPTURE & SHARE SNAPSHOT",
+                    12.sp, accent, letterSpacing = 0.1.sp
+                )
+            }
+        }
+
+        HorizontalDivider(color = Brd)
+
+        // ── Display Settings ─────────────────────────────────────────────
+        MoreSection("DISPLAY SETTINGS") {
+            Box(
+                Modifier.fillMaxWidth()
+                    .background(Surf2, RoundedCornerShape(10.dp))
+                    .border(1.dp, Brd, RoundedCornerShape(10.dp))
+                    .clickable { onSettings() }
+                    .padding(horizontal = 14.dp, vertical = 13.dp),
+            ) {
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                    Column {
+                        MonoLabel("Units, TPMS threshold, connection settings", 9.sp, Dim)
+                        Spacer(Modifier.height(2.dp))
+                        UIText("${p.speedLabel} · ${p.tempLabel} · ${p.boostUnit}", 12.sp, Frost)
                     }
+                    MonoLabel("⚙ OPEN", 10.sp, accent, letterSpacing = 0.1.sp)
                 }
             }
         }
+
+        Spacer(Modifier.height(4.dp))
     }
 }
 
-@Composable fun DrawerSection(title: String, content: @Composable ColumnScope.() -> Unit) {
-    Column(Modifier.padding(horizontal = 14.dp, vertical = 12.dp)) {
-        UIText(title.uppercase(), 10.sp, Dim, FontWeight.Bold, 2.sp)
-        Spacer(Modifier.height(10.dp))
+@Composable fun MoreSection(title: String, content: @Composable ColumnScope.() -> Unit) {
+    Column {
+        MonoLabel(title, 9.sp, Dim, letterSpacing = 0.2.sp, modifier = Modifier.padding(bottom = 10.dp))
         content()
     }
 }
 
-@Composable fun DrawerDivider() {
-    HorizontalDivider(Modifier.padding(horizontal = 0.dp), color = Brd, thickness = 1.dp)
+// ── Theme Picker ──────────────────────────────────────────────────────────
+@Composable fun ThemePicker(p: UserPrefs) {
+    val ctx = LocalContext.current
+    val themes = listOf(
+        "cyan"   to "Nitrous Blue",
+        "red"    to "Race Red",
+        "orange" to "Tangerine",
+        "green"  to "Mean Green",
+        "purple" to "Stealth",
+        "silver" to "Silver"
+    )
+    val themeColors = mapOf(
+        "cyan"   to Color(0xFF00D2FF),
+        "red"    to Color(0xFFFF2233),
+        "orange" to Color(0xFFFF6600),
+        "green"  to Color(0xFF00FF88),
+        "purple" to Color(0xFF8C7AFF),
+        "silver" to Color(0xFFAAC4DD)
+    )
+
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        // Row 1: first 3 themes
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            themes.take(3).forEach { (id, name) ->
+                val isActive = p.themeId == id
+                val color    = themeColors[id] ?: Accent
+                ThemeChip(id, name, color, isActive, ctx, p, Modifier.weight(1f))
+            }
+        }
+        // Row 2: last 3 themes
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            themes.drop(3).forEach { (id, name) ->
+                val isActive = p.themeId == id
+                val color    = themeColors[id] ?: Accent
+                ThemeChip(id, name, color, isActive, ctx, p, Modifier.weight(1f))
+            }
+        }
+    }
+}
+
+@Composable fun ThemeChip(
+    id: String, name: String, color: Color,
+    isActive: Boolean, ctx: Context, p: UserPrefs, modifier: Modifier
+) {
+    Column(
+        modifier
+            .background(if (isActive) color.copy(alpha = 0.12f) else Surf2, RoundedCornerShape(10.dp))
+            .border(2.dp, if (isActive) color else Brd, RoundedCornerShape(10.dp))
+            .clickable { UserPrefsStore.update(ctx) { it.copy(themeId = id) } }
+            .padding(vertical = 10.dp, horizontal = 6.dp),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Box(
+            Modifier.size(14.dp).clip(CircleShape)
+                .background(color)
+                .border(if (isActive) 2.dp else 0.dp, Frost.copy(0.6f), CircleShape)
+        )
+        Spacer(Modifier.height(5.dp))
+        MonoLabel(name, 8.sp, if (isActive) color else Dim, letterSpacing = 0.1.sp,
+            modifier = Modifier.fillMaxWidth(), fontWeight = if (isActive) FontWeight.Bold else FontWeight.Normal)
+    }
 }

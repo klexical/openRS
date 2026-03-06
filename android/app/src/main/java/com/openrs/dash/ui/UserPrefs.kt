@@ -1,6 +1,7 @@
 package com.openrs.dash.ui
 
 import android.content.Context
+import androidx.compose.ui.graphics.Color
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -17,7 +18,9 @@ data class UserPrefs(
     val tireLowPsi: Float           = AppSettings.DEFAULT_TIRE_LOW_PSI,
     val screenOn: Boolean           = AppSettings.DEFAULT_SCREEN_ON,
     val autoReconnect: Boolean      = AppSettings.DEFAULT_AUTO_RECONNECT,
-    val reconnectIntervalSec: Int   = AppSettings.DEFAULT_RECONNECT_INTERVAL
+    val reconnectIntervalSec: Int   = AppSettings.DEFAULT_RECONNECT_INTERVAL,
+    val themeId: String             = AppSettings.DEFAULT_THEME_ID,      // RS paint color theme
+    val tempPreset: String          = AppSettings.DEFAULT_TEMP_PRESET    // "street"|"track"|"race"
 ) {
     // ── Unit-conversion helpers used by UI ─────────────────────────────────
 
@@ -59,6 +62,60 @@ data class UserPrefs(
 
     /** Whether a raw PSI value is below the warning threshold. */
     fun isTireLow(psi: Double): Boolean = psi in 0.01..tireLowPsi.toDouble()
+
+    // ── Theme system ────────────────────────────────────────────────────────
+
+    /** Primary accent color for this RS paint theme. */
+    val themeAccent: Color get() = when (themeId) {
+        "red"     -> Color(0xFFFF2233)  // Race Red
+        "orange"  -> Color(0xFFFF6600)  // Tangerine Scream
+        "green"   -> Color(0xFF00FF88)  // Mean Green
+        "purple"  -> Color(0xFF8C7AFF)  // Stealth
+        "silver"  -> Color(0xFFAAC4DD)  // Moondust Silver
+        else      -> Color(0xFF00D2FF)  // Nitrous Blue (default)
+    }
+
+    /** Display name for the current theme. */
+    val themeName: String get() = when (themeId) {
+        "red"    -> "Race Red"
+        "orange" -> "Tangerine Scream"
+        "green"  -> "Mean Green"
+        "purple" -> "Stealth"
+        "silver" -> "Moondust Silver"
+        else     -> "Nitrous Blue"
+    }
+
+    // ── Temperature thresholds (preset-based) ───────────────────────────────
+
+    /** Oil warn / crit thresholds in °C based on selected preset. */
+    val oilWarnC: Double  get() = when (tempPreset) { "race" -> 100.0; "track" -> 110.0; else -> 120.0 }
+    val oilCritC: Double  get() = when (tempPreset) { "race" -> 110.0; "track" -> 120.0; else -> 130.0 }
+
+    /** Coolant warn / crit thresholds in °C. */
+    val coolWarnC: Double get() = when (tempPreset) { "race" -> 95.0;  "track" -> 100.0; else -> 105.0 }
+    val coolCritC: Double get() = when (tempPreset) { "race" -> 105.0; "track" -> 110.0; else -> 115.0 }
+
+    /** Intake air warn / crit thresholds in °C. */
+    val intakeWarnC: Double get() = when (tempPreset) { "race" -> 45.0; "track" -> 55.0; else -> 65.0 }
+    val intakeCritC: Double get() = when (tempPreset) { "race" -> 55.0; "track" -> 65.0; else -> 80.0 }
+
+    /** RDU/PTU warn / crit thresholds in °C. */
+    val rduWarnC: Double  get() = when (tempPreset) { "race" -> 70.0;  "track" -> 80.0;  else -> 90.0 }
+    val rduCritC: Double  get() = when (tempPreset) { "race" -> 85.0;  "track" -> 95.0;  else -> 100.0 }
+
+    /** Display name for the current temperature preset. */
+    val tempPresetName: String get() = when (tempPreset) {
+        "race"  -> "Race"
+        "track" -> "Track"
+        else    -> "Street"
+    }
+
+    /** RTR check: are all critical temps below their warm-up thresholds for the current preset? */
+    fun isRaceReady(oilC: Double, coolantC: Double): Boolean {
+        val oilMin    = when (tempPreset) { "race" -> 85.0; "track" -> 80.0; else -> 70.0 }
+        val coolantMin = when (tempPreset) { "race" -> 80.0; "track" -> 75.0; else -> 70.0 }
+        return oilC >= oilMin && coolantC >= coolantMin
+    }
 }
 
 /**

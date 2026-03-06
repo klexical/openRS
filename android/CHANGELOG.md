@@ -5,6 +5,51 @@ Firmware changes are tracked separately in [firmware releases](https://github.co
 
 ---
 
+## [v2.0.0] — 2026-03-06
+
+### Redesign — F1-Style Telemetry Interface
+
+Complete visual and structural overhaul of the openRS_ Android app.
+
+#### Design System — F1 Palette
+- **New color palette**: Deep navy-black backgrounds (`#05070A`/`#0A0D12`/`#0F141C`), cyan primary (`#00D2FF`), neon green (`#00FF88`), gold (`#FFCC00`), orange-red (`#FF4D00`)
+- **Orbitron font** added — hero numeric values (boost, RPM, speed, temperatures) now display in F1-inspired Orbitron Bold
+- **JetBrains Mono** added — all labels and keys now use JetBrains Mono for a clean monospace look
+- **Section labels** redesigned: small caps text with an extending horizontal rule
+
+#### Tab Structure — 6 Tabs (drawer → MORE tab)
+- Previous hamburger drawer replaced by a **MORE tab** (6th tab) — content is always visible without an overlay
+- Tab bar: `⚡ DASH` / `◈ POWER` / `◎ CHASSIS` / `△ TEMPS` / `≡ DIAG` / `☰ MORE` — each with icon and label
+- Tab height increased to 52dp; active tab highlighted with themed underline
+
+#### DASH Tab — Hero Cards + Bar Grid
+- **Hero cards** redesigned: Orbitron large number, unit label above, name below — BOOST (gold), RPM (orange-red), SPEED (cyan)
+- **Bar cards** added: THROTTLE / BRAKE / FUEL / BATTERY each show a gradient progress bar beneath the value
+- AWD split bar redesigned with percentage hero numbers on each side
+- Quick temps (Oil, Coolant, Intake, Oil Life) + G-force mini row moved below AWD
+
+#### TEMPS Tab — Configurable Thresholds
+- **Threshold preset picker** added: STREET / TRACK / RACE modes. Each preset adjusts warn and critical thresholds for oil, coolant, intake, and RDU/PTU
+- **Warm-up banner** now computes readiness using the selected preset (race = tighter, street = relaxed)
+- Temperature cards show a proportional threshold bar at the bottom
+- RTR banner uses gradient background (green = ready, gold = warming)
+
+#### MORE Tab — All Drawer Content
+- Drive mode, ESC status, openRS-FW features (LC / ASS), Module Status (RDU/PDC/FENG) — all previously in the drawer, now in the MORE tab
+- **RS Theme Picker**: 6 RS factory paint colour themes — Nitrous Blue, Race Red, Tangerine Scream, Mean Green, Stealth, Moondust Silver. Theme changes the primary accent colour throughout the app in real-time
+- Settings shortcut button at the bottom of MORE tab
+
+#### MeatPi Pro Groundwork (v2.1+)
+- `HardwareAdapter` interface created — generic contract for CAN-over-WiFi adapters with `connect`, `send`, `disconnect`, `frames`, and `gpsData` flows
+- `MeatPiConnection` stub created — ready to implement TCP + NMEA GPS in v2.1 when hardware is available
+- `GpsData` data class defined for GPS position, speed, heading, altitude
+
+#### Emulators Synced
+- `docs/index.html` fully rebuilt to match v2.0 design (new fonts, 6 tabs, hero cards, bar grid, AWD split, TPMS, TEMPS with preset picker, DIAG console, MORE with theme picker)
+- `android/browser-emulator/index.html` synced to match
+
+---
+
 ## [v1.2.9] — 2026-03-05
 
 ### Fixed — Odometer always visible; moved to extended diagnostic session
