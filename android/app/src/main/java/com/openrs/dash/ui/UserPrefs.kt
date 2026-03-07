@@ -104,6 +104,9 @@ data class UserPrefs(
     /** RDU/PTU warn / crit thresholds in °C. */
     val rduWarnC: Double  get() = when (tempPreset) { "race" -> 70.0;  "track" -> 80.0;  else -> 90.0 }
     val rduCritC: Double  get() = when (tempPreset) { "race" -> 85.0;  "track" -> 95.0;  else -> 100.0 }
+    // PTU (transfer case) runs hotter than RDU — separate thresholds
+    val ptuWarnC: Double  get() = when (tempPreset) { "race" -> 75.0;  "track" -> 85.0;  else -> 95.0 }
+    val ptuCritC: Double  get() = when (tempPreset) { "race" -> 90.0;  "track" -> 100.0; else -> 110.0 }
 
     /** Display name for the current temperature preset. */
     val tempPresetName: String get() = when (tempPreset) {
@@ -114,9 +117,12 @@ data class UserPrefs(
 
     /** RTR check: are all critical temps below their warm-up thresholds for the current preset? */
     fun isRaceReady(oilC: Double, coolantC: Double): Boolean {
-        val oilMin    = when (tempPreset) { "race" -> 85.0; "track" -> 80.0; else -> 70.0 }
+        val oilMin     = when (tempPreset) { "race" -> 85.0; "track" -> 80.0; else -> 70.0 }
         val coolantMin = when (tempPreset) { "race" -> 80.0; "track" -> 75.0; else -> 70.0 }
-        return oilC >= oilMin && coolantC >= coolantMin
+        // Treat sentinel -99 as "not yet received" — skip check rather than blocking warm cars
+        val oilOk     = oilC <= -90     || oilC >= oilMin
+        val coolantOk = coolantC <= -90 || coolantC >= coolantMin
+        return oilOk && coolantOk
     }
 }
 

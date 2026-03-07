@@ -351,8 +351,14 @@ fun TripPage(
 
                 // Row 2 — Coolant · Oil · Ambient · Fuel %
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                    DataCell("CLT",  "${prefs.displayTemp(vehicleState.coolantTempC)}${prefs.tempLabel}", modifier = Modifier.weight(1f))
-                    DataCell("OIL",  "${prefs.displayTemp(vehicleState.oilTempC)}${prefs.tempLabel}",     modifier = Modifier.weight(1f))
+                    DataCell("CLT",
+                        if (vehicleState.coolantTempC > -90)
+                            "${prefs.displayTemp(vehicleState.coolantTempC)}${prefs.tempLabel}" else "--",
+                        modifier = Modifier.weight(1f))
+                    DataCell("OIL",
+                        if (vehicleState.oilTempC > -90)
+                            "${prefs.displayTemp(vehicleState.oilTempC)}${prefs.tempLabel}" else "--",
+                        modifier = Modifier.weight(1f))
                     DataCell("AMB",  "${prefs.displayTemp(vehicleState.ambientTempC)}${prefs.tempLabel}", modifier = Modifier.weight(1f))
                     DataCell("FUEL", "%.0f%%".format(vehicleState.fuelLevelPct),                          modifier = Modifier.weight(1f))
                 }
@@ -363,7 +369,10 @@ fun TripPage(
                         if (vehicleState.rduTempC > -90)
                             "${prefs.displayTemp(vehicleState.rduTempC)}${prefs.tempLabel}" else "--",
                         modifier = Modifier.weight(1f))
-                    DataCell("PTU",  "${prefs.displayTemp(vehicleState.ptuTempC)}${prefs.tempLabel}", modifier = Modifier.weight(1f))
+                    DataCell("PTU",
+                        if (vehicleState.ptuTempC > -90)
+                            "${prefs.displayTemp(vehicleState.ptuTempC)}${prefs.tempLabel}" else "--",
+                        modifier = Modifier.weight(1f))
                     DataCell("USED", "%.2fL".format(tripState.fuelUsedL),                             modifier = Modifier.weight(1f))
                     val (econVal, econUnit) = if (prefs.speedUnit == "MPH")
                         "%.1f".format(tripState.avgFuelMpg)      to "MPG"
@@ -691,7 +700,10 @@ private fun ColorLegend(colorMode: ColorMode, modifier: Modifier = Modifier) {
 
 @Composable
 private fun TripSummaryContent(tripState: TripState, prefs: UserPrefs, onClose: () -> Unit) {
-    val accent = LocalThemeAccent.current
+    val accent  = LocalThemeAccent.current
+    val ctx     = LocalContext.current
+    val scope   = rememberCoroutineScope()
+    var sharing by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(false) }
 
     val distStr = "%.2f %s".format(
         if (prefs.speedUnit == "MPH") tripState.cumulativeDistanceKm * 0.621371
@@ -769,6 +781,32 @@ private fun TripSummaryContent(tripState: TripState, prefs: UserPrefs, onClose: 
                     }
                 }
             }
+        }
+
+        // Share button — D-1: wires up DiagnosticExporter.shareTrip()
+        Box(
+            Modifier.fillMaxWidth()
+                .background(
+                    androidx.compose.ui.graphics.Brush.horizontalGradient(
+                        listOf(accent.copy(0.1f), accent.copy(0.05f))
+                    ),
+                    androidx.compose.foundation.shape.RoundedCornerShape(10.dp)
+                )
+                .border(1.dp, accent.copy(0.3f), androidx.compose.foundation.shape.RoundedCornerShape(10.dp))
+                .clickable(enabled = !sharing && tripState.points.isNotEmpty()) {
+                    sharing = true
+                    scope.launch(kotlinx.coroutines.Dispatchers.IO) {
+                        com.openrs.dash.diagnostics.DiagnosticExporter.shareTrip(ctx, tripState)
+                        kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) { sharing = false }
+                    }
+                }
+                .padding(vertical = 13.dp),
+            contentAlignment = Alignment.Center
+        ) {
+            MonoLabel(
+                if (sharing) "EXPORTING..." else "↑  SHARE TRIP DATA",
+                12.sp, if (!sharing) accent else Dim, letterSpacing = 0.1.sp
+            )
         }
 
         Spacer(Modifier.height(8.dp))
