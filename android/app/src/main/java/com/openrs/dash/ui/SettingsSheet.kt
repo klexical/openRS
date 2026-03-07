@@ -143,15 +143,15 @@ fun SettingsDialog(onDismiss: () -> Unit) {
                 SettingsSection("ADAPTER") {
                     SettingsRow("Hardware") {
                         SegmentedPicker(
-                            options  = listOf("WiCAN", "MeatPi"),
-                            selected = if (adapterType == "MEATPI") "MeatPi" else "WiCAN",
-                            onSelect = { adapterType = if (it == "MeatPi") "MEATPI" else "WICAN" }
+                            options  = listOf("WiCAN", "MeatPi Pro"),
+                            selected = if (adapterType == "MEATPI") "MeatPi Pro" else "WiCAN",
+                            onSelect = { adapterType = if (it == "MeatPi Pro") "MEATPI" else "WICAN" }
                         )
                     }
                     if (adapterType == "MEATPI") {
                         Spacer(Modifier.height(12.dp))
                         SettingsSwitchRow(
-                            label          = "MicroSD logging (MeatPi Pro)",
+                            label          = "MicroSD logging",
                             checked        = meatPiMicroSd,
                             onCheckedChange = { meatPiMicroSd = it }
                         )
