@@ -198,14 +198,18 @@ class MainActivity : ComponentActivity() {
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(1.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(0.dp)) {
             Text(
-                "openRS", fontSize = 18.sp, fontFamily = OrbitronFamily,
+                "open", fontSize = 18.sp, fontFamily = OrbitronFamily,
                 color = Frost, fontWeight = FontWeight.Bold, letterSpacing = 0.05.sp
             )
             Text(
+                "RS", fontSize = 18.sp, fontFamily = OrbitronFamily,
+                color = accent, fontWeight = FontWeight.Bold, letterSpacing = 0.05.sp
+            )
+            Text(
                 "_", fontSize = 18.sp, fontFamily = OrbitronFamily,
-                color = accent, fontWeight = FontWeight.Bold
+                color = Frost, fontWeight = FontWeight.Bold, letterSpacing = 0.05.sp
             )
         }
 
