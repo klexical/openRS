@@ -2,6 +2,7 @@ package com.openrs.dash.can
 
 import com.openrs.dash.OpenRSDashApp
 import com.openrs.dash.data.VehicleState
+import com.openrs.dash.diagnostics.DiagnosticLogger
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.*
 import java.io.IOException
@@ -36,13 +37,10 @@ class WiCanConnection(
     /** Delay (ms) before reconnecting after a dropped connection. */
     private val reconnectDelayMs: Long = 5_000L
 ) {
-    // ── DEBUG ONLY (do not commit) ──────────────────────────
-    val debugLines: StateFlow<List<String>> get() = OpenRSDashApp.instance.debugLines
     private fun addDebugLine(line: String) = OpenRSDashApp.instance.pushDebugLine(line)
 
     companion object {
-        val  BACKOFF_MS        = listOf(5_000L, 15_000L, 30_000L)
-        const val RECONNECT_DELAY_MS = 5_000L
+        val BACKOFF_MS = listOf(5_000L, 15_000L, 30_000L)
 
         private const val WS_PATH    = "/ws"
         private const val SLCAN_INIT = "C\rS6\rO\r"
@@ -255,12 +253,12 @@ class WiCanConnection(
                     while (isActive) {
                         // BCM queries (odometer, SOC, battery temp, cabin temp)
                         BCM_QUERIES.forEach { q ->
-                            try { sendWsText(out, q) } catch (_: Exception) { return@forEach }
+                            try { sendWsText(out, q) } catch (_: Exception) { }
                             delay(BCM_QUERY_GAP_MS)
                         }
                         // AWD module queries (RDU oil temp)
                         AWD_QUERIES.forEach { q ->
-                            try { sendWsText(out, q) } catch (_: Exception) { return@forEach }
+                            try { sendWsText(out, q) } catch (_: Exception) { }
                             delay(BCM_QUERY_GAP_MS)
                         }
                         delay(BCM_POLL_INTERVAL_MS)
@@ -271,7 +269,7 @@ class WiCanConnection(
                     delay(PCM_INITIAL_DELAY_MS)
                     while (isActive) {
                         PCM_QUERIES.forEach { q ->
-                            try { sendWsText(out, q) } catch (_: Exception) { return@forEach }
+                            try { sendWsText(out, q) } catch (_: Exception) { }
                             delay(PCM_QUERY_GAP_MS)
                         }
                         delay(PCM_POLL_INTERVAL_MS)
@@ -350,19 +348,19 @@ class WiCanConnection(
                         if (msg.startsWith("OPENRS:")) {
                             firmwareKnown = true
                             val version = msg.removePrefix("OPENRS:").trim()
-                            com.openrs.dash.OpenRSDashApp.instance.isOpenRsFirmware.value = true
-                            com.openrs.dash.diagnostics.DiagnosticLogger.isOpenRsFirmware = true
-                            com.openrs.dash.diagnostics.DiagnosticLogger.firmwareVersion = "openRS_ $version"
+                            OpenRSDashApp.instance.isOpenRsFirmware.value = true
+                            DiagnosticLogger.isOpenRsFirmware = true
+                            DiagnosticLogger.firmwareVersion = "openRS_ $version"
                             addDebugLine("Firmware: openRS_ $version ✓")
-                            com.openrs.dash.diagnostics.DiagnosticLogger.event("FIRMWARE", "openRS_ $version detected")
+                            DiagnosticLogger.event("FIRMWARE", "openRS_ $version detected")
                             continue
                         } else if (System.currentTimeMillis() - probeStartMs >= PROBE_GRACE_MS) {
                             firmwareKnown = true
-                            com.openrs.dash.OpenRSDashApp.instance.isOpenRsFirmware.value = false
-                            com.openrs.dash.diagnostics.DiagnosticLogger.isOpenRsFirmware = false
-                            com.openrs.dash.diagnostics.DiagnosticLogger.firmwareVersion = "WiCAN stock"
+                            OpenRSDashApp.instance.isOpenRsFirmware.value = false
+                            DiagnosticLogger.isOpenRsFirmware = false
+                            DiagnosticLogger.firmwareVersion = "WiCAN stock"
                             addDebugLine("Firmware: WiCAN stock (3 s timeout)")
-                            com.openrs.dash.diagnostics.DiagnosticLogger.event("FIRMWARE", "WiCAN stock (no openRS_ response in 3 s)")
+                            DiagnosticLogger.event("FIRMWARE", "WiCAN stock (no openRS_ response in 3 s)")
                         }
                     }
 
@@ -417,7 +415,7 @@ class WiCanConnection(
                     val now = System.currentTimeMillis()
                     if (now - debugTimer >= 3_000) {
                         addDebugLine("CAN: ${debugCount} frames / 3 s  (${_fps.toInt()} fps)")
-                        com.openrs.dash.diagnostics.DiagnosticLogger.fps(_fps)
+                        DiagnosticLogger.fps(_fps)
                         debugCount = 0
                         debugTimer = now
                     }
@@ -493,8 +491,8 @@ class WiCanConnection(
     // ── WebSocket helpers ───────────────────────────────────────────────────
 
     private fun sendHttpUpgrade(out: OutputStream) {
-        // Static key is fine for local-network, non-TLS usage
-        val key = "dGhlIHNhbXBsZSBub25jZQ=="
+        val keyBytes = ByteArray(16).also { SecureRandom().nextBytes(it) }
+        val key = android.util.Base64.encodeToString(keyBytes, android.util.Base64.NO_WRAP)
         val req = "GET $WS_PATH HTTP/1.1\r\n" +
             "Host: $host\r\n" +
             "Upgrade: websocket\r\n" +
@@ -639,8 +637,8 @@ class WiCanConnection(
      */
     private fun parsePcmResponse(
         data: ByteArray,
-        currentState: com.openrs.dash.data.VehicleState,
-        onObdUpdate: (com.openrs.dash.data.VehicleState) -> Unit
+        currentState: VehicleState,
+        onObdUpdate: (VehicleState) -> Unit
     ) {
         if (data.size < 5) return
         val serviceId = data[1].toInt() and 0xFF
@@ -813,6 +811,7 @@ class WiCanConnection(
                     val bigLen = lenBytes.fold(0L) { acc, b -> (acc shl 8) or (b.toLong() and 0xFF) }
                     if (bigLen < 0 || bigLen > 1_048_576L) throw IOException("WS frame too large: $bigLen bytes")
                     readExactly(inp, bigLen.toInt())  // discard
+                    DiagnosticLogger.event("WS", "Skipped 64-bit frame: $bigLen bytes")
                     continue
                 }
                 else -> len

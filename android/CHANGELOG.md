@@ -5,6 +5,57 @@ Firmware changes are tracked separately in [firmware releases](https://github.co
 
 ---
 
+## [v2.2.0] — 2026-03-06
+
+### Added
+
+- **Share Trip button**: Trip Summary sheet now has a "↑ SHARE TRIP DATA" button that exports the trip as a ZIP and triggers the system share sheet — wires up `DiagnosticExporter.shareTrip()` from the UI.
+
+### Improved
+
+- **UI architecture**: `MainActivity.kt` has been split into dedicated files — `Theme.kt` (design tokens, fonts, typography), `Components.kt` (shared composables), and one file per tab: `DashPage.kt`, `PowerPage.kt`, `ChassisPage.kt`, `TempsPage.kt`, `DiagPage.kt`, `MorePage.kt`. Significantly reduces `MainActivity.kt` size and improves maintainability.
+- **Performance — `TripRecorder`**: eliminated O(n²) list copies on every GPS waypoint by introducing an `ArrayList` buffer. Average and mode breakdown now use O(1) incremental accumulators (`speedSum`, `speedSamples`, `modeCounts`) instead of re-scanning the full point list on each update.
+- **Performance — `DiagPage`**: `DiagnosticLogger.frameInventorySnapshot` is now called once per composition pass instead of once per rendered row, eliminating redundant deep-copies.
+- **`DiagnosticExporter`**: JSON string values are now properly escaped (backslash, quote, control characters) including `firmwareVersion` and `sessionHost` in the meta block. Old trip ZIPs are pruned on share to match the existing diagnostic ZIP pruning behaviour.
+- **`DiagnosticLogger`**: `frameInventory` is now private; `frameInventorySnapshot` returns a proper deep-copy of all `FrameInfo` fields including `validationIssues` and `periodicSamples`, preventing external mutation.
+
+### Fixed
+
+- **Keep screen on**: "Keep screen on" setting now activates whenever the setting is enabled, regardless of connection state. Previously a brief WiFi dropout mid-drive could let the screen time out and lock.
+- **PTU temperature in Trip HUD**: PTU cell now shows "—" before the first 0x0F8 CAN frame arrives instead of displaying the raw −99°C sentinel value.
+- **Coolant / oil temp before first CAN frame**: defaults changed from `0.0` to `−99` sentinel. The RTR banner no longer incorrectly shows "Warming Up — Oil 0°C < 80°C" before any engine data arrives. Dashboard and Temps page show "—" for these fields while data is pending. `isRaceReady()` skips the check at sentinel so a car that's already warm isn't penalised on first connect.
+- **Tire low warning false positive**: `anyTireLow()` lower bound changed from `0.0` to `0.01` to match `isTireLow()` — prevents a theoretical false trigger at exactly 0.0 PSI.
+- **Trip recorder reset race**: `pointsBuffer` is now `@Volatile` and reset by reference assignment instead of `clear()`, eliminating a narrow race where a cancelled coroutine could still be mid-`add()` when the main thread cleared the list.
+- **`CanDecoder`**: `ID_TPMS` constant renamed to `ID_PCM_AMBIENT` (0x340 carries ambient temperature, not TPMS). `describeDecoded` now shows the resolved drive mode string for `ID_DRIVE_MODE_EXT` (0x420). Dead TPMS validation branch removed.
+- **`WiCanConnection`**: removed unused `RECONNECT_DELAY_MS` constant; replaced fully-qualified type names with short names after adding imports.
+- **`TripRecorder`**: RTR (race-ready) gate now uses `UserPrefs.isRaceReady()` consistently, matching the Temps page.
+- **`ThemePicker`**: accent colours read from `UserPrefs(themeId = id).themeAccent` — single source of truth, no duplicated hex map.
+
+### Removed
+
+- Legacy `VehicleState` fields `lambdaValue`, `launchControl`, and `driftFury` (unused; carried forward from prototype).
+- Redundant `debugLines` pass-through property on `WiCanConnection` — callers now use `OpenRSDashApp.instance.debugLines` directly.
+
+### Stability / Threading
+
+- **`CanDataService.startConnection()` / `stopConnection()`**: marked `@Synchronized` — prevents a race condition where the WiFi callback thread and the main thread could both enter `startConnection()` simultaneously, initialising two `WiCanConnection` instances and leaking the first.
+- **`onDestroy()`**: now calls `stopConnection()` before cancelling the coroutine scope, ensuring `DiagnosticLogger.sessionEnd()` is always flushed when the service is torn down (previously the final frames of a session could be lost).
+- **`startActivity()` from background thread**: `DiagnosticExporter.share()` and `shareTrip()` now post the `startActivity(Intent.createChooser(...))` call through `Handler(Looper.getMainLooper())` — prevents an `android.view.ViewRootImpl$CalledFromWrongThreadException` crash on Android 10+ when the share sheet is triggered from `Dispatchers.IO`.
+- **OBD query burst on send failure**: removed `return@forEach` from the BCM, AWD, and PCM query loops — the inter-query `delay()` now always fires even when a frame fails to send, preventing a rapid burst of retries when the connection is flapping.
+
+### Performance
+
+- **`sessionDurationMs` memoised**: `DiagPage` and `MorePage` now read `sessionDurationMs` at most once per 1 Hz FPS tick (via `remember(vs.framesPerSecond)`), cutting per-frame string allocations from `formatDuration`.
+- **`ThemePicker`**: replaced 6 throwaway `UserPrefs(themeId = id)` allocations per recomposition with a lightweight private `themeAccentColor(id)` helper function.
+
+### Correctness
+
+- **PTU temperature thresholds**: `TempsPage` PTU card now uses dedicated `UserPrefs.ptuWarnC` / `ptuCritC` thresholds (street 95/110°C, track 85/100°C, race 75/90°C) rather than sharing the RDU values — the PTU (transfer case) is a different assembly with higher operating limits.
+- **WebSocket handshake key**: `WiCanConnection` now generates a fresh 16-byte random key per connection (RFC 6455 compliant) instead of reusing the static RFC example key.
+- **64-bit WebSocket frames**: oversized frames (len=127) that are discarded now emit a `DiagnosticLogger.event("WS", ...)` entry so they appear in the diagnostic export.
+
+---
+
 ## [v2.1.0] — 2026-03-06
 
 ### Added
