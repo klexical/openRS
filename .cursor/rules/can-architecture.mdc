@@ -1,0 +1,28 @@
+---
+description: Focus RS CAN architecture facts — prevents stale references in code and docs
+alwaysApply: false
+globs: android/app/**/can/*.kt, android/docs/pid-reference.md, README.md
+---
+
+# CAN Architecture Quick Reference
+
+## TPMS
+- TPMS is polled from the **BCM via Mode 22** (PIDs 0x2813–0x2816) every 30s
+- CAN frame 0x340 is **ambient temperature only** (PCMmsg17, byte 7 signed × 0.25 °C) — NOT TPMS
+- Formula: `(((256×A)+B)/3 + 22/3) × 0.145 PSI`
+
+## Correct CAN IDs (commonly confused)
+| Signal | Correct ID | Wrong (stale) | Source |
+|--------|-----------|---------------|--------|
+| Fuel level | 0x380 | ~~0x34A~~ | RS_HS.dbc PCMmsg30, Motorola 10-bit |
+| Wheel speeds | 0x190 | ~~0x215~~ | RS_HS.dbc ABSmsg03 |
+| PTU temp | 0x0F8 byte7 | ~~0x2C2~~ | RS_HS.dbc PCMmsg07 |
+| Ambient temp | 0x340 / 0x1A4 | — | 0x340 = PCMmsg17, 0x1A4 = MS-CAN bridged |
+
+## Polling intervals
+All ECU polling is **30 seconds**: PCM (0x7E0), BCM (0x726), AWD (0x703). There is no 10s interval.
+
+## Removed / deprecated
+- **Android Auto** — removed in v2.0.1. Do not reference AA in code comments or docs.
+- **`ObdPids.kt`** — removed in v1.1.0. Replaced by `ObdConstants.kt` + `ObdResponseParser.kt`.
+- **"Broadcast (Mode 1)" row** — does not exist in `ObdConstants`. Mode 1 PIDs go through PCM header 0x7E0.
