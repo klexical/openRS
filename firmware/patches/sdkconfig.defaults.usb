@@ -1,8 +1,10 @@
 # openrs-fw sdkconfig defaults for ESP32-C3 (WiCAN-USB-C3 hardware)
 # Applied by: idf.py set-target esp32c3
 
-# Hardware variant: USB
-CONFIG_HARDWARE_VER=3
+# HARDWARE_VER is set in wican-fw's CMakeLists.txt via add_definitions(),
+# NOT via Kconfig. Each wican-fw tag already has the correct value:
+#   USB tag (v4.20u): WICAN_USB_V100 = 3
+#   Pro tag (v4.48p): WICAN_PRO = 4
 
 # WebSocket support — required by config_server.c ws_send/ws_handler
 CONFIG_HTTPD_WS_SUPPORT=y
@@ -32,5 +34,5 @@ CONFIG_ESPTOOLPY_FLASHSIZE="4MB"
 
 # Custom partition table — 2MB OTA slots to fit BLE 4.2 + focusrs binary
 CONFIG_PARTITION_TABLE_CUSTOM=y
-CONFIG_PARTITION_TABLE_CUSTOM_FILENAME="partitions_openrs.csv"
+CONFIG_PARTITION_TABLE_CUSTOM_FILENAME="partitions_openrs_usb.csv"
 CONFIG_PARTITION_TABLE_OFFSET=0x8000

@@ -1,0 +1,9 @@
+# openrs-fw partition table for ESP32-S3 (WiCAN Pro, 16MB flash)
+# Dual OTA with rollback — Pro has 16MB flash so both slots fit comfortably
+# Name,   Type, SubType, Offset,   Size, Flags
+nvs,      data, nvs,     0x9000,   16K,
+otadata,  data, ota,     0xD000,    8K,
+phy_init, data, phy,     0xF000,    4K,
+ota_0,    app,  ota_0,   0x10000,   2M,
+ota_1,    app,  ota_1,   ,          2M,
+storage,  data, spiffs,  ,          300K,

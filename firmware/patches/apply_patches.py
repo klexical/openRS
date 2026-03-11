@@ -1,29 +1,43 @@
 #!/usr/bin/env python3
 """
-apply_patches.py  —  applies openrs-fw modifications to a cloned wican-fw tree.
+apply_patches.py — applies openrs-fw modifications to a cloned wican-fw tree.
 
-Usage: python3 apply_patches.py <path-to-wican-fw>
+Usage:
+  python3 apply_patches.py <path-to-wican-fw> [--target usb|pro]
 
-Modifications applied:
+Supports two build targets via device profiles:
+  usb  — WiCAN USB-C3 (ESP32-C3), wican-fw v4.20u  [default]
+  pro  — WiCAN Pro (ESP32-S3), wican-fw v4.48p      [UNVERIFIED]
+
+Common patches (both targets):
   1. wifi_network.c   — AP SSID prefix: WiCAN_ → openRS_
   2. config_server.c  — AP password default: @meatpi# → openrs2024
-  3. config_server.c  — Add /api/frs GET+POST endpoint (token-authenticated)
-  4. config_server.c  — OPENRS? WebSocket probe handler (responds OPENRS:<version>)
-  5. slcan.c           — OPENRS? TCP probe handler for WiCAN Pro raw TCP SLCAN
-  6. main.c           — #include "focusrs.h"
-  7. main.c           — frs_init() call after nvs_flash_init() in app_main
-  8. main.c           — frs_parse_can_frame() call in can_rx_task
-  9. main.c           — frs_set_can_tx_fn() registration via static openrs_can_tx shim
+  3. config_server.c  — #include "focusrs.h"
+  4. config_server.c  — Add /api/frs GET+POST endpoint (token-authenticated)
+  5. config_server.c  — Register /api/frs URI handlers
+  6. slcan.c          — OPENRS? probe in slcan_parse_str (all transports)
+  7. main.c           — #include "focusrs.h"
+  8. main.c           — frs_init() call after nvs_flash_init() in app_main
+  9. main.c           — frs_parse_can_frame() call in can_rx_task
  10. main/CMakeLists  — add focusrs to REQUIRES
+
+USB-only patches:
+ 11. config_server.c  — OPENRS? WebSocket probe (xQueueSend intercept)
+ 12. main.c           — openrs_can_tx shim + frs_set_can_tx_fn() registration
+
+Pro-only patches:
+  (CAN TX registration pending — requires hardware to identify anchor)
 """
 
-# Version string returned to the Android app when it sends "OPENRS?\r".
-# Must match OPENRS_FW_VERSION in components/focusrs/focusrs.h.
 OPENRS_FW_VERSION = "v1.4"
 
 import sys
 import os
 import re
+import argparse
+import importlib
+
+# ── Utilities ────────────────────────────────────────────────────────────────
 
 def read(path):
     with open(path, "r", encoding="utf-8") as f:
@@ -40,7 +54,23 @@ def replace_once(content, old, new, label):
         return content
     return content.replace(old, new, 1)
 
+def load_profile(target):
+    """Import and return the device profile dict for the given target."""
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    profiles_dir = os.path.join(script_dir, "profiles")
+    sys.path.insert(0, profiles_dir)
+    try:
+        mod = importlib.import_module(target)
+        return mod.PROFILE
+    except ModuleNotFoundError:
+        print(f"ERROR: no profile found for target '{target}'")
+        print(f"  Available profiles: {', '.join(f[:-3] for f in os.listdir(profiles_dir) if f.endswith('.py') and f != '__init__.py')}")
+        sys.exit(1)
+
+# ── Common patches (all targets) ────────────────────────────────────────────
+
 def patch_wifi_network(base):
+    """Change AP SSID prefix from WiCAN_ to openRS_."""
     path = os.path.join(base, "main", "wifi_network.c")
     c = read(path)
     c = replace_once(c,
@@ -50,13 +80,12 @@ def patch_wifi_network(base):
     write(path, c)
 
 def patch_config_server(base):
+    """Add focusrs include, AP password change, and /api/frs REST endpoints."""
     path = os.path.join(base, "main", "config_server.c")
     c = read(path)
 
-    # AP password: change from stock "@meatpi#" to "openrs2024"
     c = replace_once(c, '"@meatpi#"', '"openrs2024"', "AP password default")
 
-    # 1. Add focusrs include after the last existing include block
     FRS_INCLUDE = '#include "focusrs.h"'
     if FRS_INCLUDE not in c:
         c = replace_once(c,
@@ -64,11 +93,6 @@ def patch_config_server(base):
             '#include "autopid.h"\n#include "focusrs.h"',
             "focusrs include in config_server")
 
-    # v4.20u already has max_uri_handlers = 32; no bump needed.
-
-    # 4. Insert the /api/frs handler before config_server_init (the function that
-    #    registers URI handlers). Using config_server_init as anchor ensures the
-    #    static handler functions are defined at file scope before they're referenced.
     FRS_HANDLER = r"""
 /* ── openrs-fw: Focus RS state endpoint ──────────────────────────────────
  * GET  /api/frs  → JSON with live drive mode, ESC mode, battery voltage
@@ -142,8 +166,6 @@ static const httpd_uri_t frs_post_uri = {
 /* ─────────────────────────────────────────────────────────────────────── */
 
 """
-    # Anchor: the static config_server_init function that registers all URI handlers.
-    # Handler functions must be defined before this function references them.
     TARGET_FN = "static httpd_handle_t config_server_init("
     if FRS_HANDLER.strip()[:30] not in c and TARGET_FN in c:
         c = c.replace(TARGET_FN, FRS_HANDLER + TARGET_FN, 1)
@@ -153,7 +175,6 @@ static const httpd_uri_t frs_post_uri = {
     else:
         print("  WARNING: could not find config_server_init() — /api/frs handler NOT inserted")
 
-    # 5. Register the new handlers in config_server_start
     REGISTER_TARGET = "httpd_register_uri_handler(server, &scan_available_pids_uri);"
     FRS_REGISTER = (
         "httpd_register_uri_handler(server, &scan_available_pids_uri);\n"
@@ -171,21 +192,132 @@ static const httpd_uri_t frs_post_uri = {
 
     write(path, c)
 
-def patch_ws_probe(base):
-    """Insert an OPENRS? identity probe handler into the WiCAN WebSocket receive path.
+def patch_slcan_probe(base):
+    """Insert OPENRS? probe into slcan_parse_str() — works for all transports.
 
-    The Android app sends "OPENRS?\\r" immediately after connecting. Stock WiCAN
-    ignores it (slcan_parse_frame returns an error silently); openrs-fw intercepts
-    it before the SLCAN parser and replies "OPENRS:<version>\\r\\n" so the app can
-    confirm it is talking to custom firmware and unlock extra features.
+    The actual function signature in wican-fw is:
+      char* slcan_parse_str(uint8_t *buf, uint8_t len, twai_message_t *frame, QueueHandle_t *q)
+
+    The slcan_response function pointer (set during slcan_init) is used to send
+    the reply back to whichever transport originated the message (TCP or WS).
     """
+    path = os.path.join(base, "main", "slcan.c")
+    if not os.path.exists(path):
+        print("  WARNING: slcan.c not found — SLCAN probe NOT inserted")
+        return
+    c = read(path)
+
+    MARKER = "OPENRS_SLCAN_PROBE"
+    if MARKER in c:
+        print("  skipped: SLCAN OPENRS? probe already present")
+        return
+
+    # The probe intercepts at the top of slcan_parse_str, before the existing
+    # buffer copy and command parsing. Uses the slcan_response callback to reply
+    # back to the originating transport (TCP socket or WebSocket frame).
+    PROBE_CODE = (
+        '\n    /* ' + MARKER + ': firmware identity probe ──────────────────────────\n'
+        '     * Android app sends "OPENRS?\\r" after connecting. Intercept here\n'
+        '     * before the SLCAN parser so it works over any transport (TCP/WS). */\n'
+        '    if (len >= 7 && strncmp((char *)buf, "OPENRS?", 7) == 0) {\n'
+        '        const char *reply = "OPENRS:' + OPENRS_FW_VERSION + '\\r\\n";\n'
+        '        if (slcan_response != NULL) {\n'
+        '            slcan_response((char *)reply, strlen(reply), q);\n'
+        '        }\n'
+        '        return NULL;\n'
+        '    }\n'
+    )
+
+    # Match the function body opening. The signature is stable across v4.20u and v4.48p.
+    ANCHOR = "char* slcan_parse_str(uint8_t *buf, uint8_t len, twai_message_t *frame, QueueHandle_t *q)\n{"
+    ALT_ANCHOR = "char* slcan_parse_str(uint8_t *buf, uint8_t len, twai_message_t *frame, QueueHandle_t *q) {"
+
+    for anchor in [ANCHOR, ALT_ANCHOR]:
+        if anchor in c:
+            replacement = anchor + PROBE_CODE
+            c = c.replace(anchor, replacement, 1)
+            write(path, c)
+            return
+
+    print("  WARNING: slcan_parse_str() anchor not found in slcan.c "
+          "— OPENRS? probe NOT inserted. Check wican-fw source version.")
+
+def patch_main_common(base):
+    """Apply common main.c patches: focusrs include, init, CAN RX hook."""
+    path = os.path.join(base, "main", "main.c")
+    c = read(path)
+
+    # 1. focusrs include
+    FRS_INC = '#include "focusrs.h"'
+    if FRS_INC not in c:
+        c = replace_once(c,
+            '#include "debug_logs_config.h"',
+            '#include "debug_logs_config.h"\n#include "focusrs.h"',
+            "focusrs.h include in main.c")
+
+    # 2. frs_init() after nvs_flash_init in app_main (regex to target only app_main's call)
+    if "frs_init();" not in c:
+        pattern = r'(void\s+app_main\s*\(void\)\s*\{[^}]*?)(ESP_ERROR_CHECK\(nvs_flash_init\(\)\);)'
+        replacement = r'\1ESP_ERROR_CHECK(nvs_flash_init());\n    frs_init();'
+        c_new, n = re.subn(pattern, replacement, c, count=1, flags=re.DOTALL)
+        if n > 0:
+            c = c_new
+            print("  patched: frs_init() after nvs_flash_init in app_main")
+        else:
+            print("  WARNING: could not find nvs_flash_init inside app_main — frs_init() NOT inserted")
+
+    # 3. frs_parse_can_frame in can_rx_task
+    RX_ANCHOR = "process_led(1);"
+    FRS_PARSE = (
+        "process_led(1);\n\n"
+        "                 // openrs-fw: decode Focus RS CAN frames\n"
+        "                 frs_parse_can_frame(rx_msg.identifier, rx_msg.data, rx_msg.data_length_code);"
+    )
+    if "frs_parse_can_frame" not in c:
+        c = replace_once(c, RX_ANCHOR, FRS_PARSE, "frs_parse_can_frame() in can_rx_task")
+
+    write(path, c)
+    return c
+
+def patch_cmake(base):
+    """Add focusrs to the REQUIRES list in main/CMakeLists.txt."""
+    path = os.path.join(base, "main", "CMakeLists.txt")
+    c = read(path)
+    if "focusrs" not in c:
+        c, n = re.subn(
+            r'(set\(requires\s+[^\)]+?)(filesystem\))',
+            r'\1filesystem focusrs)',
+            c, count=1
+        )
+        if n == 0:
+            print("  WARNING: could not patch CMakeLists.txt set(requires ...) — focusrs NOT added")
+        else:
+            print("  patched: CMakeLists.txt (focusrs added to requires)")
+    else:
+        print("  skipped: focusrs already in CMakeLists.txt")
+    write(path, c)
+
+# ── USB-only patches ─────────────────────────────────────────────────────────
+
+def patch_ws_probe(base, profile):
+    """Insert OPENRS? probe into the WebSocket handler (USB only).
+
+    The WiCAN USB uses WebSocket SLCAN. This intercepts the probe in the
+    ws_handler before xQueueSend so it never reaches the SLCAN task.
+    The Pro does NOT have this anchor — it uses the universal slcan.c probe.
+    """
+    if not profile["has_ws_probe"]:
+        print("  skipped: WebSocket probe not applicable for target '%s'" % profile["name"])
+        return
+
+    anchor = profile["anchors"]["ws_probe_queue"]
+    if anchor is None:
+        print("  skipped: no WS probe anchor for target '%s'" % profile["name"])
+        return
+
     path = os.path.join(base, "main", "config_server.c")
     c = read(path)
 
-    # In wican-fw v4.20u the ws_handler does NOT call slcan_parse_frame directly.
-    # Instead it copies the payload into an xdev_buffer and posts it to the SLCAN
-    # RX queue via xQueueSend. We intercept right before that queue send so the
-    # OPENRS? message is handled here and never reaches the SLCAN task.
     PROBE_CODE = (
         '\n    /* openrs-fw: firmware identity probe ─────────────────────────────────\n'
         '     * Android app sends "OPENRS?\\r" on connect; reply before queuing.\n'
@@ -205,123 +337,36 @@ def patch_ws_probe(base):
         '    }\n'
     )
 
-    ANCHOR = "xQueueSend( *xRX_Queue,"
     MARKER = "OPENRS?"
-
     if MARKER in c:
         print("  skipped: OPENRS? probe handler already present")
-    elif ANCHOR in c:
-        c = c.replace(ANCHOR, PROBE_CODE + "    " + ANCHOR, 1)
+    elif anchor in c:
+        c = c.replace(anchor, PROBE_CODE + "    " + anchor, 1)
         write(path, c)
     else:
         print("  WARNING: xQueueSend anchor not found in config_server.c "
               "— OPENRS? probe NOT inserted. Check wican-fw source version.")
 
+def patch_can_tx(base, profile):
+    """Insert the CAN TX shim and register it in app_main.
 
-def patch_tcp_probe(base):
-    """Insert an OPENRS? identity probe into the SLCAN TCP receive path.
-
-    The WiCAN Pro uses raw TCP SLCAN (port 35000) instead of WebSocket. The
-    WebSocket probe in config_server.c never fires for TCP connections. This
-    patch adds a check in slcan.c's slcan_parse_str() — the function that
-    processes every incoming SLCAN line regardless of transport — so the probe
-    works for both WiCAN (WebSocket) and WiCAN Pro (TCP).
-
-    NOTE: This targets wican-fw v4.20+. If the anchor function signature
-    changes in a future release, the patch will print a WARNING and skip.
-    Verify with actual WiCAN Pro hardware once available.
+    The anchor for registration differs between USB (wc_mdns_init) and Pro
+    (TBD — pending hardware). If the profile has no anchor, the patch is skipped
+    and CAN write features won't be available until the anchor is identified.
     """
-    path = os.path.join(base, "main", "slcan.c")
-    if not os.path.exists(path):
-        print("  WARNING: slcan.c not found — TCP probe NOT inserted (expected for non-Pro builds)")
-        return
-    c = read(path)
-
-    MARKER = "OPENRS_TCP_PROBE"
-    if MARKER in c:
-        print("  skipped: TCP OPENRS? probe already present in slcan.c")
+    if not profile["has_can_tx"]:
+        print("  skipped: CAN TX registration not available for target '%s' (anchor TBD)" % profile["name"])
         return
 
-    # slcan_parse_str receives the raw line from any transport. We intercept at
-    # the top of this function so "OPENRS?\r" never reaches the SLCAN command
-    # parser. The reply is written back via the TCP socket fd stored in the
-    # connection context.
-    #
-    # Anchor: the function signature. In wican-fw v4.20u it is:
-    #   int8_t slcan_parse_str(char *buf, uint8_t len)
-    # We insert our check immediately after the opening brace.
-    ANCHOR = "int8_t slcan_parse_str(char *buf, uint8_t len)\n{"
-    PROBE_BLOCK = (
-        'int8_t slcan_parse_str(char *buf, uint8_t len)\n'
-        '{\n'
-        '    /* ' + MARKER + ': respond to firmware identity probe over any transport.\n'
-        '     * WiCAN Pro uses raw TCP SLCAN — the WebSocket probe in config_server.c\n'
-        '     * does not fire. This catch-all ensures the app gets a reply. */\n'
-        '    if (len >= 7 && strncmp(buf, "OPENRS?", 7) == 0) {\n'
-        '        extern int slcan_tcp_send(const char *data, int data_len);\n'
-        '        const char *reply = "OPENRS:' + OPENRS_FW_VERSION + '\\r\\n";\n'
-        '        slcan_tcp_send(reply, strlen(reply));\n'
-        '        return 0;\n'
-        '    }\n'
-    )
+    anchor = profile["anchors"]["can_tx_register"]
+    replacement = profile["anchors"]["can_tx_register_replacement"]
+    if anchor is None or replacement is None:
+        print("  skipped: CAN TX anchor not defined for target '%s'" % profile["name"])
+        return
 
-    if ANCHOR in c:
-        c = c.replace(ANCHOR, PROBE_BLOCK, 1)
-        write(path, c)
-    else:
-        # Try alternate signature (some versions use different formatting)
-        ALT_ANCHOR = "int8_t slcan_parse_str(char *buf, uint8_t len) {"
-        if ALT_ANCHOR in c:
-            ALT_PROBE = PROBE_BLOCK.replace(
-                "int8_t slcan_parse_str(char *buf, uint8_t len)\n{",
-                "int8_t slcan_parse_str(char *buf, uint8_t len) {"
-            )
-            c = c.replace(ALT_ANCHOR, ALT_PROBE, 1)
-            write(path, c)
-        else:
-            print("  WARNING: slcan_parse_str() anchor not found in slcan.c "
-                  "— TCP OPENRS? probe NOT inserted. Check wican-fw source version.")
-
-
-def patch_main(base):
     path = os.path.join(base, "main", "main.c")
     c = read(path)
 
-    # 1. Add focusrs include
-    FRS_INC = '#include "focusrs.h"'
-    if FRS_INC not in c:
-        c = replace_once(c,
-            '#include "debug_logs_config.h"',
-            '#include "debug_logs_config.h"\n#include "focusrs.h"',
-            "focusrs.h include in main.c")
-
-    # 2. frs_init() after nvs_flash_init in app_main
-    #    wican-fw has two nvs_flash_init calls. The one in app_main is preceded by
-    #    "void app_main(void)". We use a regex to match nvs_flash_init only inside app_main.
-    if "frs_init();" not in c:
-        import re as _re2
-        pattern = r'(void\s+app_main\s*\(void\)\s*\{[^}]*?)(ESP_ERROR_CHECK\(nvs_flash_init\(\)\);)'
-        replacement = r'\1ESP_ERROR_CHECK(nvs_flash_init());\n    frs_init();'
-        c_new, n = _re2.subn(pattern, replacement, c, count=1, flags=_re2.DOTALL)
-        if n > 0:
-            c = c_new
-            print("  patched: frs_init() after nvs_flash_init in app_main")
-        else:
-            print("  WARNING: could not find nvs_flash_init inside app_main — frs_init() NOT inserted")
-
-    # 3. frs_parse_can_frame in can_rx_task
-    RX_ANCHOR = "process_led(1);"
-    FRS_PARSE = (
-        "process_led(1);\n\n"
-        "                 // openrs-fw: decode Focus RS CAN frames\n"
-        "                 frs_parse_can_frame(rx_msg.identifier, rx_msg.data, rx_msg.data_length_code);"
-    )
-    if "frs_parse_can_frame" not in c:
-        c = replace_once(c, RX_ANCHOR, FRS_PARSE, "frs_parse_can_frame() in can_rx_task")
-
-    # 4. frs_set_can_tx_fn — register after can_enable() calls complete in app_main
-    # Hook after the first can_enable() in app_main (REALDASH block)
-    CAN_TX_ANCHOR = "wc_mdns_init((char*)uid, hardware_version, firmware_version);"
     CAN_TX_FN = (
         "\n/* openrs-fw: CAN TX shim for focusrs component */\n"
         "static int openrs_can_tx(uint32_t id, const uint8_t *data, uint8_t dlc, uint32_t tms)\n"
@@ -334,57 +379,67 @@ def patch_main(base):
         "    return (int)can_send(&msg, pdMS_TO_TICKS(tms));\n"
         "}\n"
     )
-    CAN_TX_REGISTER = (
-        "wc_mdns_init((char*)uid, hardware_version, firmware_version);\n\n"
-        "    // openrs-fw: register CAN TX callback for drive mode write\n"
-        "    frs_set_can_tx_fn(openrs_can_tx);"
-    )
 
     if "openrs_can_tx" not in c:
-        # Insert the static function before app_main
         c = replace_once(c, "void app_main(void)", CAN_TX_FN + "void app_main(void)", "openrs_can_tx function")
-        c = replace_once(c,
-            "wc_mdns_init((char*)uid, hardware_version, firmware_version);",
-            CAN_TX_REGISTER,
-            "frs_set_can_tx_fn() registration")
-
-    write(path, c)
-
-def patch_cmake(base):
-    path = os.path.join(base, "main", "CMakeLists.txt")
-    c = read(path)
-    if "focusrs" not in c:
-        # Add focusrs to the set(requires ...) variable line.
-        # The variable is then expanded in REQUIRES "${requires}", so this is sufficient.
-        import re as _re
-        c, n = _re.subn(
-            r'(set\(requires\s+[^\)]+?)(filesystem\))',
-            r'\1filesystem focusrs)',
-            c, count=1
-        )
-        if n == 0:
-            print("  WARNING: could not patch CMakeLists.txt set(requires ...) — focusrs NOT added")
-        else:
-            print("  patched: CMakeLists.txt (focusrs added to requires)")
+        c = replace_once(c, anchor, replacement, "frs_set_can_tx_fn() registration")
+        write(path, c)
     else:
-        print("  skipped: focusrs already in CMakeLists.txt")
-    write(path, c)
+        print("  skipped: openrs_can_tx already present in main.c")
 
-if __name__ == "__main__":
-    if len(sys.argv) < 2:
-        print("Usage: apply_patches.py <path-to-wican-fw>")
-        sys.exit(1)
+# ── Entry point ──────────────────────────────────────────────────────────────
 
-    base = sys.argv[1]
+def main():
+    parser = argparse.ArgumentParser(
+        description="Apply openrs-fw patches to a cloned wican-fw tree."
+    )
+    parser.add_argument("base", help="Path to the cloned wican-fw directory")
+    parser.add_argument(
+        "--target", default="usb", choices=["usb", "pro"],
+        help="Build target: usb (WiCAN USB-C3, default) or pro (WiCAN Pro)"
+    )
+    args = parser.parse_args()
+
+    base = args.base
     if not os.path.isdir(base):
         print(f"ERROR: directory not found: {base}")
         sys.exit(1)
 
-    print(f"\nApplying openrs-fw patches to: {base}\n")
+    profile = load_profile(args.target)
+
+    if not profile["verified"]:
+        print(f"\n  *** WARNING: target '{args.target}' is UNVERIFIED ***")
+        print(f"  *** Patches may fail — verify with actual hardware ***\n")
+
+    print(f"\nApplying openrs-fw patches to: {base}")
+    print(f"Target: {profile['description']} (wican-fw {profile['wican_tag']})\n")
+
+    # Common patches (all targets)
+    print("[1/7] WiFi network...")
     patch_wifi_network(base)
+
+    print("[2/7] Config server (REST API, password, includes)...")
     patch_config_server(base)
-    patch_ws_probe(base)
-    patch_tcp_probe(base)
-    patch_main(base)
+
+    print("[3/7] SLCAN probe (universal, all transports)...")
+    patch_slcan_probe(base)
+
+    print("[4/7] WebSocket probe (transport-specific)...")
+    patch_ws_probe(base, profile)
+
+    print("[5/7] Main (focusrs init, CAN RX hook)...")
+    patch_main_common(base)
+
+    print("[6/7] CAN TX shim (write support)...")
+    patch_can_tx(base, profile)
+
+    print("[7/7] CMakeLists (focusrs dependency)...")
     patch_cmake(base)
-    print("\nAll patches applied successfully.\n")
+
+    print(f"\nAll patches applied for target '{profile['name']}'.")
+    if not profile["verified"]:
+        print("  NOTE: This target is unverified. Build may succeed but flash testing required.")
+    print()
+
+if __name__ == "__main__":
+    main()

@@ -1,10 +1,12 @@
 # openrs-fw
 
-Custom ESP32-C3 firmware for the MeatPi WiCAN-USB-C3, purpose-built for the Ford Focus RS MK3. Part of the [openRS_ project](../README.md).
+Custom firmware for MeatPi WiCAN adapters, purpose-built for the Ford Focus RS MK3. Part of the [openRS_ project](../README.md).
 
-Forked from [`meatpiHQ/wican-fw`](https://github.com/meatpiHQ/wican-fw) — the proven WiFi/CAN/OTA stack is retained and a Focus RS module is layered on top.
+Forked from [`meatpiHQ/wican-fw`](https://github.com/meatpiHQ/wican-fw) — the proven WiFi/CAN/OTA stack is retained and a Focus RS module (`focusrs`) is layered on top.
 
 **Current status:** v1.4 — release binaries in `firmware/release/`.
+
+**Supported devices:** WiCAN USB-C3 (verified), WiCAN Pro (experimental).
 
 ---
 
@@ -49,20 +51,31 @@ Forked from [`meatpiHQ/wican-fw`](https://github.com/meatpiHQ/wican-fw) — the 
 
 ### WiCAN Pro — Experimental Support
 
-The **MeatPi WiCAN Pro** is a higher-end adapter with onboard GPS, MicroSD logging, and a raw TCP SLCAN interface (port 35000). The openRS_ Android app supports the Pro for **passive CAN + OBD polling** out of the box — no firmware flash needed.
+The **MeatPi WiCAN Pro** is a higher-end adapter with onboard GPS, MicroSD logging, and a raw TCP SLCAN interface (port 35000). The openRS_ Android app supports the Pro for **passive CAN + OBD polling** out of the box with stock firmware.
 
 | Feature | Status |
 |---------|--------|
-| Raw TCP SLCAN connection | ✅ Working |
-| Passive CAN frame reception | ✅ Working |
-| OBD polling (PCM/BCM/AWD/PSCM) | ✅ Working |
-| DTC scan & clear | ✅ Working |
-| openrs-fw detection (`OPENRS?` probe) | ⚠️ v1.4+ (pending Pro hardware verification) |
+| Raw TCP SLCAN connection (app) | ✅ Working |
+| Passive CAN frame reception (app) | ✅ Working |
+| OBD polling PCM/BCM/AWD/PSCM (app) | ✅ Working |
+| DTC scan and clear (app) | ✅ Working |
+| openrs-fw build (`build.sh --target pro`) | ⚠️ Compiles (unverified flash) |
+| openrs-fw `OPENRS?` probe (slcan.c) | ⚠️ Patched (pending hardware test) |
+| CAN write (drive mode, ESC, LC, ASS) | ❌ CAN TX anchor TBD |
 | GPS NMEA passthrough | ❌ Not yet implemented |
 | MicroSD remote control | ❌ Not yet implemented |
-| openrs-fw firmware port | ❌ Requires Pro hardware analysis |
 
-> **Note:** Firmware-gated features (drive mode write, LC, ASS kill, ESC control) require openrs-fw. Porting openrs-fw to the Pro's hardware is tracked in [Phase 10 — Hardware Expansion](../README.md).
+| Field | Value |
+|-------|-------|
+| Board | MeatPi WiCAN Pro |
+| SoC | ESP32-S3 (Xtensa) |
+| Flash | 16MB |
+| PSRAM | 8MB (octal, 80MHz) |
+| Upstream tag | `v4.48p` |
+| CAN Driver | TWAI |
+| CAN Speed | 500 kbps (HS-CAN) |
+
+> **Note:** The Pro build target patches onto wican-fw v4.48p (the latest Pro release), giving it all of MeatPi's latest fixes including improved AutoPID, WireGuard, and CAN filter support. CAN write features require identifying the Pro-specific CAN TX registration anchor — tracked in [#73](https://github.com/klexical/openRS_/issues/73).
 
 ---
 
@@ -73,17 +86,27 @@ A single script handles everything — ESP-IDF installation, cloning wican-fw, a
 ### One-command build
 
 ```bash
-# From the repo root:
+# Build for WiCAN USB-C3 (default):
 cd "openRS_/firmware"
 ./build.sh
+
+# Build for WiCAN Pro:
+./build.sh --target pro
 ```
 
-That's it. The script will:
+The `--target` flag selects the device profile:
+
+| Target | Device | SoC | Upstream tag | Output binary |
+|--------|--------|-----|-------------|---------------|
+| `usb` (default) | WiCAN USB-C3 | ESP32-C3 | `v4.20u_beta-01` | `openrs-fw-usb_v140.bin` |
+| `pro` | WiCAN Pro | ESP32-S3 | `v4.48p` | `openrs-fw-pro_v140.bin` |
+
+The script will:
 1. Install ESP-IDF v5.2.3 to `firmware/.build/esp-idf` if not already present (~5–15 min, one-time)
-2. Clone `meatpiHQ/wican-fw` at the pinned tag into `firmware/.build/wican-fw/`
-3. Copy the `focusrs` component into the wican-fw components directory
-4. Apply targeted source patches (SSID branding, CAN RX hook, REST endpoint)
-5. Build for `esp32c3`
+2. Clone `meatpiHQ/wican-fw` at the target's pinned tag into `firmware/.build/<target>/wican-fw/`
+3. Copy the shared `focusrs` component into the wican-fw components directory
+4. Apply target-specific source patches (SSID branding, CAN RX hook, REST endpoint, OPENRS? probe)
+5. Build for the target SoC
 6. Copy all flash-ready `.bin` files to `firmware/release/`
 
 ### Output
@@ -93,16 +116,26 @@ firmware/release/
   bootloader.bin          ← flash at 0x0
   partition-table.bin     ← flash at 0x8000
   ota_data_initial.bin    ← flash at 0xd000
-  openrs-fw-usb_v140.bin  ← flash at 0x10000
+  openrs-fw-usb_v140.bin  ← flash at 0x10000  (USB build)
+  openrs-fw-pro_v140.bin  ← flash at 0x10000  (Pro build)
 ```
+
+### Building both targets
+
+```bash
+./build.sh --target usb
+./build.sh --target pro
+```
+
+Each target has its own build directory (`firmware/.build/usb/`, `firmware/.build/pro/`) so they don't interfere. ESP-IDF is shared.
 
 ### Re-running the build
 
-The script is safe to re-run. It skips steps that are already complete (ESP-IDF install, wican-fw clone). To force a clean rebuild:
+The script is safe to re-run. It skips steps that are already complete (ESP-IDF install, wican-fw clone). To force a clean rebuild for a specific target:
 
 ```bash
-rm -rf firmware/.build
-./firmware/build.sh
+rm -rf firmware/.build/usb   # or firmware/.build/pro
+./build.sh --target usb
 ```
 
 ### If ESP-IDF is already installed
@@ -196,24 +229,34 @@ The BLE interface is protocol-compatible with the WiFi TCP interface. The openRS
 
 ```
 firmware/
-├── README.md                    ← this file
-├── CMakeLists.txt
-├── sdkconfig.defaults
-├── main/
-│   ├── CMakeLists.txt
-│   ├── main.c                   ← app_main, init sequence
-│   └── Kconfig.projbuild        ← menuconfig options
+├── README.md                          ← this file
+├── CHANGELOG.md                       ← firmware changelog
+├── build.sh                           ← build script (--target usb|pro)
 ├── components/
-│   ├── focusrs/                 ← Focus RS CAN module
+│   ├── focusrs/                       ← Focus RS CAN module (shared, device-agnostic)
 │   │   ├── CMakeLists.txt
 │   │   ├── focusrs.h
-│   │   ├── focusrs.c            ← drive mode read/write, ESC, LC, ASS
-│   │   └── focusrs_nvs.c        ← NVS persistence
-│   └── ble_transport/           ← BLE GATT ELM327 bridge
+│   │   ├── focusrs.c                  ← drive mode read/write, ESC, LC, ASS
+│   │   ├── focusrs_nvs.c             ← NVS persistence
+│   │   └── focusrs_nvs.h
+│   └── ble_transport/                 ← BLE GATT ELM327 bridge
 │       ├── CMakeLists.txt
 │       ├── ble_transport.h
-│       └── ble_transport.c      ← GATT server, ELM327 notify characteristic
-└── build.sh                     ← one-command build script
+│       └── ble_transport.c
+├── patches/
+│   ├── apply_patches.py               ← patch script (--target usb|pro)
+│   ├── profiles/
+│   │   ├── __init__.py
+│   │   ├── usb.py                     ← USB-C3 profile (anchors, config)
+│   │   └── pro.py                     ← Pro profile (anchors, config)
+│   ├── sdkconfig.defaults.usb         ← ESP32-C3 build config
+│   ├── sdkconfig.defaults.pro         ← ESP32-S3 build config
+│   ├── partitions_openrs_usb.csv      ← 4MB flash, single OTA
+│   └── partitions_openrs_pro.csv      ← 16MB flash, dual OTA
+├── release/                           ← flash-ready binaries
+│   ├── openrs-fw-usb_v140.bin
+│   └── openrs-fw-pro_v140.bin
+└── stock/                             ← stock wican-fw binaries (reference)
 ```
 
 ---
