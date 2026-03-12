@@ -21,25 +21,32 @@ import com.openrs.dash.data.VehicleState
  *
  * Drive mode: TWO signals required (HS-CAN).
  *   0x1B0 AWDmsg01 byte6 nibble (DBC VAL_ 432): 0=Normal, 1=Sport+Track, 2=Drift.
- *   0x420 byte6 (empirical, ~600ms): 0x10=Normal/Sport, 0x11=Track.
- *   Combined: nibble=0→Normal; nibble=1+0x10→Sport; nibble=1+0x11→Track; nibble=2→Drift.
+ *   0x420 byte6+byte7 (empirical, ~600ms):
+ *     byte6=0x10 → Normal;  byte6=0x11, byte7 bit0=0 → Sport;
+ *     byte6=0x11, byte7 bit0=1 → Track;  byte6=0x12 → Drift.
+ *   Combined: nibble=0→Normal; nibble=1+bit0=0→Sport; nibble=1+bit0=1→Track; nibble=2→Drift.
+ *   Confirmed via live SLCAN capture (Pro session 2026-03-11):
+ *     Normal 0x10/0xC4 → Sport 0x11/0xCC → Track 0x11/0xCD → Drift 0x12/0xC4.
  *   Definitive rsDriveMode is at MS-CAN 0x345 (not captured via OBD-II HS-CAN).
  * Steady-state 0x1B0 frames have byte4=0x00; button-event frames have byte4 != 0.
  */
 object CanDecoder {
 
     /**
-     * Latest 0x420 byte-6 value, used to disambiguate Sport from Track:
-     *   0x10 = Normal / Sport  (either mode; use 0x1B0 nibble to tell Normal from Sport)
-     *   0x11 = Track           (confirmed across sessions S1, S2, S3)
+     * Latest 0x420 byte6<<8|byte7, used to disambiguate Sport from Track.
+     * Confirmed mapping (SLCAN capture 2026-03-11):
+     *   0x10C4 = Normal          (byte6=0x10)
+     *   0x11CC = Sport           (byte6=0x11, byte7 bit0=0)
+     *   0x11CD = Track           (byte6=0x11, byte7 bit0=1)
+     *   0x12C4 = Drift           (byte6=0x12)
      * Drift is detected directly via 0x1B0 nibble=2 (DBC VAL_ 432 confirmed).
-     * Defaults to 0x10 so cold-start shows Sport correctly if 0x420 hasn't arrived yet.
+     * Defaults to 0x10C4 so cold-start shows Sport correctly if 0x420 hasn't arrived yet.
      */
-    @Volatile private var modeDetail420: Int = 0x10
+    @Volatile private var modeDetail420: Int = 0x10C4
 
     /** Reset per-session state — call at the start of each new connection. */
     fun resetSessionState() {
-        modeDetail420 = 0x10
+        modeDetail420 = 0x10C4
     }
 
     // ── HS-CAN engine / powertrain ──────────────────────────────────────────
@@ -82,10 +89,11 @@ object CanDecoder {
     // Displayed as 0-100% (raw / 40.95) until bar calibration is confirmed.
     const val ID_BRAKE_PRESS  = 0x252
 
-    // 0x420: empirically confirmed Track indicator (~600 ms broadcast).
+    // 0x420: empirically confirmed drive-mode detail (~600 ms broadcast).
     // DBC only documents LaunchControlStatus (bit 50, 1-bit) for this ID.
-    // byte 6: 0x10=Normal/Sport, 0x11=Track (confirmed 3 sessions).
-    // Drift uses 0x1B0 nibble=2 directly; 0x420 not required for Drift.
+    // byte6: 0x10=Normal, 0x11=Sport/Track, 0x12=Drift.
+    // byte7 bit 0 disambiguates: 0=Sport (0xCC), 1=Track (0xCD).
+    // Confirmed via live SLCAN capture (Pro session 2026-03-11).
     const val ID_DRIVE_MODE_EXT = 0x420
 
     // RS_HS.dbc PCMmsg30 (0x380): FuelLevelFiltered : 17|10@0+ (0.4,0) [0|102] "%"
@@ -303,40 +311,38 @@ object CanDecoder {
             } else null
 
             // ── 0x1B0: Drive mode steady-state ────────────────────────────────
-            // Byte 6 upper nibble: 0=Normal, 1=Sport-or-higher.
-            // 0x1B0 alone cannot differentiate Sport from Track/Drift.
-            // Combine with 0x420 byte-6 (modeDetail420):
-            //   nibble=0             → NORMAL  (0x420 ignored)
-            //   nibble=1 + 0x10     → SPORT
-            //   nibble=1 + 0x11     → TRACK  (confirmed S2+S3)
-            //   nibble=1 + 0x12     → DRIFT  (hypothesised)
-            //   nibble=1 + other    → SPORT fallback
+            // Byte 6 upper nibble: 0=Normal, 1=Sport-or-Track, 2=Drift.
+            // 0x1B0 alone cannot differentiate Sport from Track.
+            // Combine with 0x420 (modeDetail420 = byte6<<8|byte7):
+            //   nibble=0                          → NORMAL
+            //   nibble=1, 0x420 byte7 bit0 = 1    → TRACK  (0x11CD confirmed)
+            //   nibble=1, 0x420 byte7 bit0 = 0    → SPORT  (0x11CC confirmed)
+            //   nibble=2                          → DRIFT  (DBC VAL_ 432 confirmed)
             ID_DRIVE_MODE -> if (n >= 7) {
                 val b4 = data[4].toInt() and 0xFF
                 val b6 = data[6].toInt() and 0xFF
                 val nibble = b6 ushr 4
                 val resolvedMode = when {
                     nibble == 0 -> DriveMode.NORMAL
-                    nibble == 1 -> when (modeDetail420) {
-                        0x11 -> DriveMode.TRACK                 // 0x420 b6=0x11 → Track confirmed
-                        else -> DriveMode.SPORT                 // 0x10 or unknown → Sport
-                    }
-                    nibble == 2 -> DriveMode.DRIFT              // DBC VAL_ 432 confirmed
+                    nibble == 1 -> if ((modeDetail420 and 0x01) != 0) DriveMode.TRACK
+                                  else DriveMode.SPORT
+                    nibble == 2 -> DriveMode.DRIFT
                     else        -> DriveMode.UNKNOWN
                 }
                 if (b4 != 0) null
                 else state.copy(driveMode = resolvedMode, lastUpdate = now)
             } else null
 
-            // ── 0x420: Track mode indicator (~600 ms) ────────────────────────
-            // byte 6: 0x10=Sport/Normal, 0x11=Track (confirmed 3 sessions).
-            // When b6 changes, immediately re-resolve VehicleState.driveMode.
-            ID_DRIVE_MODE_EXT -> if (n >= 7) {
-                val newDetail = ubyte(data, 6)
+            // ── 0x420: Drive mode detail (~600 ms) ──────────────────────────
+            // byte6=0x10 Normal, 0x11 Sport/Track, 0x12 Drift.
+            // byte7 bit 0 disambiguates: 0=Sport (0xCC), 1=Track (0xCD).
+            // When the value changes, immediately re-resolve VehicleState.driveMode.
+            ID_DRIVE_MODE_EXT -> if (n >= 8) {
+                val newDetail = (ubyte(data, 6) shl 8) or ubyte(data, 7)
                 modeDetail420 = newDetail
-                // Only re-resolve if current mode is Sport or Track (nibble=1 territory)
                 if (state.driveMode == DriveMode.SPORT || state.driveMode == DriveMode.TRACK) {
-                    val resolved = if (newDetail == 0x11) DriveMode.TRACK else DriveMode.SPORT
+                    val resolved = if ((newDetail and 0x01) != 0) DriveMode.TRACK
+                                   else DriveMode.SPORT
                     state.copy(driveMode = resolved, lastUpdate = now)
                 } else null
             } else null
