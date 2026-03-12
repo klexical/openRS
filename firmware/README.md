@@ -200,7 +200,8 @@ The BLE interface is protocol-compatible with the WiFi TCP interface. The openRS
 ### Reading current mode (HS-CAN, passive)
 | CAN ID | Byte | Bits | Value mapping |
 |--------|------|------|---------------|
-| `0x1B0` | — | 55–58 (4-bit Motorola) | 0=Normal, 1=Sport, 2=Drift, 3=Track |
+| `0x1B0` | B6 | upper nibble | 0=Normal, 1=Sport/Track (ambiguous), 2=Drift |
+| `0x420` | B6+B7 | B6: mode group, B7 bit 0: detail | B6=0x10 Normal, 0x11 Sport/Track, 0x12 Drift; B7 bit0: 0=Sport, 1=Track |
 
 ### Writing mode (button simulation)
 | Action | CAN ID | Byte 1 | Notes |
