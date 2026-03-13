@@ -347,6 +347,8 @@ Complete decode formulas, byte-level breakdowns, and all Mode 22 PIDs: [`android
 - Data streaming to external apps (RaceChrono, Harry's LapTimer) via local broadcast or content provider
 - Video overlay export — combine trip data with dashcam footage
 
+> **Full vision:** See [Feature Roadmap](docs/feature-roadmap.md) for 35+ planned features beyond the current release phases.
+
 ---
 
 ## Contributing
