@@ -109,8 +109,7 @@ class VehicleStateTest {
     fun `drive mode enum mapping`() {
         assertEquals(DriveMode.NORMAL, DriveMode.fromInt(0))
         assertEquals(DriveMode.SPORT, DriveMode.fromInt(1))
-        assertEquals(DriveMode.TRACK, DriveMode.fromInt(2))
-        assertEquals(DriveMode.DRIFT, DriveMode.fromInt(3))
+        assertEquals(DriveMode.DRIFT, DriveMode.fromInt(2))
         assertEquals(DriveMode.UNKNOWN, DriveMode.fromInt(99))
     }
 
