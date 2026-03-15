@@ -31,7 +31,7 @@ extern "C" {
 // 0x17E (DriveModeRequest) ONLY reflects Normal/Sport — Track and Drift are absent.
 //   Confirmed via live log cross-reference: 0x1B0 byte6=0x20 (Drift) while 0x17E stayed at nibble=1.
 #define FRS_CAN_ID_AWD_MSG    0x1B0   // Drive mode status + button event frame
-#define FRS_CAN_ID_ESC_ABS    0x1C0   // ESC mode (bits 13–14)
+#define FRS_CAN_ID_ESC_ABS    0x1C0   // ESC mode (MSB-first bits 10–11, byte1 bits 5–4)
 
 // Drive mode button byte values (0x1B0 byte 1)
 #define FRS_BUTTON_RELEASED   0x5A

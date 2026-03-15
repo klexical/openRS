@@ -219,9 +219,10 @@ class VehicleStateTest {
 
     @Test
     fun `ESC status enum mapping`() {
+        // CAN 0x1C0 byte1 bits[5:4]: 0=On, 1=Off (long press), 2=Sport (short press)
         assertEquals(EscStatus.ON, EscStatus.fromInt(0))
-        assertEquals(EscStatus.PARTIAL, EscStatus.fromInt(1))
-        assertEquals(EscStatus.OFF, EscStatus.fromInt(2))
+        assertEquals(EscStatus.OFF, EscStatus.fromInt(1))
+        assertEquals(EscStatus.PARTIAL, EscStatus.fromInt(2))
         assertEquals(EscStatus.UNKNOWN, EscStatus.fromInt(99))
     }
 }

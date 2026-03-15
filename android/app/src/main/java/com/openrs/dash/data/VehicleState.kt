@@ -268,8 +268,9 @@ enum class DriveMode(val label: String) {
 enum class EscStatus(val label: String) {
     ON("ESC On"), PARTIAL("ESC Sport"), OFF("ESC Off"), UNKNOWN("--");
     companion object {
+        // CAN 0x1C0 byte1 bits[5:4]: 0=On, 1=Off (long press), 2=Sport (short press)
         fun fromInt(v: Int): EscStatus = when (v) {
-            0 -> ON; 1 -> PARTIAL; 2 -> OFF; else -> UNKNOWN
+            0 -> ON; 1 -> OFF; 2 -> PARTIAL; else -> UNKNOWN
         }
     }
 }

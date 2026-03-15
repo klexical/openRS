@@ -112,7 +112,7 @@ All formulas re-validated against DigiCluster `can0_hs.json` and `can1_ms.json`.
 | 0x1A4 | Ambient temp | `B4 signed × 0.25 °C` | DigiCluster MS-CAN bridged |
 | 0x1B0 | Drive mode (coarse) | `(B6>>4)&0x0F` — 0=Normal, 1=Sport/Track, 2=Drift | RS_HS.dbc AWDmsg01 |
 | 0x420 | Drive mode (detail) | B6: 0x10=Normal, 0x11=Sport/Track, 0x12=Drift; B7 bit0: 0=Sport, 1=Track | Empirical (confirmed 2026-03-11) |
-| 0x1C0 | ESC mode status | ESC operating mode (On / Sport / Off) | RS_HS.dbc |
+| 0x1C0 | ESC mode status | `bits(10,2)`: 0=On, 1=Off, 2=Sport (byte1 bits 5–4) | SLCAN-verified 2026-03-15 |
 | 0x190 | 4× wheel speeds | FL/FR/RL/RR: 15-bit Motorola × 0.011343006 kph | RS_HS.dbc ABSmsg03 |
 | 0x2C0 | AWD L/R torque | 12-bit words scaled | DigiCluster HS-CAN |
 | 0x2F0 | Coolant temp, IAT | coolant: `((B4&0x03)<<8\|B5) − 60 °C`; IAT: `((B6&0x03)<<8\|B7) × 0.25 − 127 °C` | RS_HS.dbc PCMmsg16 |
