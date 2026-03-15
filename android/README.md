@@ -4,7 +4,7 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/version-2.2.3-blue" alt="Version">
+  <img src="https://img.shields.io/badge/version-2.2.4-blue" alt="Version">
   <img src="https://img.shields.io/badge/Kotlin-2.0-purple?logo=kotlin" alt="Kotlin">
   <img src="https://img.shields.io/badge/Jetpack_Compose-Material3-4285F4?logo=jetpackcompose" alt="Compose">
 </p>
@@ -27,7 +27,7 @@
 git clone https://github.com/klexical/openRS_.git
 cd openRS_/android
 ./gradlew assembleRelease
-# Output: app/build/outputs/apk/release/openRS_v2.2.3.apk
+# Output: app/build/outputs/apk/release/openRS_v2.2.4.apk
 # (Requires keystore — see docs/signing-setup.md)
 ```
 
@@ -35,7 +35,7 @@ cd openRS_/android
 
 ```bash
 ./gradlew assembleDebug
-# Output: app/build/outputs/apk/debug/openRS_v2.2.3-staging-debug.apk
+# Output: app/build/outputs/apk/debug/openRS_v2.2.4-staging-debug.apk
 ```
 
 ### Browser Emulator
