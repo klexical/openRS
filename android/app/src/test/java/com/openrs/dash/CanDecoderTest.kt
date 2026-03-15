@@ -440,13 +440,12 @@ class CanDecoderTest {
     }
 
     // ── 0x1C0: ESC/ABS ─────────────────────────────────────────────────────
+    // bits(10, 2) = byte1 bits [5:4]. Mapping: 0=On, 1=Off, 2=Sport.
+    // Real CAN data: 0xC0=On, 0xD0=Off, 0xE0=Sport (SLCAN-verified 2026-03-15).
 
     @Test
     fun `decode ESC on`() {
-        // bits(13, 2) -> ESC mode. 0 = On.
-        // bit13 = byte1 bit2, bit14 = byte1 bit1 (MSB-first numbering)
-        // 0 = 0b00 -> byte1 bits 2-1 = 00 -> byte1 = 0x00
-        val data = byteArrayOf(0x00, 0x00)
+        val data = byteArrayOf(0x77, 0xC0.toByte())
         val result = CanDecoder.decode(0x1C0, data, blank)
         assertNotNull(result)
         assertEquals(EscStatus.ON, result!!.escStatus)
@@ -454,9 +453,7 @@ class CanDecoderTest {
 
     @Test
     fun `decode ESC sport`() {
-        // bits(13, 2) = 1 -> PARTIAL/Sport
-        // bit13 = 0, bit14 = 1 -> byte1 bit2 = 0, bit1 = 1 -> byte1 = 0x02
-        val data = byteArrayOf(0x00, 0x02)
+        val data = byteArrayOf(0x77, 0xE0.toByte())
         val result = CanDecoder.decode(0x1C0, data, blank)
         assertNotNull(result)
         assertEquals(EscStatus.PARTIAL, result!!.escStatus)
@@ -464,9 +461,7 @@ class CanDecoderTest {
 
     @Test
     fun `decode ESC off`() {
-        // bits(13, 2) = 2 -> OFF
-        // bit13 = 1, bit14 = 0 -> byte1 bit2 = 1, bit1 = 0 -> byte1 = 0x04
-        val data = byteArrayOf(0x00, 0x04)
+        val data = byteArrayOf(0x77, 0xD0.toByte())
         val result = CanDecoder.decode(0x1C0, data, blank)
         assertNotNull(result)
         assertEquals(EscStatus.OFF, result!!.escStatus)

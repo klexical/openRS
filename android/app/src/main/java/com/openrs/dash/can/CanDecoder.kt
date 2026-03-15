@@ -65,7 +65,7 @@ object CanDecoder {
     // Use 0x420 b6=0x11 to lift nibble=1 to TRACK when Track is engaged.
     // Steady-state: byte4=0x00; button-event transitions: byte4 != 0.
     const val ID_DRIVE_MODE   = 0x1B0
-    const val ID_ESC_ABS      = 0x1C0   // ESCMode Motorola bit 13|2    — RS_HS.dbc confirmed
+    const val ID_ESC_ABS      = 0x1C0   // ESCMode MSB-first bit 10|2 — corrected from DBC 13|2
     // RS_HS.dbc ABSmsg03 (0x190): FL/FR/RL/RR wheel speeds — 15-bit Motorola × 0.011343006 km/h
     const val ID_WHEEL_SPEEDS = 0x190
     const val ID_GEAR         = 0x230   // Gear bits 0-3
@@ -349,7 +349,7 @@ object CanDecoder {
 
             // ── 0x1C0: ESC mode ────────────────────────────────────────────────
             ID_ESC_ABS -> if (n >= 2) state.copy(
-                escStatus = EscStatus.fromInt(bits(data, 13, 2)), lastUpdate = now
+                escStatus = EscStatus.fromInt(bits(data, 10, 2)), lastUpdate = now
             ) else null
 
             // ── 0x230: Current gear ────────────────────────────────────────────
