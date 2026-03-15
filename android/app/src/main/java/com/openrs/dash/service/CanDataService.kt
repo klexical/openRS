@@ -311,6 +311,7 @@ class CanDataService : Service() {
                 cabinTempC   = if (obdState.cabinTempC  > -90)  obdState.cabinTempC   else current.cabinTempC,
                 rduTempC     = if (obdState.rduTempC > -90)     obdState.rduTempC     else current.rduTempC,
                 hpFuelRailPsi = if (obdState.hpFuelRailPsi >= 0) obdState.hpFuelRailPsi else current.hpFuelRailPsi,
+                batteryVoltage = if (obdState.batteryVoltage > 0) obdState.batteryVoltage else current.batteryVoltage,
                 rduEnabled   = obdState.rduEnabled   ?: current.rduEnabled,
                 pdcEnabled   = obdState.pdcEnabled   ?: current.pdcEnabled,
                 fengEnabled  = obdState.fengEnabled  ?: current.fengEnabled,
