@@ -1,6 +1,6 @@
 # OBD PID Reference — Ford Focus RS MK3
 
-Complete reference for all OBD-II parameters used by openRS_ (current as of v2.2.3).
+Complete reference for all OBD-II parameters used by openRS_ (current as of v2.2.4).
 
 ## ECU Address Map
 
@@ -22,6 +22,7 @@ The following PCM Mode 22 PIDs are polled by the app every 30 seconds via ISO-TP
 | 0xF40F | Intake Air Temp (PCM) | `22F40F` | `B4 − 40` | °C | No (reference) | CAN 0x2F0 |
 | 0x03CA | Intake Air Temp 2 | `2203CA` | `B4 − 40` | °C | No (reference) | Likely post-intercooler charge air |
 | 0xF42F | Fuel Level (PCM) | `22F42F` | `(B4 / 255) × 100` | % | ✅ 30 s | CAN 0x380 (also decoded) |
+| 0x0304 | Battery Voltage | `220304` | `(B4×256 + B5) / 2048` | V | ✅ 30 s | — |
 
 ## Mode 1 — Standard OBD-II (Reference Only)
 

@@ -13,7 +13,7 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/version-2.2.3-blue" alt="Version">
+  <img src="https://img.shields.io/badge/version-2.2.4-blue" alt="Version">
   <img src="https://img.shields.io/badge/platform-Android-brightgreen?logo=android" alt="Platform">
   <img src="https://img.shields.io/badge/Kotlin-2.0-purple?logo=kotlin" alt="Kotlin">
   <img src="https://img.shields.io/badge/Jetpack_Compose-Material3-4285F4?logo=jetpackcompose" alt="Compose">
@@ -178,7 +178,7 @@ All display preferences are configurable and persist across restarts:
 git clone https://github.com/klexical/openRS_.git
 cd openRS_/android
 ./gradlew assembleRelease
-# Output: app/build/outputs/apk/release/openRS_v2.2.3.apk
+# Output: app/build/outputs/apk/release/openRS_v2.2.4.apk
 # (Requires keystore — see android/docs/signing-setup.md)
 ```
 
@@ -309,7 +309,7 @@ android/
 │       ├── xml/file_paths.xml            # FileProvider path config
 │       └── mipmap-*/ic_launcher*.png     # App icon (all densities)
 ├── browser-emulator/
-│   └── index.html                        # Standalone browser emulator (v2.2.3)
+│   └── index.html                        # Standalone browser emulator (v2.2.4)
 ├── docs/
 │   ├── hardware-setup.md
 │   ├── firmware-update.md
@@ -343,10 +343,11 @@ Complete decode formulas, byte-level breakdowns, and all Mode 22 PIDs: [`android
 - [x] Phase 6 — DTC scanning: 873-code Ford DTC database, full-module scan + clear via UDS 0x19/0x14 (v2.2.1)
 - [x] Phase 7 — Data export + MeatPi Pro: trip ZIP (GPX/CSV/TXT), diagnostics ZIP, raw TCP SLCAN adapter support (v2.2.1)
 - [x] Phase 7.5 — Sensor data + polish: GPS permission fix, Module Status/LC/ASS live OBD, full diagnostic export (~24 new fields), SLCAN OBD frame capture, code review fixes (v2.2.3)
+- [x] Phase 8.0 — Car test fixes + crash telemetry: ESC decode fix, throttle fallback to accel pedal, battery voltage OBD, FENG/RSProt probe timeout→N/A, crash telemetry ring buffer, app version display (v2.2.4)
 
 ### Planned
 
-- [ ] Phase 8 — Polish and sensor gaps: BLE transport in app, 12V battery voltage PID, tire temperature PIDs, brake pressure calibration (v2.3.x)
+- [ ] Phase 8.5 — Polish and sensor gaps: BLE transport in app, tire temperature PIDs, brake pressure calibration (v2.3.x)
 - [ ] Phase 9 — Track day intelligence: lap timer with geofence, track map overlay enhancements, trip comparison (v2.4.x)
 - [ ] Phase 10 — Hardware expansion: MeatPi Pro GPS integration, MS-CAN support (v2.5.x)
 - [ ] Phase 11 — High-frequency telemetry: UDS Fast Rate Session via DDDI 0x2C (~100 Hz) (v3.x)

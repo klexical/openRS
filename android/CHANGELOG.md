@@ -7,6 +7,22 @@ Firmware changes are tracked separately in [firmware releases](https://github.co
 
 ---
 
+## [v2.2.4] — 2026-03-15
+
+### Fixed
+
+- **ESC decode — wrong bit position and swapped mapping** (#96): CAN 0x1C0 ESC mode was extracted at `bits(13,2)` but the actual signal lives at `bits(10,2)` (byte1 bits 5-4). The enum mapping also had 1=Sport/2=Off when SLCAN data proves 1=Off/2=Sport. SLCAN-verified: 0xC0=On, 0xD0=Off, 0xE0=Sport.
+- **Throttle stuck at zero when CAN 0x076 absent** (#93): Some Focus RS variants don't broadcast 0x076 (throttle position). DASH now falls back to `accelPedalPct` from 0x080, showing "PEDAL" instead of a stuck-at-zero "THROTTLE" bar.
+- **Battery voltage always 0.0V** (#92): No OBD query existed for battery voltage. Added PCM Mode 22 DID 0x0304 with formula `(A*256 + B) / 2048` V to the polling loop.
+- **LC/ASS/FENG stuck on "PROBING" forever** (#94): FENG (0x727) and RSProt (0x731) ECUs don't respond on some cars. After 3 ext-session probe cycles (~3 min), the app stops probing and shows "N/A" instead. If a late response arrives, probing resumes automatically.
+
+### Added
+
+- **App version display in Settings** (#90): Shows `openRS_ vX.Y.Z` in the settings dialog footer using `BuildConfig.VERSION_NAME`.
+- **Crash telemetry capture**: New `CrashTelemetryBuffer` maintains a rolling ring of the last 100 VehicleState snapshots. On uncaught exception, `CrashReporter` flushes the buffer + stack trace to `crash_telemetry_<ts>.json`. Crash files are automatically bundled into the next diagnostic ZIP export.
+
+---
+
 ## [v2.2.3] — 2026-03-15
 
 ### Fixed
