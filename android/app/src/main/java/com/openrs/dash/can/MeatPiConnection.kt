@@ -124,6 +124,11 @@ class MeatPiConnection(
                         }
                     }
 
+                    // ── Probe-timeout counters (shared with frame loop below) ──
+                    val fengMisses   = java.util.concurrent.atomic.AtomicInteger(0)
+                    val rsprotMisses = java.util.concurrent.atomic.AtomicInteger(0)
+                    val PROBE_TIMEOUT_CYCLES = 3
+
                     // ── Extended session poller ───────────────────────────────
                     val extJob = launch {
                         delay(ObdConstants.EXT_INITIAL_DELAY_MS)
@@ -134,11 +139,21 @@ class MeatPiConnection(
                                   sendFrame(out, ObdConstants.AWD_QUERY_RDU_STATUS); delay(ObdConstants.EXT_QUERY_GAP_MS) } catch (_: Exception) { }
                             try { sendFrame(out, ObdConstants.EXT_SESSION_PSCM);  delay(ObdConstants.EXT_SESSION_GAP_MS)
                                   sendFrame(out, ObdConstants.PSCM_QUERY_PDC);    delay(ObdConstants.EXT_QUERY_GAP_MS) } catch (_: Exception) { }
-                            try { sendFrame(out, ObdConstants.EXT_SESSION_FENG);  delay(ObdConstants.EXT_SESSION_GAP_MS)
-                                  sendFrame(out, ObdConstants.FENG_QUERY_STATUS); delay(ObdConstants.EXT_QUERY_GAP_MS) } catch (_: Exception) { }
-                            ObdConstants.RSPROT_PROBE_QUERIES.forEach { q ->
-                                try { sendFrame(out, ObdConstants.EXT_SESSION_RSPROT); delay(ObdConstants.EXT_SESSION_GAP_MS)
-                                      sendFrame(out, q);                               delay(ObdConstants.EXT_QUERY_GAP_MS) } catch (_: Exception) { }
+                            if (fengMisses.get() < PROBE_TIMEOUT_CYCLES) {
+                                try { sendFrame(out, ObdConstants.EXT_SESSION_FENG);  delay(ObdConstants.EXT_SESSION_GAP_MS)
+                                      sendFrame(out, ObdConstants.FENG_QUERY_STATUS); delay(ObdConstants.EXT_QUERY_GAP_MS) } catch (_: Exception) { }
+                                if (fengMisses.incrementAndGet() >= PROBE_TIMEOUT_CYCLES) {
+                                    onObdUpdate(getCurrentState().copy(fengTimedOut = true))
+                                }
+                            }
+                            if (rsprotMisses.get() < PROBE_TIMEOUT_CYCLES) {
+                                ObdConstants.RSPROT_PROBE_QUERIES.forEach { q ->
+                                    try { sendFrame(out, ObdConstants.EXT_SESSION_RSPROT); delay(ObdConstants.EXT_SESSION_GAP_MS)
+                                          sendFrame(out, q);                               delay(ObdConstants.EXT_QUERY_GAP_MS) } catch (_: Exception) { }
+                                }
+                                if (rsprotMisses.incrementAndGet() >= PROBE_TIMEOUT_CYCLES) {
+                                    onObdUpdate(getCurrentState().copy(rsprotTimedOut = true))
+                                }
                             }
                             delay(ObdConstants.EXT_POLL_INTERVAL_MS)
                         }
@@ -208,10 +223,12 @@ class MeatPiConnection(
                                 continue
                             }
                             if (frame.first == ObdConstants.FENG_RESPONSE_ID) {
+                                fengMisses.set(0)
                                 ObdResponseParser.parseFengResponse(frame.second, getCurrentState(), onObdUpdate)
                                 continue
                             }
                             if (frame.first == ObdConstants.RSPROT_RESPONSE_ID) {
+                                rsprotMisses.set(0)
                                 ObdResponseParser.parseRsprotResponse(frame.second, getCurrentState(), onObdUpdate) { addDebugLine(it) }
                                 continue
                             }
