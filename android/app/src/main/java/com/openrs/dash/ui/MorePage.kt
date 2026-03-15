@@ -137,13 +137,13 @@ import kotlinx.coroutines.withContext
                     val lcText = when {
                         vs.lcArmed == true  -> "● ARMED"
                         vs.lcArmed == false -> "○ STANDBY"
-                        isFw                -> "… PROBING"
+                        isFw && !vs.rsprotTimedOut -> "… PROBING"
                         else                -> "○ N/A"
                     }
                     val lcColor = when {
-                        vs.lcArmed == true -> Ok
-                        isFw               -> Warn
-                        else               -> Dim
+                        vs.lcArmed == true            -> Ok
+                        isFw && !vs.rsprotTimedOut    -> Warn
+                        else                          -> Dim
                     }
                     MonoText(lcText, 10.sp, lcColor)
                     if (vs.lcRpmTarget > 0) {
@@ -162,13 +162,13 @@ import kotlinx.coroutines.withContext
                     val assText = when {
                         vs.assEnabled == true  -> "● ACTIVE"
                         vs.assEnabled == false -> "○ OFF"
-                        isFw                   -> "… PROBING"
+                        isFw && !vs.rsprotTimedOut -> "… PROBING"
                         else                   -> "○ N/A"
                     }
                     val assColor = when {
-                        vs.assEnabled == true -> Ok
-                        isFw                  -> Warn
-                        else                  -> Dim
+                        vs.assEnabled == true            -> Ok
+                        isFw && !vs.rsprotTimedOut       -> Warn
+                        else                             -> Dim
                     }
                     MonoText(assText, 10.sp, assColor)
                 }
@@ -195,11 +195,12 @@ import kotlinx.coroutines.withContext
         // ── Module Status ────────────────────────────────────────────────
         MoreSection("MODULE STATUS") {
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                data class ModuleInfo(val label: String, val state: Boolean?, val timedOut: Boolean, val subtitle: String)
                 listOf(
-                    Triple("RDU",  vs.rduEnabled,  "Rear Drive Unit"),
-                    Triple("PDC",  vs.pdcEnabled,  "Pull Drift Comp"),
-                    Triple("FENG", vs.fengEnabled, "Engine Sound")
-                ).forEach { (label, state, subtitle) ->
+                    ModuleInfo("RDU",  vs.rduEnabled,  false, "Rear Drive Unit"),
+                    ModuleInfo("PDC",  vs.pdcEnabled,  false, "Pull Drift Comp"),
+                    ModuleInfo("FENG", vs.fengEnabled, vs.fengTimedOut, "Engine Sound")
+                ).forEach { (label, state, timedOut, subtitle) ->
                     Column(
                         Modifier.weight(1f)
                             .background(Surf2, RoundedCornerShape(10.dp))
@@ -209,10 +210,11 @@ import kotlinx.coroutines.withContext
                     ) {
                         UIText(label, 12.sp, Frost, FontWeight.SemiBold)
                         Spacer(Modifier.height(4.dp))
-                        val (dot, col) = when (state) {
-                            true  -> "● ON"  to Ok
-                            false -> "○ OFF" to Dim
-                            null  -> "…"     to Warn
+                        val (dot, col) = when {
+                            state == true  -> "● ON"  to Ok
+                            state == false -> "○ OFF" to Dim
+                            timedOut       -> "○ N/A" to Dim
+                            else           -> "…"     to Warn
                         }
                         MonoText(dot, 10.sp, col)
                         Spacer(Modifier.height(2.dp))

@@ -113,9 +113,11 @@ data class VehicleState(
     val rduEnabled: Boolean? = null,       // AWD 0x703 DID 0xEE0B: rear drive unit active
     val pdcEnabled: Boolean? = null,       // PSCM 0x730 DID 0xFD07: pull drift compensation
     val fengEnabled: Boolean? = null,      // 0x727  DID 0xEE03: fake engine noise generator
+    val fengTimedOut: Boolean = false,     // true after 3 probe cycles with no FENG response
     val lcArmed: Boolean? = null,          // RSProt 0x731 probe: launch control armed
     val lcRpmTarget: Int = -1,             // RSProt 0x731 probe: LC RPM setpoint (-1 = unknown)
     val assEnabled: Boolean? = null,       // RSProt 0x731 probe: auto start-stop status
+    val rsprotTimedOut: Boolean = false,   // true after 3 probe cycles with no RSProt response
 
     // ── Peaks ───────────────────────────────────────────────
     val peakBoostPsi: Double = 0.0,

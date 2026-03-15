@@ -315,9 +315,11 @@ class CanDataService : Service() {
                 rduEnabled   = obdState.rduEnabled   ?: current.rduEnabled,
                 pdcEnabled   = obdState.pdcEnabled   ?: current.pdcEnabled,
                 fengEnabled  = obdState.fengEnabled  ?: current.fengEnabled,
+                fengTimedOut = obdState.fengTimedOut || current.fengTimedOut,
                 lcArmed      = obdState.lcArmed      ?: current.lcArmed,
                 lcRpmTarget  = if (obdState.lcRpmTarget >= 0) obdState.lcRpmTarget else current.lcRpmTarget,
                 assEnabled   = obdState.assEnabled   ?: current.assEnabled,
+                rsprotTimedOut = obdState.rsprotTimedOut || current.rsprotTimedOut,
             )
         }
     }

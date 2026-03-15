@@ -259,6 +259,11 @@ class WiCanConnection(
                     }
                 }
 
+                // ── Probe-timeout counters (shared with frame loop below) ──
+                val fengMisses   = java.util.concurrent.atomic.AtomicInteger(0)
+                val rsprotMisses = java.util.concurrent.atomic.AtomicInteger(0)
+                val PROBE_TIMEOUT_CYCLES = 3
+
                 // ── Extended diagnostic session poller ───────────────────────
                 val extJob = launch {
                     delay(ObdConstants.EXT_INITIAL_DELAY_MS)
@@ -278,16 +283,26 @@ class WiCanConnection(
                             sendWsText(out, ObdConstants.PSCM_QUERY_PDC);    delay(ObdConstants.EXT_QUERY_GAP_MS)
                         } catch (_: Exception) { }
 
-                        try {
-                            sendWsText(out, ObdConstants.EXT_SESSION_FENG);  delay(ObdConstants.EXT_SESSION_GAP_MS)
-                            sendWsText(out, ObdConstants.FENG_QUERY_STATUS); delay(ObdConstants.EXT_QUERY_GAP_MS)
-                        } catch (_: Exception) { }
-
-                        ObdConstants.RSPROT_PROBE_QUERIES.forEach { q ->
+                        if (fengMisses.get() < PROBE_TIMEOUT_CYCLES) {
                             try {
-                                sendWsText(out, ObdConstants.EXT_SESSION_RSPROT); delay(ObdConstants.EXT_SESSION_GAP_MS)
-                                sendWsText(out, q);                               delay(ObdConstants.EXT_QUERY_GAP_MS)
+                                sendWsText(out, ObdConstants.EXT_SESSION_FENG);  delay(ObdConstants.EXT_SESSION_GAP_MS)
+                                sendWsText(out, ObdConstants.FENG_QUERY_STATUS); delay(ObdConstants.EXT_QUERY_GAP_MS)
                             } catch (_: Exception) { }
+                            if (fengMisses.incrementAndGet() >= PROBE_TIMEOUT_CYCLES) {
+                                onObdUpdate(getCurrentState().copy(fengTimedOut = true))
+                            }
+                        }
+
+                        if (rsprotMisses.get() < PROBE_TIMEOUT_CYCLES) {
+                            ObdConstants.RSPROT_PROBE_QUERIES.forEach { q ->
+                                try {
+                                    sendWsText(out, ObdConstants.EXT_SESSION_RSPROT); delay(ObdConstants.EXT_SESSION_GAP_MS)
+                                    sendWsText(out, q);                               delay(ObdConstants.EXT_QUERY_GAP_MS)
+                                } catch (_: Exception) { }
+                            }
+                            if (rsprotMisses.incrementAndGet() >= PROBE_TIMEOUT_CYCLES) {
+                                onObdUpdate(getCurrentState().copy(rsprotTimedOut = true))
+                            }
                         }
 
                         delay(ObdConstants.EXT_POLL_INTERVAL_MS)
@@ -357,10 +372,12 @@ class WiCanConnection(
                         continue
                     }
                     if (frame.first == ObdConstants.FENG_RESPONSE_ID) {
+                        fengMisses.set(0)
                         ObdResponseParser.parseFengResponse(frame.second, getCurrentState(), onObdUpdate)
                         continue
                     }
                     if (frame.first == ObdConstants.RSPROT_RESPONSE_ID) {
+                        rsprotMisses.set(0)
                         ObdResponseParser.parseRsprotResponse(frame.second, getCurrentState(), onObdUpdate) { addDebugLine(it) }
                         continue
                     }
