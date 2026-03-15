@@ -137,6 +137,9 @@ object ObdResponseParser {
             0xF42F -> onObdUpdate(currentState.copy(
                 fuelLevelPct = (b4 * 100.0 / 255.0).coerceIn(0.0, 100.0)
             ))
+            0x0304 -> onObdUpdate(currentState.copy(
+                batteryVoltage = ((b4 shl 8) or b5) / 2048.0
+            ))
         }
     }
 
