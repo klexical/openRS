@@ -4,7 +4,7 @@ All notable changes to the openrs-fw firmware are documented here.
 
 ---
 
-## v1.4 — 2026-03-08
+## v1.4 — 2026-03-15
 
 ### Added
 - **Dual-device build system** — `build.sh --target usb|pro` supports both WiCAN USB-C3 (ESP32-C3) and WiCAN Pro (ESP32-S3) as separate build targets ([#73](https://github.com/klexical/openRS_/issues/73))
@@ -28,6 +28,10 @@ All notable changes to the openrs-fw firmware are documented here.
 ### Fixed
 - Drive mode cycle math corrected to use CAN-to-position lookup table ([#53](https://github.com/klexical/openRS_/issues/53))
 - WiFi AP password changed from stock `@meatpi#` to `openrs_2026` ([#54](https://github.com/klexical/openRS_/issues/54))
+- WiFi password patch fixed — Python raw string `r'\"@meatpi#\"'` didn't match the escaped C string; corrected to proper escape sequence
+- `GET /api/frs` now includes `sleepMv` field (sleep threshold in millivolts)
+- `POST /api/frs` `sleepVoltage` persistence fixed — value was passed as millivolts but the setter expected volts, so the 10–15V range check silently rejected it; now converts mV→V before calling the setter
+- `build.sh` resilience — `export.sh` failure from `ruamel.yaml` namespace issues on macOS no longer kills the build
 - Removed dead code: unused `frs_handle_settings_post()` and `CAN_TX_HOOK` lambda ([#62](https://github.com/klexical/openRS_/issues/62), [#63](https://github.com/klexical/openRS_/issues/63))
 - `nvs_flash_init` patch now uses regex to target only the call inside `app_main()` ([#64](https://github.com/klexical/openRS_/issues/64))
 - Python path detection uses `command -v` instead of hardcoded macOS path ([#65](https://github.com/klexical/openRS_/issues/65))
