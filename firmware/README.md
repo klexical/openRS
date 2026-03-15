@@ -191,7 +191,7 @@ All POST requests require `"token": "openrs"` for basic access control.
 { "token": "openrs", "escMode": 0 }         // 0=On, 1=Sport, 2=Off
 { "token": "openrs", "enableLC": true }     // Launch Control
 { "token": "openrs", "killASS": true }      // Auto Start/Stop kill
-{ "token": "openrs", "sleepVoltage": 12.2 } // Battery sleep threshold (V)
+{ "token": "openrs", "sleepVoltage": 12200 } // Battery sleep threshold (mV)
 ```
 
 ### `GET /pids`
