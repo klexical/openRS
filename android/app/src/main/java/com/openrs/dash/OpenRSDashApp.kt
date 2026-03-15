@@ -9,6 +9,8 @@ import com.openrs.dash.data.VehicleState
 import com.openrs.dash.service.TripRecorder
 import com.openrs.dash.service.WeatherRepository
 import com.openrs.dash.BuildConfig
+import com.openrs.dash.diagnostics.CrashReporter
+import com.openrs.dash.diagnostics.CrashTelemetryBuffer
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -64,6 +66,8 @@ class OpenRSDashApp : Application() {
     override fun onCreate() {
         super.onCreate()
         instance = this
+        CrashReporter.install(this)
+        CrashTelemetryBuffer.startCollecting()
         createNotificationChannel()
     }
 
