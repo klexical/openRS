@@ -13,7 +13,7 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/version-2.2.2-blue" alt="Version">
+  <img src="https://img.shields.io/badge/version-2.2.3-blue" alt="Version">
   <img src="https://img.shields.io/badge/platform-Android-brightgreen?logo=android" alt="Platform">
   <img src="https://img.shields.io/badge/Kotlin-2.0-purple?logo=kotlin" alt="Kotlin">
   <img src="https://img.shields.io/badge/Jetpack_Compose-Material3-4285F4?logo=jetpackcompose" alt="Compose">
@@ -61,8 +61,8 @@ Unlike generic OBD apps, openRS_ is purpose-built for the Focus RS. It understan
 | **POWER** | AFR hero cards (actual/desired/lambda), Throttle & Boost (ETC actual/desired, WGDC, TIP, fuel rail PSI), Engine Management (timing, load, OAR, KR CYL1, VCT-I/E), Fuel Trims & Misc |
 | **CHASSIS** | AWD detail (4 wheel speeds, torque bar, F/R delta, L/R delta, rear bias), G-Force section (yaw, steering, peaks + inline reset), TPMS with car outline |
 | **TEMPS** | Animated Ready-to-Race banner, 10 temperature cards each with a colour indicator bar (oil, coolant, intake, ambient, RDU, PTU, charge air, catalytic, cabin, battery) |
-| **DIAG** | DTC Scanner (full-module scan, count badges, freeze-frame, clear), session diagnostics — frame inventory, per-ID change tracking, periodic samples, SLCAN raw log, one-tap ZIP export (SavvyCAN/Kayak compatible) |
-| **MORE** | Drive mode (N/S/T/D, read-only mirror of CAN), ESC status (read-only), firmware-gated features (Launch Control, Auto S/S Kill), connection & snapshot, diagnostic export |
+| **DIAG** | DTC Scanner (full-module scan, count badges, freeze-frame, clear), session diagnostics — frame inventory, per-ID change tracking, periodic samples, SLCAN raw log (incl. OBD response frames), one-tap ZIP export with all OBD fields (SavvyCAN/Kayak compatible) |
+| **MORE** | Drive mode (N/S/T/D, read-only mirror of CAN), ESC status (read-only), firmware-gated features (Launch Control, Auto S/S Kill), Module Status (RDU/PDC/FENG live OBD), connection & snapshot, diagnostic export, Trip GPS recording |
 
 ### Live Parameters — WebSocket SLCAN (passive at full bus speed)
 
@@ -178,7 +178,7 @@ All display preferences are configurable and persist across restarts:
 git clone https://github.com/klexical/openRS_.git
 cd openRS_/android
 ./gradlew assembleRelease
-# Output: app/build/outputs/apk/release/openRS_v2.2.2.apk
+# Output: app/build/outputs/apk/release/openRS_v2.2.3.apk
 # (Requires keystore — see android/docs/signing-setup.md)
 ```
 
@@ -309,7 +309,7 @@ android/
 │       ├── xml/file_paths.xml            # FileProvider path config
 │       └── mipmap-*/ic_launcher*.png     # App icon (all densities)
 ├── browser-emulator/
-│   └── index.html                        # Standalone browser emulator (v2.2.2)
+│   └── index.html                        # Standalone browser emulator (v2.2.3)
 ├── docs/
 │   ├── hardware-setup.md
 │   ├── firmware-update.md
@@ -342,6 +342,7 @@ Complete decode formulas, byte-level breakdowns, and all Mode 22 PIDs: [`android
 - [x] Phase 5 — UI architecture split, per-tab composables, share trip export (v2.2.0)
 - [x] Phase 6 — DTC scanning: 873-code Ford DTC database, full-module scan + clear via UDS 0x19/0x14 (v2.2.1)
 - [x] Phase 7 — Data export + MeatPi Pro: trip ZIP (GPX/CSV/TXT), diagnostics ZIP, raw TCP SLCAN adapter support (v2.2.1)
+- [x] Phase 7.5 — Sensor data + polish: GPS permission fix, Module Status/LC/ASS live OBD, full diagnostic export (~24 new fields), SLCAN OBD frame capture, code review fixes (v2.2.3)
 
 ### Planned
 

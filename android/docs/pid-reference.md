@@ -1,6 +1,6 @@
 # OBD PID Reference — Ford Focus RS MK3
 
-Complete reference for all OBD-II parameters used by openRS_ (current as of v2.2.2).
+Complete reference for all OBD-II parameters used by openRS_ (current as of v2.2.3).
 
 ## ECU Address Map
 
