@@ -54,11 +54,14 @@ extern "C" {
 #define FRS_ASS_BTN_BYTE    0
 #define FRS_ASS_BTN_BIT     0x01
 
-// Hold the pressed frame for this many ms (3 frames at ~80ms ≈ 240ms).
+// Short press: 3 frames at ~80ms intervals (~240ms hold).
 // Physical button presses last ~250ms on the real console.
-#define FRS_BUTTON_HOLD_MS  250
-#define FRS_BUTTON_TX_COUNT 3
-#define FRS_BUTTON_TX_INTERVAL_MS  80
+#define FRS_BUTTON_TX_COUNT         3
+#define FRS_BUTTON_TX_INTERVAL_MS   80
+
+// ESC Off requires a long press (~5 seconds hold).
+// Send frames at 80ms intervals for 5 seconds = ~62 frames.
+#define FRS_ESC_LONG_PRESS_MS       5000
 
 // ── State struct ───────────────────────────────────────────────
 typedef struct {
