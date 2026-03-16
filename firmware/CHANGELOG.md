@@ -21,13 +21,11 @@ All notable changes to the openrs-fw firmware are documented here.
 - `frs_send_button_long()` helper — holds a CAN button bit for a configurable duration (used for ESC Off)
 
 ### Changed
-- Drive mode sends 1 activation + N cycle presses (total = 1 + distance) with 500ms gap between presses
+- Drive mode sends 1 activation + N cycle presses (total = 1 + distance) with 150ms gap between presses for fast switching
 - ESC uses short press (3 frames × 80ms) for On/Sport toggle and long press (5000ms) for Off
 - `frs_set_esc()` now sends CAN frames instead of being a stub — fully functional ESC control
 - `frs_set_ass_kill()` now sends CAN button press when enabling ASS kill
 - REST API `GET /api/frs` response includes `bootEsc` field
-
-### Fixed
 - `build.sh` doc reference path corrected from `firmware/docs/` to `android/docs/` ([#11](https://github.com/klexical/openRS_/issues/11))
 
 ---
