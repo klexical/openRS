@@ -89,10 +89,10 @@ void frs_parse_can_frame(uint32_t can_id, const uint8_t *data, uint8_t dlc) {
     xSemaphoreGive(s_state_mutex);
 }
 
-// ── Generic button press helper ──────────────────────────────
-// Sends FRS_BUTTON_TX_COUNT frames with the target bit set,
-// spaced FRS_BUTTON_TX_INTERVAL_MS apart. The car's own
-// subsequent frame naturally clears the bit (release).
+// ── Generic button press helpers ─────────────────────────────
+
+// Short press: sends FRS_BUTTON_TX_COUNT frames with the bit set,
+// spaced FRS_BUTTON_TX_INTERVAL_MS apart (~240ms total hold).
 static void frs_send_button(uint32_t can_id,
                             const uint8_t *tmpl,
                             uint8_t byte_idx,
@@ -112,7 +112,30 @@ static void frs_send_button(uint32_t can_id,
             vTaskDelay(pdMS_TO_TICKS(FRS_BUTTON_TX_INTERVAL_MS));
         }
     }
-    // Brief gap after the last pressed frame before next action
+    vTaskDelay(pdMS_TO_TICKS(FRS_BUTTON_TX_INTERVAL_MS));
+}
+
+// Long press: holds the bit for duration_ms (used for ESC Off).
+static void frs_send_button_long(uint32_t can_id,
+                                 const uint8_t *tmpl,
+                                 uint8_t byte_idx,
+                                 uint8_t bit_mask,
+                                 uint32_t duration_ms) {
+    if (!s_can_tx) {
+        ESP_LOGE(TAG, "CAN TX callback not set");
+        return;
+    }
+
+    uint8_t frame[8];
+    memcpy(frame, tmpl, 8);
+    frame[byte_idx] |= bit_mask;
+
+    uint32_t elapsed = 0;
+    while (elapsed < duration_ms) {
+        s_can_tx(can_id, frame, 8, 100);
+        vTaskDelay(pdMS_TO_TICKS(FRS_BUTTON_TX_INTERVAL_MS));
+        elapsed += FRS_BUTTON_TX_INTERVAL_MS;
+    }
     vTaskDelay(pdMS_TO_TICKS(FRS_BUTTON_TX_INTERVAL_MS));
 }
 
@@ -141,14 +164,26 @@ static void frs_drive_mode_task(void *arg) {
     uint8_t current = s_state.drive_mode;
     uint8_t cur_pos = can_to_pos[current];
     uint8_t tgt_pos = can_to_pos[target_mode];
-    uint8_t presses = (tgt_pos - cur_pos + cycle_len) % cycle_len;
+    uint8_t cycle_dist = (tgt_pos - cur_pos + cycle_len) % cycle_len;
 
-    ESP_LOGI(TAG, "Drive mode: %d → %d (%d presses via 0x305)",
-             current, target_mode, presses);
+    if (cycle_dist == 0) {
+        ESP_LOGI(TAG, "Drive mode: already in %d — no change", current);
+        s_pending_mode = 0xFF;
+        vTaskDelete(NULL);
+        return;
+    }
+
+    // The Focus RS drive mode button has two stages:
+    //   Press 1: opens the mode selector GUI on the cluster (no mode change)
+    //   Press 2+: cycles through modes (N→S→T→D→N)
+    // So total presses = 1 (activation) + cycle_distance.
+    uint8_t presses = 1 + cycle_dist;
+
+    ESP_LOGI(TAG, "Drive mode: %d → %d (1 activation + %d cycle = %d presses via 0x305)",
+             current, target_mode, cycle_dist, presses);
 
     for (uint8_t i = 0; i < presses; i++) {
         frs_send_dm_button();
-        // Extra delay between consecutive presses for the car to process
         vTaskDelay(pdMS_TO_TICKS(500));
     }
 
@@ -170,9 +205,11 @@ void frs_set_drive_mode(uint8_t target_mode) {
 }
 
 // ── ESC mode write ───────────────────────────────────────────
-// Simulates the ESC Off button on CAN ID 0x260 byte 6 bit 4.
-// Each press cycles: On → Sport → Off → On.
-static void frs_send_esc_button(void) {
+// Focus RS ESC button behavior (confirmed via car test):
+//   Short press: toggles On ↔ Sport
+//   Long press (~5s): activates ESC Off from On or Sport
+//   Short press from Off: returns to On
+static void frs_send_esc_short(void) {
     if (!s_state.frame_260_valid) {
         ESP_LOGW(TAG, "No 0x260 template yet — cannot simulate ESC button");
         return;
@@ -182,21 +219,53 @@ static void frs_send_esc_button(void) {
                     FRS_ESC_BTN_BYTE, FRS_ESC_BTN_BIT);
 }
 
+static void frs_send_esc_long(void) {
+    if (!s_state.frame_260_valid) {
+        ESP_LOGW(TAG, "No 0x260 template yet — cannot simulate ESC long press");
+        return;
+    }
+    frs_send_button_long(FRS_CAN_ID_BODY_CTRL,
+                         s_state.frame_260_template,
+                         FRS_ESC_BTN_BYTE, FRS_ESC_BTN_BIT,
+                         FRS_ESC_LONG_PRESS_MS);
+}
+
 static uint8_t s_pending_esc = 0xFF;
 
 static void frs_esc_mode_task(void *arg) {
     uint8_t target_esc = (uint8_t)(uintptr_t)arg;
-
-    // ESC cycle: On(0) → Sport(1) → Off(2) → On(0)
     uint8_t current = s_state.esc_mode;
-    uint8_t presses = (target_esc - current + 3) % 3;
 
-    ESP_LOGI(TAG, "ESC mode: %d → %d (%d presses via 0x260)",
-             current, target_esc, presses);
+    if (current == target_esc) {
+        ESP_LOGI(TAG, "ESC: already in %d — no change", current);
+        s_pending_esc = 0xFF;
+        vTaskDelete(NULL);
+        return;
+    }
 
-    for (uint8_t i = 0; i < presses; i++) {
-        frs_send_esc_button();
-        vTaskDelay(pdMS_TO_TICKS(500));
+    ESP_LOGI(TAG, "ESC mode: %d → %d via 0x260", current, target_esc);
+
+    if (target_esc == FRS_ESC_OFF) {
+        // Long press (~5s) to enter ESC Off from any state
+        ESP_LOGI(TAG, "ESC: long press for Off");
+        frs_send_esc_long();
+    } else if (target_esc == FRS_ESC_SPORT) {
+        if (current == FRS_ESC_OFF) {
+            // Off → On (short), then On → Sport (short)
+            ESP_LOGI(TAG, "ESC: Off → On → Sport (2 short presses)");
+            frs_send_esc_short();
+            vTaskDelay(pdMS_TO_TICKS(1000));
+            frs_send_esc_short();
+        } else {
+            // On → Sport (short)
+            frs_send_esc_short();
+        }
+    } else {
+        // Target is On
+        if (current == FRS_ESC_OFF || current == FRS_ESC_SPORT) {
+            // Off → On or Sport → On (short press)
+            frs_send_esc_short();
+        }
     }
 
     s_state.boot_esc = target_esc;

@@ -4,22 +4,25 @@ All notable changes to the openrs-fw firmware are documented here.
 
 ---
 
-## v1.5 — 2026-03-15
+## v1.5 — 2026-03-16
 
 ### Fixed
 - **Drive mode button simulation uses correct CAN ID** — changed from 0x1B0 (status frame, ignored by car) to 0x305 byte 5 bit 2 (actual button input), confirmed via SLCAN log on 2018 Focus RS ([#101](https://github.com/klexical/openRS_/issues/101))
+- **Drive mode activation press** — first button press opens the cluster mode selector GUI without cycling; firmware now sends 1 activation press + N cycle presses so a single app tap reaches the desired mode
+- **ESC Off requires long press** — short press toggles On ↔ Sport; long press (~5s hold) activates ESC Off. Previous implementation sent multiple short presses which toggled back to the original state
 
 ### Added
-- **ESC mode write via CAN** — simulates ESC Off button on 0x260 byte 6 bit 4; cycles On → Sport → Off → On with calculated presses ([#98](https://github.com/klexical/openRS_/issues/98))
+- **ESC mode write via CAN** — simulates ESC button on 0x260 byte 6 bit 4; short press for On ↔ Sport, long press (~5s) for Off ([#98](https://github.com/klexical/openRS_/issues/98))
 - **Auto Start/Stop kill via CAN** — simulates ASS button on 0x260 byte 1 bit 0; sends button press when `assKill` is enabled ([#100](https://github.com/klexical/openRS_/issues/100))
 - **0x305 template capture** — captures drive mode button frame from live CAN bus for accurate simulation
 - **0x260 template capture** — captures body control frame from live CAN bus for ESC and ASS button simulation
 - **Boot apply task** — on startup, waits for CAN templates then applies persisted drive mode, ESC mode, and ASS kill settings automatically
 - `boot_esc` field in state struct and REST API response — tracks desired ESC mode separately from live CAN value
-- Generic `frs_send_button()` helper — reusable CAN button simulation (3 frames at 80ms intervals)
+- `frs_send_button_long()` helper — holds a CAN button bit for a configurable duration (used for ESC Off)
 
 ### Changed
-- Drive mode button sends 3 pressed frames at 80ms intervals (matching physical button timing) with 500ms gap between consecutive presses
+- Drive mode sends 1 activation + N cycle presses (total = 1 + distance) with 500ms gap between presses
+- ESC uses short press (3 frames × 80ms) for On/Sport toggle and long press (5000ms) for Off
 - `frs_set_esc()` now sends CAN frames instead of being a stub — fully functional ESC control
 - `frs_set_ass_kill()` now sends CAN button press when enabling ASS kill
 - REST API `GET /api/frs` response includes `bootEsc` field
