@@ -7,26 +7,29 @@ All notable changes to the openrs-fw firmware are documented here.
 ## v1.5 — 2026-03-16
 
 ### Fixed
-- **Drive mode button simulation uses correct CAN ID** — changed from 0x1B0 (status frame, ignored by car) to 0x305 byte 5 bit 2 (actual button input), confirmed via SLCAN log on 2018 Focus RS ([#101](https://github.com/klexical/openRS_/issues/101))
-- **Drive mode activation press** — first button press opens the cluster mode selector GUI without cycling; firmware now sends 1 activation press + N cycle presses so a single app tap reaches the desired mode
-- **ESC Off requires long press** — short press toggles On ↔ Sport; long press (~5s hold) activates ESC Off. Previous implementation sent multiple short presses which toggled back to the original state
+- **Drive mode button simulation uses correct CAN ID** — changed from 0x1B0 (status frame, ignored by car) to **0x305 byte 5 bit 2** (actual button input). 0x1B0 is the AWD status/torque output frame — the car's drive mode controller does not listen for button input on it. Confirmed via SLCAN log on 2018 Focus RS: steady-state byte 5 = `0x08`, pressed = `0x0C`. ([#101](https://github.com/klexical/openRS_/issues/101))
+- **Drive mode activation press** — the Focus RS instrument cluster requires an activation press before cycling begins. First press opens the mode selector GUI on the cluster (no mode change); subsequent presses cycle through N→S→T→D→N. Firmware now sends **1 activation press + N cycle presses** automatically, so a single tap in the app reaches the desired mode without double-tapping. Confirmed via car test: user had to tap twice in rc.1, single tap works after this fix.
+- **ESC Off requires long press, not multiple short presses** — the Focus RS ESC button behaviour is: short press (~240ms) toggles **On ↔ Sport**; long press (~5s hold) activates **ESC Off**. The v1.5-rc.1 implementation sent multiple short presses to cycle On→Sport→Off, which actually toggled On→Sport→On (no net change). SLCAN log confirmed: ESC briefly changed to Sport then reverted to On within 12 seconds. Now uses a 5-second sustained button hold for ESC Off.
+- `build.sh` doc reference path corrected from `firmware/docs/firmware-update.md` to `android/docs/firmware-update.md` ([#11](https://github.com/klexical/openRS_/issues/11))
 
 ### Added
-- **ESC mode write via CAN** — simulates ESC button on 0x260 byte 6 bit 4; short press for On ↔ Sport, long press (~5s) for Off ([#98](https://github.com/klexical/openRS_/issues/98))
-- **Auto Start/Stop kill via CAN** — simulates ASS button on 0x260 byte 1 bit 0; sends button press when `assKill` is enabled ([#100](https://github.com/klexical/openRS_/issues/100))
-- **0x305 template capture** — captures drive mode button frame from live CAN bus for accurate simulation
-- **0x260 template capture** — captures body control frame from live CAN bus for ESC and ASS button simulation
-- **Boot apply task** — on startup, waits for CAN templates then applies persisted drive mode, ESC mode, and ASS kill settings automatically
-- `boot_esc` field in state struct and REST API response — tracks desired ESC mode separately from live CAN value
-- `frs_send_button_long()` helper — holds a CAN button bit for a configurable duration (used for ESC Off)
+- **ESC mode write via CAN** — `frs_set_esc()` fully implemented (was a stub in v1.4). Simulates the ESC button on **CAN ID 0x260, byte 6 bit 4** (`data[5] |= 0x10`). Short press for On ↔ Sport toggle, long press (~5s) for Off. Cycle logic handles all transitions: On→Sport (short), On→Off (long), Sport→On (short), Sport→Off (long), Off→On (short), Off→Sport (short + short). ([#98](https://github.com/klexical/openRS_/issues/98))
+- **Auto Start/Stop kill via CAN** — simulates the ASS button on **CAN ID 0x260, byte 1 bit 0** (`data[0] |= 0x01`). Sends a single short button press when `assKill` is enabled via REST API. Shares the 0x260 template with ESC. ([#100](https://github.com/klexical/openRS_/issues/100))
+- **0x305 template capture** — captures drive mode button frame from the live CAN bus at runtime. Only captures when the button is NOT pressed (bit 2 clear) to ensure a clean template. Frame rate ~10 Hz, template valid within 1 second of CAN bus activity.
+- **0x260 template capture** — captures body control frame from the live CAN bus at runtime. Only captures when neither ESC nor ASS button bits are set. Frame rate ~50 Hz, template valid almost immediately.
+- **Boot apply task** (`frs_boot_apply()`) — spawns a background FreeRTOS task on startup that waits up to 10 seconds for CAN templates to be captured, then automatically applies persisted settings: drive mode (if different from current), ESC mode (if different from current), and ASS kill (if enabled). Called from `app_main` after CAN TX registration.
+- **`boot_esc` field** in `frs_state_t` and REST API `GET /api/frs` response — tracks the desired ESC mode from NVS separately from the live CAN value (`esc_mode`), same pattern as `boot_mode` vs `drive_mode`. Prevents the boot apply task from comparing stale NVS data against CAN-overwritten state.
+- **`frs_send_button_long()` helper** — generic long-press CAN button simulation. Holds a bit set in a template frame for a configurable duration, sending frames at 80ms intervals. Used for ESC Off (5000ms hold = ~62 frames).
+- **Generic `frs_send_button()` helper** — reusable short-press CAN button simulation. Sends 3 frames at 80ms intervals (~240ms hold), matching the timing of physical button presses observed in SLCAN logs.
 
 ### Changed
-- Drive mode sends 1 activation + N cycle presses (total = 1 + distance) with 150ms gap between presses for fast switching
-- ESC uses short press (3 frames × 80ms) for On/Sport toggle and long press (5000ms) for Off
-- `frs_set_esc()` now sends CAN frames instead of being a stub — fully functional ESC control
-- `frs_set_ass_kill()` now sends CAN button press when enabling ASS kill
-- REST API `GET /api/frs` response includes `bootEsc` field
-- `build.sh` doc reference path corrected from `firmware/docs/` to `android/docs/` ([#11](https://github.com/klexical/openRS_/issues/11))
+- **Drive mode inter-press delay tightened to 150ms** — SLCAN log analysis showed the car processes consecutive mode changes with as little as 76ms between transitions. Reduced from 500ms for fast switching. Normal→Sport completes in ~0.9s, worst case (4 presses) in ~1.9s.
+- Drive mode sends **1 activation + N cycle presses** (total = 1 + cycle distance). Physical button cycle: N→S→T→D→N. CAN values mapped to cycle positions via lookup table: `{0→0, 1→1, 2→3, 3→2}`.
+- ESC mode uses **short press** (3 frames × 80ms = ~240ms) for On/Sport toggle and **long press** (5000ms continuous) for Off
+- `frs_set_esc()` now creates an async FreeRTOS task with state-aware transition logic instead of being a stub that only saved to NVS
+- `frs_set_ass_kill()` now sends a CAN button press when enabling ASS kill, in addition to persisting to NVS
+- REST API `GET /api/frs` JSON response includes new `bootEsc` field (integer, 0=On 1=Sport 2=Off)
+- Removed old 0x1B0 button simulation constants (`FRS_BUTTON_PRESSED`, `FRS_BUTTON_RELEASED`, `frame_1b0_template`) — replaced by 0x305 and 0x260 template infrastructure
 
 ---
 
