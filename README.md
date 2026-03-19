@@ -13,7 +13,7 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/version-2.2.3-blue" alt="Version">
+  <img src="https://img.shields.io/badge/version-2.2.4-blue" alt="Version">
   <img src="https://img.shields.io/badge/platform-Android-brightgreen?logo=android" alt="Platform">
   <img src="https://img.shields.io/badge/Kotlin-2.0-purple?logo=kotlin" alt="Kotlin">
   <img src="https://img.shields.io/badge/Jetpack_Compose-Material3-4285F4?logo=jetpackcompose" alt="Compose">
@@ -37,7 +37,7 @@ Unlike generic OBD apps, openRS_ is purpose-built for the Focus RS. It understan
 
 | Token | Hex | Usage |
 |-------|-----|-------|
-| **Nitrous Blue** | `#00AEEF` | Accent colour — gauges, highlights, active states, "RS" in logo |
+| **Nitrous Blue** | `#0091EA` | Accent colour — gauges, highlights, active states, "RS" in logo |
 | **Frost White** | `#F5F6F4` | Primary text — labels, readouts, "open" and "_" in logo |
 | **Deep Black** | `#0A0A0A` | Background |
 | **Surface** | `#141414` | Cards, tab bar |
@@ -89,6 +89,7 @@ All data is received passively from the CAN bus via WebSocket SLCAN at ~2100 fps
 | 0x2C0 | AWD L/R rear torque (Nm) | RS_HS.dbc |
 | 0x2F0 | Coolant temp, Intake Air Temp (IAT) | RS_HS.dbc PCMmsg16 |
 | 0x340 | Ambient temperature only (byte 7 signed × 0.25 °C) — **not** TPMS | RS_HS.dbc PCMmsg17 |
+| 0x360 | Odometer — bytes [5:6] BE, 16-bit unsigned, 1 km/bit (~5 Hz). Max 65,535 km. | Community [#102](https://github.com/klexical/openRS_/discussions/102) verified |
 | 0x380 | Fuel level % (FuelLevelFiltered — Motorola 10-bit, factor 0.4 %) | RS_HS.dbc PCMmsg30 |
 
 > **Note:** `0x230` (gear position) and `0x3C0` (battery voltage) do not broadcast on this vehicle. Battery voltage is polled via OBD. Gear display has been removed.
@@ -99,7 +100,7 @@ All data is received passively from the CAN bus via WebSocket SLCAN at ~2100 fps
 |-----|---------|----------|-----------------|----------|
 | PCM | 0x7E0 | 0x7E8 | ETC actual (0x093C), ETC desired (0x091A), WGDC (0x0462), KR cyl 1 (0x03EC), OAR (0x03E8), Charge Air Temp (0x0461), Catalyst Temp (0xF43C), AFR actual (0xF434), AFR desired (0xF444), TIP actual (0x033E), TIP desired (0x0466), VCT intake (0x0318), VCT exhaust (0x0319), Oil Life (0x054B), HP Fuel Rail (0xF422), Fuel Level (0xF42F) | 30 s |
 | BCM | 0x726 | 0x72E | Battery SOC (0x4028), Battery temp (0x4029), Cabin temp (0xDD04), **TPMS LF/RF/LR/RR** (0x2813–0x2816) `(((256×A)+B)/3 + 22/3) × 0.145 PSI` | 30 s |
-| BCM (ext) | 0x726 | 0x72E | Odometer (0xDD01) — requires extended diagnostic session | 60 s |
+| BCM (ext) | 0x726 | 0x72E | Odometer (0xDD01) — extended session, **once on connect** (passive CAN 0x360 handles real-time) | once |
 | AWD module | 0x703 | 0x70B | RDU oil temp (0x1E8A) — `B4 − 40 °C` | 60 s |
 
 ### Ready-to-Race Thresholds
@@ -178,7 +179,7 @@ All display preferences are configurable and persist across restarts:
 git clone https://github.com/klexical/openRS_.git
 cd openRS_/android
 ./gradlew assembleRelease
-# Output: app/build/outputs/apk/release/openRS_v2.2.3.apk
+# Output: app/build/outputs/apk/release/openRS_v2.2.4.apk
 # (Requires keystore — see android/docs/signing-setup.md)
 ```
 
@@ -214,7 +215,7 @@ Open `android/browser-emulator/index.html` in any browser, or visit the live ver
 │   Hooks DiagnosticLogger (frame inventory, trace, FPS, SLCAN log)    │
 ├──────────────────────┬───────────────────────────────────────────────┤
 │  CanDecoder          │  DiagnosticLogger / Exporter / DtcScanner     │
-│  21 CAN frame IDs    │  Per-ID first/last/Δ tracking                 │
+│  22 CAN frame IDs    │  Per-ID first/last/Δ tracking                 │
 │  RS_HS.dbc-verified  │  Periodic samples (30 s), SLCAN candump log   │
 │  Motorola extraction │  Validation engine, ZIP export via FileProvider│
 ├──────────────────────┴───────────────────────────────────────────────┤
@@ -228,7 +229,7 @@ Open `android/browser-emulator/index.html` in any browser, or visit the live ver
 │  PCM polling (0x7E0/30s): ETC, WGDC, KR, OAR, AFR, TIP, VCT,       │
 │    charge air, CAT temp, oil life, HP fuel rail, fuel level          │
 │  BCM polling (0x726/30s): SOC, battery temp, cabin temp, TPMS×4     │
-│  BCM ext (0x726/60s): odometer (extended diagnostic session)         │
+│  BCM ext (0x726/once): odometer (extended session, once on connect)   │
 │  AWD polling (0x703/60s): RDU oil temp                               │
 ├──────────────────────┬───────────────────────────────────────────────┤
 │  MeatPi WiCAN USB-C3 │  MeatPi WiCAN Pro (optional)                 │
@@ -260,7 +261,7 @@ android/
 │   │   ├── OpenRSDashApp.kt              # Application singleton + isOpenRsFirmware flag
 │   │   ├── can/
 │   │   │   ├── AdapterState.kt           # Shared connection state sealed class
-│   │   │   ├── CanDecoder.kt             # 21 CAN frame decoders (RS_HS.dbc-verified)
+│   │   │   ├── CanDecoder.kt             # 22 CAN frame decoders (RS_HS.dbc-verified)
 │   │   │   ├── MeatPiConnection.kt       # MeatPi Pro raw TCP SLCAN + OBD polling
 │   │   │   ├── ObdConstants.kt           # Shared OBD query strings + CAN IDs + timing
 │   │   │   ├── ObdResponseParser.kt      # Shared OBD Mode 22 response parsers
@@ -309,7 +310,7 @@ android/
 │       ├── xml/file_paths.xml            # FileProvider path config
 │       └── mipmap-*/ic_launcher*.png     # App icon (all densities)
 ├── browser-emulator/
-│   └── index.html                        # Standalone browser emulator (v2.2.3)
+│   └── index.html                        # Standalone browser emulator (v2.2.4)
 ├── docs/
 │   ├── hardware-setup.md
 │   ├── firmware-update.md
@@ -343,10 +344,11 @@ Complete decode formulas, byte-level breakdowns, and all Mode 22 PIDs: [`android
 - [x] Phase 6 — DTC scanning: 873-code Ford DTC database, full-module scan + clear via UDS 0x19/0x14 (v2.2.1)
 - [x] Phase 7 — Data export + MeatPi Pro: trip ZIP (GPX/CSV/TXT), diagnostics ZIP, raw TCP SLCAN adapter support (v2.2.1)
 - [x] Phase 7.5 — Sensor data + polish: GPS permission fix, Module Status/LC/ASS live OBD, full diagnostic export (~24 new fields), SLCAN OBD frame capture, code review fixes (v2.2.3)
+- [x] Phase 8.0 — Car test fixes + crash telemetry: ESC decode fix, throttle fallback to accel pedal, battery voltage OBD, FENG/RSProt probe timeout→N/A, crash telemetry ring buffer, app version display (v2.2.4)
 
 ### Planned
 
-- [ ] Phase 8 — Polish and sensor gaps: BLE transport in app, 12V battery voltage PID, tire temperature PIDs, brake pressure calibration (v2.3.x)
+- [ ] Phase 8.5 — Polish and sensor gaps: BLE transport in app, tire temperature PIDs, brake pressure calibration (v2.3.x)
 - [ ] Phase 9 — Track day intelligence: lap timer with geofence, track map overlay enhancements, trip comparison (v2.4.x)
 - [ ] Phase 10 — Hardware expansion: MeatPi Pro GPS integration, MS-CAN support (v2.5.x)
 - [ ] Phase 11 — High-frequency telemetry: UDS Fast Rate Session via DDDI 0x2C (~100 Hz) (v3.x)
