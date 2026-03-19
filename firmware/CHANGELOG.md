@@ -45,8 +45,10 @@ All notable changes to the openrs-fw firmware are documented here.
 - **`frs_send_button_long()` helper** — generic long-press CAN button simulation. Holds a bit set in a template frame for a configurable duration, sending frames at 80ms intervals. Used for ESC Off (5000ms hold = ~62 frames).
 - **Generic `frs_send_button()` helper** — reusable short-press CAN button simulation. Sends 3 frames at 80ms intervals (~240ms hold), matching the timing of physical button presses observed in SLCAN logs.
 
-### Changed (rc.1 → rc.2)
+### Changed (rc.2)
 - **Drive mode inter-press delay tightened to 150ms** — SLCAN log analysis showed the car processes consecutive mode changes with as little as 76ms between transitions. Reduced from 500ms for fast switching. Normal→Sport completes in ~0.9s, worst case (4 presses) in ~1.9s.
+
+### Changed (rc.1)
 - Drive mode sends **1 activation + N cycle presses** (total = 1 + cycle distance). Physical button cycle: N→S→T→D→N. CAN values mapped to cycle positions via lookup table: `{0→0, 1→1, 2→3, 3→2}`.
 - ESC mode uses **short press** (3 frames × 80ms = ~240ms) for On/Sport toggle and **long press** (5000ms continuous) for Off
 - `frs_set_esc()` now creates an async FreeRTOS task with state-aware transition logic instead of being a stub that only saved to NVS
