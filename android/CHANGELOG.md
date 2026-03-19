@@ -7,19 +7,29 @@ Firmware changes are tracked separately in [firmware releases](https://github.co
 
 ---
 
-## [v2.2.4] — 2026-03-15
+## [v2.2.4] — 2026-03-19
 
-### Fixed
+### Added (rc.3 — passive odometer from CAN 0x360)
+- **Passive odometer decode from CAN 0x360** ([#103](https://github.com/klexical/openRS_/issues/103)): Community contributor @adamsouthern [discovered](https://github.com/klexical/openRS_/discussions/102) that CAN ID 0x360 passively broadcasts the odometer at ~5 Hz. Bytes [5:6] big-endian, 16-bit unsigned, 1 km per bit. Added as the 22nd decoder in `CanDecoder.kt`. Replaces the Mode 22 extended-session poll (DID 0xDD01) as the primary real-time odometer source. Cross-verified against our own diagnostic logs from car tests on 2026-03-16 and 2026-03-18 (~42K km car).
+- **Mode 22 odometer reduced to once-on-connect** ([#103](https://github.com/klexical/openRS_/issues/103)): The UDS extended diagnostic session for odometer (BCM 0x726 → `10 03` + `22 DD 01`) was the heaviest OBD operation, running every 60 seconds. Now polls **once on connect** to get the full 24-bit value (up to 16.7M km), then uses the passive 0x360 broadcast for real-time updates. This also sets `odometerRolloverOffset` for cars past 65,535 km where the 16-bit value has rolled over.
 
-- **ESC decode — wrong bit position and swapped mapping** (#96): CAN 0x1C0 ESC mode was extracted at `bits(13,2)` but the actual signal lives at `bits(10,2)` (byte1 bits 5-4). The enum mapping also had 1=Sport/2=Off when SLCAN data proves 1=Off/2=Sport. SLCAN-verified: 0xC0=On, 0xD0=Off, 0xE0=Sport.
-- **Throttle stuck at zero when CAN 0x076 absent** (#93): Some Focus RS variants don't broadcast 0x076 (throttle position). DASH now falls back to `accelPedalPct` from 0x080, showing "PEDAL" instead of a stuck-at-zero "THROTTLE" bar.
-- **Battery voltage always 0.0V** (#92): No OBD query existed for battery voltage. Added PCM Mode 22 DID 0x0304 with formula `(A*256 + B) / 2048` V to the polling loop.
-- **LC/ASS/FENG stuck on "PROBING" forever** (#94): FENG (0x727) and RSProt (0x731) ECUs don't respond on some cars. After 3 ext-session probe cycles (~3 min), the app stops probing and shows "N/A" instead. If a late response arrives, probing resumes automatically.
+### Changed (rc.3)
+- `VehicleState.odometerKm` now primarily sourced from passive CAN 0x360 instead of Mode 22 polling. Added `odometerRolloverOffset` field (set from Mode 22 on connect) to correct for 16-bit rollover on high-mileage cars.
+- `ObdResponseParser.parseBcmResponse` for DID 0xDD01 now computes and stores `odometerRolloverOffset = (km / 65536) * 65536`.
+- `WiCanConnection` and `MeatPiConnection` extended session pollers now skip the odometer query after the first successful cycle.
 
-### Added
+### Fixed (rc.2 — tap-to-change modes)
+- **Tap-to-change drive mode & ESC** ([#99](https://github.com/klexical/openRS_/issues/99)): Existing chips on MORE tab are now tappable to send commands via REST API. Drive mode works end-to-end with firmware v1.4+. ESC pre-wired for firmware v1.5 ([#98](https://github.com/klexical/openRS_/issues/98)).
 
-- **App version display in Settings** (#90): Shows `openRS_ vX.Y.Z` in the settings dialog footer using `BuildConfig.VERSION_NAME`.
-- **Crash telemetry capture** ([#97](https://github.com/klexical/openRS_/issues/97), [feature roadmap §8.3](https://github.com/klexical/openRS_/blob/main/docs/feature-roadmap.md#83-crash-telemetry-capture)): New `CrashTelemetryBuffer` maintains a rolling ring of the last 100 VehicleState snapshots. On uncaught exception, `CrashReporter` flushes the buffer + stack trace to `crash_telemetry_<ts>.json`. Crash files are automatically bundled into the next diagnostic ZIP export.
+### Added (rc.2)
+- **App version in Settings** ([#90](https://github.com/klexical/openRS_/issues/90)): Shows `openRS_ vX.Y.Z` in the settings dialog footer using `BuildConfig.VERSION_NAME`.
+- **Crash telemetry capture** ([#97](https://github.com/klexical/openRS_/issues/97)): `CrashTelemetryBuffer` maintains a rolling ring of the last 100 VehicleState snapshots. On uncaught exception, `CrashReporter` flushes the buffer + stack trace to `crash_telemetry_<ts>.json`. Crash files are automatically bundled into the next diagnostic ZIP export.
+
+### Fixed (rc.1)
+- **ESC decode — wrong bit position and swapped mapping** ([#96](https://github.com/klexical/openRS_/issues/96)): CAN 0x1C0 ESC mode was extracted at `bits(13,2)` but the actual signal lives at `bits(10,2)` (byte1 bits 5-4). The enum mapping also had 1=Sport/2=Off when SLCAN data proves 1=Off/2=Sport. SLCAN-verified: 0xC0=On, 0xD0=Off, 0xE0=Sport.
+- **Throttle stuck at zero when CAN 0x076 absent** ([#93](https://github.com/klexical/openRS_/issues/93)): Some Focus RS variants don't broadcast 0x076 (throttle position). DASH now falls back to `accelPedalPct` from 0x080, showing "PEDAL" instead of a stuck-at-zero "THROTTLE" bar.
+- **Battery voltage always 0.0V** ([#92](https://github.com/klexical/openRS_/issues/92)): No OBD query existed for battery voltage. Added PCM Mode 22 DID 0x0304 with formula `(A*256 + B) / 2048` V to the polling loop.
+- **LC/ASS/FENG stuck on "PROBING" forever** ([#94](https://github.com/klexical/openRS_/issues/94)): FENG (0x727) and RSProt (0x731) ECUs don't respond on some cars. After 3 ext-session probe cycles (~3 min), the app stops probing and shows "N/A" instead.
 
 ---
 

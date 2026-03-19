@@ -103,6 +103,13 @@ object CanDecoder {
     // TODO(M-5): Find correct PID for 12V battery voltage on Focus RS MK3 and add to PCM_QUERIES/parsePcmResponse.
     const val ID_FUEL_LEVEL   = 0x380
 
+    // BCMmsg_x360 (0x360): Odometer — bytes [5:6] big-endian, 16-bit unsigned, 1 km/bit.
+    // ~5 Hz broadcast. Replaces Mode 22 DID 0xDD01 for real-time updates.
+    // Range: 0–65,535 km. Cars over 65K km need Mode 22 once on connect for rollover offset.
+    // Community-verified: Discussion #102 (@adamsouthern, 14-point linear test on 40K km car).
+    // Cross-confirmed from our own diagnostic logs (42K km car, tests 2026-03-16 and 2026-03-18).
+    const val ID_ODOMETER     = 0x360
+
     private val KNOWN_IDS = setOf(
         ID_TORQUE, ID_THROTTLE, ID_PEDALS, ID_ENGINE_RPM,
         ID_GAUGE_ILLUM, ID_ENGINE_TEMPS, ID_SPEED,
@@ -110,7 +117,7 @@ object CanDecoder {
         ID_DRIVE_MODE, ID_DRIVE_MODE_EXT, ID_ESC_ABS,
         ID_WHEEL_SPEEDS, ID_GEAR, ID_AWD_TORQUE, ID_COOLANT,
         ID_PCM_AMBIENT, ID_AMBIENT_TEMP,
-        ID_FUEL_LEVEL,
+        ID_FUEL_LEVEL, ID_ODOMETER,
         ID_STEERING, ID_BRAKE_PRESS
     )
 
@@ -363,6 +370,18 @@ object CanDecoder {
                 torqueAtTrans = (bits(data, 37, 11) - 500).toDouble(), lastUpdate = now
             ) else null
 
+            // ── 0x360: Odometer (passive broadcast) ─────────────────────────
+            // BCMmsg_x360: bytes [5:6] big-endian, 16-bit unsigned, 1 km/bit.
+            // odometerRolloverOffset is set once from Mode 22 (24-bit) on connect;
+            // it's 0 for cars under 65,536 km.
+            ID_ODOMETER -> if (n >= 7) {
+                val km16 = word(data, 5).toLong()
+                state.copy(
+                    odometerKm = km16 + state.odometerRolloverOffset,
+                    lastUpdate = now
+                )
+            } else null
+
             // ── 0x380: Fuel level filtered ────────────────────────────────────
             // RS_HS.dbc PCMmsg30: FuelLevelFiltered : 17|10@0+ (0.4,0) [0|102] "%"
             // Motorola 10-bit: MSB at DBC bit 17 → (data[2]&0x03)<<8 | data[3], × 0.4 %
@@ -405,6 +424,7 @@ object CanDecoder {
         ID_GEAR         -> "gear=${state.gearDisplay}"
         ID_TORQUE       -> "torqueNm=${"%.0f".format(state.torqueAtTrans)}"
         ID_FUEL_LEVEL   -> "fuelPct=${"%.1f".format(state.fuelLevelPct)} (0x380 Motorola)"
+        ID_ODOMETER     -> "odometerKm=${state.odometerKm} (0x360 passive)"
         else            -> "(unknown id 0x%03X)".format(id)
     }
 
@@ -469,6 +489,11 @@ object CanDecoder {
         ID_PEDALS       -> when {
             state.accelPedalPct < 0   -> "accelPct<0 — formula wrong"
             state.accelPedalPct > 105 -> "accelPct>105 — formula wrong"
+            else -> null
+        }
+        ID_ODOMETER     -> when {
+            state.odometerKm < 0      -> "odometerKm<0 — rollover offset may be wrong"
+            state.odometerKm > 500000 -> "odometerKm>500K — unlikely for Focus RS"
             else -> null
         }
         else -> null

@@ -132,9 +132,13 @@ class MeatPiConnection(
                     // ── Extended session poller ───────────────────────────────
                     val extJob = launch {
                         delay(ObdConstants.EXT_INITIAL_DELAY_MS)
+                        var odometerPolled = false
                         while (isActive) {
-                            try { sendFrame(out, ObdConstants.EXT_SESSION_BCM);   delay(ObdConstants.EXT_SESSION_GAP_MS)
-                                  sendFrame(out, ObdConstants.BCM_QUERY_ODOMETER); delay(ObdConstants.EXT_QUERY_GAP_MS) } catch (_: Exception) { }
+                            if (!odometerPolled) {
+                                try { sendFrame(out, ObdConstants.EXT_SESSION_BCM);   delay(ObdConstants.EXT_SESSION_GAP_MS)
+                                      sendFrame(out, ObdConstants.BCM_QUERY_ODOMETER); delay(ObdConstants.EXT_QUERY_GAP_MS)
+                                      odometerPolled = true } catch (_: Exception) { }
+                            }
                             try { sendFrame(out, ObdConstants.EXT_SESSION_AWD);   delay(ObdConstants.EXT_SESSION_GAP_MS)
                                   sendFrame(out, ObdConstants.AWD_QUERY_RDU_STATUS); delay(ObdConstants.EXT_QUERY_GAP_MS) } catch (_: Exception) { }
                             try { sendFrame(out, ObdConstants.EXT_SESSION_PSCM);  delay(ObdConstants.EXT_SESSION_GAP_MS)
