@@ -1,0 +1,29 @@
+---
+description: GitHub release lifecycle — demote superseded pre-releases when creating new ones
+alwaysApply: true
+---
+
+# Release Lifecycle
+
+When creating a new pre-release (`gh release create --prerelease`), **immediately demote all older pre-releases** for the same component (firmware target or android):
+
+1. List releases: `gh release list --limit 20`
+2. For each older release of the same component that is still marked **Pre-release**, run:
+   ```
+   gh release edit <old-tag> --prerelease=false
+   ```
+3. Only the **latest** RC for a given component should carry the Pre-release label at any time.
+
+### Scope
+
+- Firmware: `fw-usb-*`, `fw-pro-*` are separate components — demote within each independently.
+- Android: `android-*` is its own component.
+
+### Example
+
+Creating `fw-usb-v1.5-rc.3` while `fw-usb-v1.5-rc.2` and `fw-usb-v1.5-rc.1` are Pre-release:
+
+```bash
+gh release edit fw-usb-v1.5-rc.2 --prerelease=false
+gh release edit fw-usb-v1.5-rc.1 --prerelease=false
+```

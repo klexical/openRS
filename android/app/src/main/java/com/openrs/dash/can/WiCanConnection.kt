@@ -267,11 +267,15 @@ class WiCanConnection(
                 // ── Extended diagnostic session poller ───────────────────────
                 val extJob = launch {
                     delay(ObdConstants.EXT_INITIAL_DELAY_MS)
+                    var odometerPolled = false
                     while (isActive) {
-                        try {
-                            sendWsText(out, ObdConstants.EXT_SESSION_BCM);   delay(ObdConstants.EXT_SESSION_GAP_MS)
-                            sendWsText(out, ObdConstants.BCM_QUERY_ODOMETER); delay(ObdConstants.EXT_QUERY_GAP_MS)
-                        } catch (_: Exception) { }
+                        if (!odometerPolled) {
+                            try {
+                                sendWsText(out, ObdConstants.EXT_SESSION_BCM);   delay(ObdConstants.EXT_SESSION_GAP_MS)
+                                sendWsText(out, ObdConstants.BCM_QUERY_ODOMETER); delay(ObdConstants.EXT_QUERY_GAP_MS)
+                                odometerPolled = true
+                            } catch (_: Exception) { }
+                        }
 
                         try {
                             sendWsText(out, ObdConstants.EXT_SESSION_AWD);   delay(ObdConstants.EXT_SESSION_GAP_MS)

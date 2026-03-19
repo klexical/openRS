@@ -103,7 +103,8 @@ data class VehicleState(
     val reverseStatus: Boolean = false,    // Reverse gear engaged
 
     // ── BCM OBD (Mode 22 via BCM 0x726) ────────────────────
-    val odometerKm: Long = -1L,            // 0x22DD01: [B4:B6] km (3-byte)
+    val odometerKm: Long = -1L,            // 0x360 passive (16-bit) + rollover offset, or 0x22DD01 (24-bit)
+    val odometerRolloverOffset: Long = 0,  // (mode22 / 65536) * 65536 — set once from Mode 22
     val batterySoc: Double = -1.0,         // 0x224028: B4 % (start/stop SoC)
     val batteryTempC: Double = -99.0,      // 0x224029: B4-40 °C (12V battery)
     val cabinTempC: Double = -99.0,        // 0x22DD04: (B4×10/9)-45 °C (interior)

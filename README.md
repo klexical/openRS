@@ -89,6 +89,7 @@ All data is received passively from the CAN bus via WebSocket SLCAN at ~2100 fps
 | 0x2C0 | AWD L/R rear torque (Nm) | RS_HS.dbc |
 | 0x2F0 | Coolant temp, Intake Air Temp (IAT) | RS_HS.dbc PCMmsg16 |
 | 0x340 | Ambient temperature only (byte 7 signed × 0.25 °C) — **not** TPMS | RS_HS.dbc PCMmsg17 |
+| 0x360 | Odometer — bytes [5:6] BE, 16-bit unsigned, 1 km/bit (~5 Hz). Max 65,535 km. | Community [#102](https://github.com/klexical/openRS_/discussions/102) verified |
 | 0x380 | Fuel level % (FuelLevelFiltered — Motorola 10-bit, factor 0.4 %) | RS_HS.dbc PCMmsg30 |
 
 > **Note:** `0x230` (gear position) and `0x3C0` (battery voltage) do not broadcast on this vehicle. Battery voltage is polled via OBD. Gear display has been removed.
@@ -99,7 +100,7 @@ All data is received passively from the CAN bus via WebSocket SLCAN at ~2100 fps
 |-----|---------|----------|-----------------|----------|
 | PCM | 0x7E0 | 0x7E8 | ETC actual (0x093C), ETC desired (0x091A), WGDC (0x0462), KR cyl 1 (0x03EC), OAR (0x03E8), Charge Air Temp (0x0461), Catalyst Temp (0xF43C), AFR actual (0xF434), AFR desired (0xF444), TIP actual (0x033E), TIP desired (0x0466), VCT intake (0x0318), VCT exhaust (0x0319), Oil Life (0x054B), HP Fuel Rail (0xF422), Fuel Level (0xF42F) | 30 s |
 | BCM | 0x726 | 0x72E | Battery SOC (0x4028), Battery temp (0x4029), Cabin temp (0xDD04), **TPMS LF/RF/LR/RR** (0x2813–0x2816) `(((256×A)+B)/3 + 22/3) × 0.145 PSI` | 30 s |
-| BCM (ext) | 0x726 | 0x72E | Odometer (0xDD01) — requires extended diagnostic session | 60 s |
+| BCM (ext) | 0x726 | 0x72E | Odometer (0xDD01) — extended session, **once on connect** (passive CAN 0x360 handles real-time) | once |
 | AWD module | 0x703 | 0x70B | RDU oil temp (0x1E8A) — `B4 − 40 °C` | 60 s |
 
 ### Ready-to-Race Thresholds

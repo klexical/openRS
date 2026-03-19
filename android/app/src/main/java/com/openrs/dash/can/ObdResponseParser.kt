@@ -36,10 +36,14 @@ object ObdResponseParser {
         when (did) {
             0xDD01 -> {
                 if (data.size < 7) return
-                val km = (b4 shl 16) or
+                val km = ((b4 shl 16) or
                          ((data[5].toInt() and 0xFF) shl 8) or
-                         (data[6].toInt() and 0xFF)
-                onObdUpdate(currentState.copy(odometerKm = km.toLong()))
+                         (data[6].toInt() and 0xFF)).toLong()
+                val rolloverOffset = (km / 65536L) * 65536L
+                onObdUpdate(currentState.copy(
+                    odometerKm = km,
+                    odometerRolloverOffset = rolloverOffset
+                ))
             }
             0x4028 -> onObdUpdate(currentState.copy(batterySoc = b4.toDouble()))
             0x4029 -> onObdUpdate(currentState.copy(batteryTempC = (b4 - 40).toDouble()))
