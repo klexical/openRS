@@ -29,7 +29,11 @@ Pro-only patches:
   (same CAN TX shim as USB — wc_mdns_init anchor confirmed in v4.48p)
 """
 
-OPENRS_FW_VERSION = "v1.5-rc.5"
+OPENRS_FW_VERSIONS = {
+    "usb": "USB v1.5-rc.5",
+    "pro": "PRO v1.0",
+}
+OPENRS_FW_VERSION = None  # set per-target in main()
 
 import sys
 import os
@@ -518,12 +522,28 @@ def main():
 
     profile = load_profile(args.target)
 
+    global OPENRS_FW_VERSION
+    OPENRS_FW_VERSION = OPENRS_FW_VERSIONS[args.target]
+
     if not profile["verified"]:
         print(f"\n  *** WARNING: target '{args.target}' is UNVERIFIED ***")
         print(f"  *** Patches may fail — verify with actual hardware ***\n")
 
     print(f"\nApplying openrs-fw patches to: {base}")
-    print(f"Target: {profile['description']} (wican-fw {profile['wican_tag']})\n")
+    print(f"Target: {profile['description']} (wican-fw {profile['wican_tag']})")
+    print(f"Firmware version: {OPENRS_FW_VERSION}\n")
+
+    # Patch focusrs.h with the target-specific version string
+    focusrs_h = os.path.join(base, "components", "focusrs", "focusrs.h")
+    if os.path.isfile(focusrs_h):
+        h = read(focusrs_h)
+        h = re.sub(
+            r'#define\s+OPENRS_FW_VERSION\s+"[^"]+"',
+            f'#define OPENRS_FW_VERSION   "{OPENRS_FW_VERSION}"',
+            h,
+        )
+        write(focusrs_h, h)
+        print(f"  focusrs.h: OPENRS_FW_VERSION = \"{OPENRS_FW_VERSION}\"")
 
     # Common patches (all targets)
     print("[1/8] WiFi network...")
