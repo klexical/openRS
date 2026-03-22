@@ -79,6 +79,7 @@ import com.openrs.dash.ui.OrbitronFamily
 import com.openrs.dash.ui.Surf
 import com.openrs.dash.ui.Surf2
 import com.openrs.dash.ui.UIText
+import com.openrs.dash.ui.UnitConversions
 import com.openrs.dash.ui.UserPrefs
 import androidx.compose.ui.platform.LocalView
 import androidx.core.view.ViewCompat
@@ -718,7 +719,7 @@ private fun TripSummaryContent(tripState: TripState, prefs: UserPrefs, onClose: 
     var sharing by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(false) }
 
     val distStr = "%.2f %s".format(
-        if (prefs.speedUnit == "MPH") tripState.cumulativeDistanceKm * 0.621371
+        if (prefs.speedUnit == "MPH") tripState.cumulativeDistanceKm * UnitConversions.KM_TO_MI
         else tripState.cumulativeDistanceKm,
         if (prefs.speedUnit == "MPH") "mi" else "km"
     )

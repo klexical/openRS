@@ -102,8 +102,8 @@ import kotlin.math.roundToInt
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             DataCell("REAR BIAS", vs.rearLeftRightBias, modifier = Modifier.weight(1f))
             val spdLabel = if (p.speedUnit == "MPH") "mph" else "km/h"
-            val lrDisp = if (p.speedUnit == "MPH") lrDelta * 0.621371 else lrDelta
-            val frDisp = if (p.speedUnit == "MPH") frDelta * 0.621371 else frDelta
+            val lrDisp = if (p.speedUnit == "MPH") lrDelta * UnitConversions.KM_TO_MI else lrDelta
+            val frDisp = if (p.speedUnit == "MPH") frDelta * UnitConversions.KM_TO_MI else frDelta
             DataCell("L/R DELTA", "${"%.1f".format(lrDisp)} $spdLabel", modifier = Modifier.weight(1f))
             DataCell("F/R DELTA", "${"%.1f".format(frDisp)} $spdLabel", modifier = Modifier.weight(1f))
         }
@@ -212,12 +212,12 @@ import kotlin.math.roundToInt
                 Spacer(Modifier.height(10.dp))
                 Box(
                     Modifier.fillMaxWidth()
-                        .background(Red.copy(alpha = 0.1f), RoundedCornerShape(8.dp))
-                        .border(1.dp, Red.copy(alpha = 0.5f), RoundedCornerShape(8.dp))
+                        .background(Orange.copy(alpha = 0.1f), RoundedCornerShape(8.dp))
+                        .border(1.dp, Orange.copy(alpha = 0.5f), RoundedCornerShape(8.dp))
                         .padding(10.dp),
                     contentAlignment = Alignment.Center
                 ) {
-                    MonoLabel("⚠ LOW TIRE PRESSURE", 10.sp, Red, letterSpacing = 0.2.sp)
+                    MonoLabel("⚠ LOW TIRE PRESSURE", 10.sp, Orange, letterSpacing = 0.2.sp)
                 }
             }
             val spread = vs.maxTirePressSpread

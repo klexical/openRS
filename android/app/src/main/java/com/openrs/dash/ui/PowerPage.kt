@@ -93,6 +93,6 @@ import kotlin.math.roundToInt
 
 private fun fuelTrimColor(trim: Double) = when {
     trim > 10.0  -> Warn
-    trim < -10.0 -> Red
+    trim < -10.0 -> Orange
     else         -> Ok
 }

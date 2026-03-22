@@ -180,8 +180,8 @@ fun DidProberSection(
                 Box(
                     Modifier
                         .width(72.dp)
-                        .background(Red.copy(0.08f), RoundedCornerShape(8.dp))
-                        .border(1.dp, Red.copy(0.3f), RoundedCornerShape(8.dp))
+                        .background(Orange.copy(0.08f), RoundedCornerShape(8.dp))
+                        .border(1.dp, Orange.copy(0.3f), RoundedCornerShape(8.dp))
                         .clickable {
                             cancelled = true
                             probing = false
@@ -189,7 +189,7 @@ fun DidProberSection(
                         .padding(vertical = 12.dp),
                     contentAlignment = Alignment.Center
                 ) {
-                    MonoLabel("STOP", 10.sp, Red)
+                    MonoLabel("STOP", 10.sp, Orange)
                 }
             }
         }
@@ -221,7 +221,7 @@ fun DidProberSection(
                 horizontalArrangement = Arrangement.spacedBy(12.dp)
             ) {
                 MonoLabel("$found found", 10.sp, Ok)
-                MonoLabel("$rejected rejected", 10.sp, Red.copy(0.7f))
+                MonoLabel("$rejected rejected", 10.sp, Orange.copy(0.7f))
                 MonoLabel("$timeout timeout", 10.sp, Dim)
             }
 
@@ -276,7 +276,7 @@ private fun ProbeResultRow(
 ) {
     val color = when (entry.status) {
         "FOUND" -> Ok
-        "NRC" -> Red.copy(0.5f)
+        "NRC" -> Orange.copy(0.5f)
         else -> Dim.copy(0.4f)
     }
     Row(

@@ -43,7 +43,6 @@ val Warn    = Color(0xFFFFCC00)     // Gold — attention/warm
 // Aliases (backwards-compat with composables using old names)
 val Grn   get() = Ok
 val Amber get() = Warn
-val Red   get() = Orange
 
 // ── RS MK3 paint theme palette ────────────────────────────────────────────
 data class RsPaint(val id: String, val name: String, val accent: Color)

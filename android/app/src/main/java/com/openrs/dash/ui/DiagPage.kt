@@ -156,7 +156,7 @@ import kotlin.math.roundToInt
                     )
                     .border(
                         1.dp,
-                        if (!dtcBusy && vs.isConnected && onClearDtcs != null) Red.copy(0.45f) else Red.copy(0.15f),
+                        if (!dtcBusy && vs.isConnected && onClearDtcs != null) Orange.copy(0.45f) else Orange.copy(0.15f),
                         RoundedCornerShape(10.dp)
                     )
                     .clickable(enabled = !dtcBusy && vs.isConnected && onClearDtcs != null) {
@@ -168,7 +168,7 @@ import kotlin.math.roundToInt
                 MonoLabel(
                     if (dtcClearing) "CLEARING..." else "⚠  CLEAR FAULT CODES (0x14)",
                     11.sp,
-                    if (!dtcBusy && vs.isConnected && onClearDtcs != null) Red.copy(0.9f) else Red.copy(0.35f),
+                    if (!dtcBusy && vs.isConnected && onClearDtcs != null) Orange.copy(0.9f) else Orange.copy(0.35f),
                     letterSpacing = 0.06.sp
                 )
             }
@@ -221,7 +221,7 @@ import kotlin.math.roundToInt
                             }
                         }
                     }) {
-                        Text("CLEAR", fontFamily = ShareTechMono, color = Red, fontSize = 12.sp)
+                        Text("CLEAR", fontFamily = ShareTechMono, color = Orange, fontSize = 12.sp)
                     }
                 },
                 dismissButton = {
@@ -324,7 +324,7 @@ import kotlin.math.roundToInt
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
             DataCell("FPS",    "${vs.framesPerSecond.roundToInt()}", modifier = Modifier.weight(1f))
             DataCell("STATUS", if (vs.isConnected) "LIVE" else "OFF",
-                valueColor = if (vs.isConnected) Ok else Red, modifier = Modifier.weight(1f))
+                valueColor = if (vs.isConnected) Ok else Orange, modifier = Modifier.weight(1f))
             DataCell("MODE",   vs.dataMode, modifier = Modifier.weight(1f))
         }
         Spacer(Modifier.height(6.dp))
@@ -346,7 +346,7 @@ import kotlin.math.roundToInt
             DataCell("BATT SoC", if (vs.batterySoc >= 0) "${vs.batterySoc.roundToInt()}%" else "—",
                 valueColor = when {
                     vs.batterySoc < 0   -> Dim
-                    vs.batterySoc < 50  -> Red
+                    vs.batterySoc < 50  -> Orange
                     vs.batterySoc < 70  -> Warn
                     else                -> Ok
                 }, modifier = Modifier.weight(1f))
@@ -483,7 +483,7 @@ internal fun ignitionStatusLabel(v: Int): String = when (v) {
 @Composable
 private fun DtcRow(dtc: DtcResult) {
     val statusColor = when (dtc.status) {
-        DtcStatus.ACTIVE    -> Red
+        DtcStatus.ACTIVE    -> Orange
         DtcStatus.PENDING   -> Warn
         DtcStatus.PERMANENT -> Color(0xFFFF8C00)
         DtcStatus.UNKNOWN   -> Dim

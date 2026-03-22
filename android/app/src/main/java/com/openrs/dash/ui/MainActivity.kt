@@ -181,15 +181,18 @@ class MainActivity : ComponentActivity() {
 ) {
     val accent = LocalThemeAccent.current
 
-    val infiniteTransition = rememberInfiniteTransition(label = "conn")
-    val dotAlpha by infiniteTransition.animateFloat(
-        initialValue = 1f, targetValue = 0.3f, label = "dot",
-        animationSpec = infiniteRepeatable(tween(1000, easing = EaseInOut), RepeatMode.Reverse)
-    )
+    val dotAlpha = if (vs.isConnected) {
+        val infiniteTransition = rememberInfiniteTransition(label = "conn")
+        val anim by infiniteTransition.animateFloat(
+            initialValue = 1f, targetValue = 0.3f, label = "dot",
+            animationSpec = infiniteRepeatable(tween(1000, easing = EaseInOut), RepeatMode.Reverse)
+        )
+        anim
+    } else 1f
     val connColor = when {
         vs.isConnected -> Ok
         vs.isIdle      -> Warn
-        else           -> Red
+        else           -> Orange
     }
     val connLabel = when {
         vs.isConnected -> "LIVE"
@@ -230,7 +233,7 @@ class MainActivity : ComponentActivity() {
                 ) {
                     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(5.dp)) {
                         Box(Modifier.size(6.dp).clip(CircleShape)
-                            .background(connColor.copy(alpha = if (vs.isConnected) dotAlpha else 1f)))
+                            .background(connColor.copy(alpha = dotAlpha)))
                         MonoLabel(connLabel, 8.sp, connColor, FontWeight.Bold, 0.08.sp)
                     }
                 }
@@ -266,10 +269,10 @@ class MainActivity : ComponentActivity() {
             verticalAlignment = Alignment.CenterVertically
         ) {
             val modeColor = when (vs.driveMode) {
-                DriveMode.SPORT -> Ok; DriveMode.TRACK -> Warn; DriveMode.DRIFT -> Red; else -> accent
+                DriveMode.SPORT -> Ok; DriveMode.TRACK -> Warn; DriveMode.DRIFT -> Orange; else -> accent
             }
             val escColor = when (vs.escStatus) {
-                EscStatus.OFF -> Red; EscStatus.PARTIAL -> Warn; EscStatus.LAUNCH -> Warn; else -> accent
+                EscStatus.OFF -> Orange; EscStatus.PARTIAL -> Warn; EscStatus.LAUNCH -> Warn; else -> accent
             }
             val eBrakeColor = if (vs.eBrake) Warn else Ok
             val fpsStr = if (vs.isConnected) "${vs.framesPerSecond.toInt()} FPS" else "—"

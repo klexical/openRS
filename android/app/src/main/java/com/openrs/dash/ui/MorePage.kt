@@ -81,7 +81,7 @@ import kotlinx.coroutines.withContext
                         val modeAccent = when (mode) {
                             DriveMode.SPORT -> Ok
                             DriveMode.TRACK -> Warn
-                            DriveMode.DRIFT -> Red
+                            DriveMode.DRIFT -> Orange
                             else            -> accent
                         }
                         val isPending = pendingDriveMode == mode && !isActive
@@ -144,7 +144,7 @@ import kotlinx.coroutines.withContext
                         val isActive = vs.escStatus == status
                         val isPending = pendingEsc == status && !isActive
                         val color = when (status) {
-                            EscStatus.ON -> Ok; EscStatus.PARTIAL -> Warn; else -> Red
+                            EscStatus.ON -> Ok; EscStatus.PARTIAL -> Warn; else -> Orange
                         }
                         Box(
                             Modifier.weight(1f)
@@ -264,8 +264,8 @@ import kotlinx.coroutines.withContext
             Spacer(Modifier.height(8.dp))
             Row(
                 Modifier.fillMaxWidth()
-                    .background(if (isFw) Ok.copy(alpha = 0.06f) else Red.copy(alpha = 0.06f), RoundedCornerShape(8.dp))
-                    .border(1.dp, if (isFw) Ok.copy(0.2f) else Red.copy(0.2f), RoundedCornerShape(8.dp))
+                    .background(if (isFw) Ok.copy(alpha = 0.06f) else Orange.copy(alpha = 0.06f), RoundedCornerShape(8.dp))
+                    .border(1.dp, if (isFw) Ok.copy(0.2f) else Orange.copy(0.2f), RoundedCornerShape(8.dp))
                     .padding(10.dp),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
@@ -274,7 +274,7 @@ import kotlinx.coroutines.withContext
                     MonoLabel(
                         if (isFw) "✓  $fwLabel detected"
                         else "⚡  Flash openrs-fw to unlock CAN write, LC, Auto Start-Stop & more.",
-                        9.sp, if (isFw) Ok else Red, letterSpacing = 0.05.sp
+                        9.sp, if (isFw) Ok else Orange, letterSpacing = 0.05.sp
                     )
                 }
             }
@@ -329,7 +329,7 @@ import kotlinx.coroutines.withContext
         MoreSection("CONNECTION & DIAGNOSTICS") {
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                 DataCell("STATUS", if (vs.isConnected) "LIVE" else "OFFLINE",
-                    valueColor = if (vs.isConnected) Ok else Red, modifier = Modifier.weight(1f))
+                    valueColor = if (vs.isConnected) Ok else Orange, modifier = Modifier.weight(1f))
                 DataCell("MODE", vs.dataMode, modifier = Modifier.weight(1f))
                 DataCell("FPS",  "${vs.framesPerSecond.toInt()}", modifier = Modifier.weight(1f))
                 DataCell("SESSION", DiagnosticLogger.formatDuration(remember(vs.framesPerSecond) { DiagnosticLogger.sessionDurationMs }),
@@ -390,9 +390,6 @@ import kotlinx.coroutines.withContext
     }
 }
 
-/** Returns the accent Color for a theme ID from the centralized RS paint palette. */
-private fun themeAccentColor(id: String): androidx.compose.ui.graphics.Color = rsPaintAccent(id)
-
 @Composable fun ThemePicker(p: UserPrefs) {
     val ctx = LocalContext.current
     val themes = RsPaints.map { it.id to it.name }
@@ -400,12 +397,12 @@ private fun themeAccentColor(id: String): androidx.compose.ui.graphics.Color = r
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
             themes.take(3).forEach { (id, name) ->
-                ThemeChip(id, name, themeAccentColor(id), p.themeId == id, ctx, p, Modifier.weight(1f))
+                ThemeChip(id, name, rsPaintAccent(id), p.themeId == id, ctx, p, Modifier.weight(1f))
             }
         }
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
             themes.drop(3).forEach { (id, name) ->
-                ThemeChip(id, name, themeAccentColor(id), p.themeId == id, ctx, p, Modifier.weight(1f))
+                ThemeChip(id, name, rsPaintAccent(id), p.themeId == id, ctx, p, Modifier.weight(1f))
             }
         }
     }

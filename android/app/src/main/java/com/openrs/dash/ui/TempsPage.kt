@@ -112,11 +112,16 @@ data class TempSpec(
     val warmupDetail = vs.rtrStatus
     val isReady = warmupDetail == null
     val dotColor = if (isReady) Ok else Warn
-    val infiniteTransition = rememberInfiniteTransition(label = "rtr")
-    val dotAlpha by infiniteTransition.animateFloat(
-        initialValue = 1f, targetValue = if (isReady) 1f else 0.3f, label = "rtrDot",
-        animationSpec = infiniteRepeatable(tween(800, easing = EaseInOut), RepeatMode.Reverse)
-    )
+    val dotAlpha = if (isReady) {
+        1f
+    } else {
+        val infiniteTransition = rememberInfiniteTransition(label = "rtr")
+        val anim by infiniteTransition.animateFloat(
+            initialValue = 1f, targetValue = 0.3f, label = "rtrDot",
+            animationSpec = infiniteRepeatable(tween(800, easing = EaseInOut), RepeatMode.Reverse)
+        )
+        anim
+    }
     val bannerBrush = if (isReady)
         Brush.horizontalGradient(listOf(Ok.copy(alpha = 0.08f), Ok.copy(alpha = 0.04f)))
     else
@@ -162,7 +167,7 @@ data class TempSpec(
         Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
             listOf("street" to "STREET", "track" to "TRACK", "race" to "RACE").forEach { (id, label) ->
                 val isActive = p.tempPreset == id
-                val color    = when (id) { "race" -> Red; "track" -> Warn; else -> Ok }
+                val color    = when (id) { "race" -> Orange; "track" -> Warn; else -> Ok }
                 Box(
                     Modifier
                         .background(if (isActive) color.copy(alpha = 0.15f) else Surf3, RoundedCornerShape(6.dp))
@@ -184,7 +189,7 @@ data class TempSpec(
         spec.tempC <= 0         -> Surf3
         spec.tempC < spec.warnC -> Ok.copy(alpha = 0.6f)
         spec.tempC < spec.critC -> Warn.copy(alpha = 0.7f)
-        else                    -> Red
+        else                    -> Orange
     }
     val isPlaceholder = spec.value == "— —"
 

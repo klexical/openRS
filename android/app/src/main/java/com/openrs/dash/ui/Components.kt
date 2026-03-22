@@ -189,7 +189,7 @@ import com.openrs.dash.R
     val isMissing = psi < 0
     val tireColor = when {
         isMissing  -> Dim
-        isLow      -> Red
+        isLow      -> Orange
         psi > 40.0 -> Warn
         else       -> Ok
     }
@@ -197,7 +197,7 @@ import com.openrs.dash.R
     Column(
         Modifier.fillMaxWidth()
             .background(Surf2, RoundedCornerShape(10.dp))
-            .border(1.dp, if (isLow) Red.copy(0.5f) else Brd, RoundedCornerShape(10.dp))
+            .border(1.dp, if (isLow) Orange.copy(0.5f) else Brd, RoundedCornerShape(10.dp))
             .padding(8.dp, 7.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {

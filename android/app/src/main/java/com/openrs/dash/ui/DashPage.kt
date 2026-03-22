@@ -53,8 +53,8 @@ import kotlin.math.roundToInt
             )
             HeroCard(
                 unit = "RPM", value = "${vs.rpm.toInt()}", label = "ENGINE",
-                valueColor = Red,
-                borderAccent = Red.copy(alpha = 0.2f),
+                valueColor = Orange,
+                borderAccent = Orange.copy(alpha = 0.2f),
                 peak = "▲ ${vs.peakRpm.toInt()}",
                 modifier = Modifier.weight(1f).fillMaxHeight()
             )
@@ -109,14 +109,14 @@ import kotlin.math.roundToInt
         if (activeWarnings.isNotEmpty()) {
             Box(
                 Modifier.fillMaxWidth()
-                    .background(Red.copy(alpha = 0.1f), RoundedCornerShape(10.dp))
-                    .border(1.5.dp, Red.copy(alpha = 0.5f), RoundedCornerShape(10.dp))
+                    .background(Orange.copy(alpha = 0.1f), RoundedCornerShape(10.dp))
+                    .border(1.5.dp, Orange.copy(alpha = 0.5f), RoundedCornerShape(10.dp))
                     .padding(horizontal = 14.dp, vertical = 10.dp),
                 contentAlignment = Alignment.Center
             ) {
                 MonoLabel(
                     "⚠ ${activeWarnings.joinToString(" · ")}",
-                    12.sp, Red, letterSpacing = 0.2.sp
+                    12.sp, Orange, letterSpacing = 0.2.sp
                 )
             }
         }
@@ -137,7 +137,7 @@ import kotlin.math.roundToInt
             BarCard(
                 name = "BRAKE", value = "$brakeStr%",
                 fraction = (vs.brakePressure / 100.0).toFloat().coerceIn(0f, 1f),
-                barBrush = Brush.horizontalGradient(listOf(Red.copy(0.4f), Red)),
+                barBrush = Brush.horizontalGradient(listOf(Orange.copy(0.4f), Orange)),
                 modifier = Modifier.weight(1f)
             )
         }
@@ -183,11 +183,11 @@ import kotlin.math.roundToInt
         }
 
         // ── Odometer toggle ───────────────────────────────────────────────
-        var odomInMiles by remember { mutableStateOf(false) }
+        var odomInMiles by remember { mutableStateOf(p.speedUnit == "MPH") }
         val odomLabel = if (odomInMiles) "ODO (mi)" else "ODO (km)"
         val odomValue = when {
             vs.odometerKm < 0 -> "—"
-            odomInMiles       -> "${"%.0f".format(vs.odometerKm * 0.621371)} mi"
+            odomInMiles       -> "${"%.0f".format(vs.odometerKm * UnitConversions.KM_TO_MI)} mi"
             else              -> "${"%.0f".format(vs.odometerKm.toDouble())} km"
         }
         Box(
@@ -257,7 +257,7 @@ import kotlin.math.roundToInt
 
 internal fun tempColorShade(c: Double, warnC: Double, critC: Double) = when {
     c <= 0      -> Dim
-    c >= critC  -> Red
+    c >= critC  -> Orange
     c >= warnC  -> Warn
     c >= warnC * 0.6 -> Ok
     else        -> Frost

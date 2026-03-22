@@ -275,7 +275,7 @@ fun SettingsDialog(onDismiss: () -> Unit) {
 
                 // Error
                 if (error != null) {
-                    Text(error!!, fontSize = 12.sp, color = Red, fontFamily = ShareTechMono)
+                    Text(error!!, fontSize = 12.sp, color = Orange, fontFamily = ShareTechMono)
                 }
             }
 
