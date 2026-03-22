@@ -8,7 +8,9 @@ extern "C" {
 #endif
 
 // ── Firmware version (returned to Android app via OPENRS? probe) ───────────
-#define OPENRS_FW_VERSION   "v1.5-rc.5"
+// Actual value is patched per-target by apply_patches.py.
+// USB → "USB v1.5-rc.5"   PRO → "PRO v1.0"
+#define OPENRS_FW_VERSION   "USB v1.5-rc.5"
 
 // ── Drive mode values ──────────────────────────────────────────
 // Confirmed from live CAN log (0x1B0 byte6 upper nibble, DBC VAL_ 432):

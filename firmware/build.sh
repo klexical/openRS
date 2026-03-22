@@ -207,7 +207,7 @@ fi
 # Records what was built, when, and from which source. Used by
 # verify-release.sh and CI to catch stale/renamed binaries.
 log "Writing build manifest..."
-FW_VERSION=$(grep -o 'OPENRS_FW_VERSION.*"[^"]*"' "$COMPONENTS_DIR/focusrs/focusrs.h" | grep -o '"[^"]*"' | tr -d '"')
+FW_VERSION=$(grep -o 'OPENRS_FW_VERSION.*"[^"]*"' "$WICAN_DIR/components/focusrs/focusrs.h" | grep -o '"[^"]*"' | tr -d '"')
 GIT_SHA=$(git -C "$SCRIPT_DIR/.." rev-parse HEAD 2>/dev/null || echo "unknown")
 GIT_DIRTY=$(git -C "$SCRIPT_DIR/.." diff --quiet 2>/dev/null && echo "false" || echo "true")
 APP_SHA256=$(shasum -a 256 "$RELEASE_DIR/$OUTPUT_BIN" | cut -d' ' -f1)
