@@ -17,6 +17,7 @@ import com.openrs.dash.R
 import com.openrs.dash.can.AdapterState
 import com.openrs.dash.can.CanDecoder
 import com.openrs.dash.can.MeatPiConnection
+import com.openrs.dash.can.PidRegistry
 import com.openrs.dash.can.WiCanConnection
 import com.openrs.dash.data.DtcResult
 import com.openrs.dash.data.VehicleState
@@ -93,10 +94,21 @@ class CanDataService : Service() {
                else           DtcScanner(this).clearDtcs(w)
     }
 
+    /**
+     * Send a single Mode 22 (or arbitrary) SLCAN frame and wait for a response.
+     * Used by the DID prober to test individual DIDs against an ECU.
+     */
+    suspend fun sendRawQuery(responseId: Int, frame: String, timeoutMs: Long = 1_500L): ByteArray? {
+        val (useMeatPi, w, m) = synchronized(this) { Triple(isMeatPi, wican, meatpi) }
+        return if (useMeatPi) m.sendRawQuery(responseId, frame, timeoutMs)
+               else           w.sendRawQuery(responseId, frame, timeoutMs)
+    }
+
     override fun onBind(intent: Intent?): IBinder = binder
 
     override fun onCreate() {
         super.onCreate()
+        PidRegistry.ensureLoaded(this)
         wican = buildWiCan()
         registerWifiCallback()
         if (isOnWifi()) startConnection()
@@ -297,6 +309,9 @@ class CanDataService : Service() {
                 vctExhaustAngle = obdState.vctExhaustAngle,
                 oilLifePct = obdState.oilLifePct,
                 ignCorrCyl1 = obdState.ignCorrCyl1,
+                ignCorrCyl2 = obdState.ignCorrCyl2,
+                ignCorrCyl3 = obdState.ignCorrCyl3,
+                ignCorrCyl4 = obdState.ignCorrCyl4,
                 tirePressLF = if (obdState.tirePressLF >= 0) obdState.tirePressLF else current.tirePressLF,
                 tirePressRF = if (obdState.tirePressRF >= 0) obdState.tirePressRF else current.tirePressRF,
                 tirePressLR = if (obdState.tirePressLR >= 0) obdState.tirePressLR else current.tirePressLR,
@@ -315,6 +330,13 @@ class CanDataService : Service() {
                 batteryTempC = if (obdState.batteryTempC > -90) obdState.batteryTempC else current.batteryTempC,
                 cabinTempC   = if (obdState.cabinTempC  > -90)  obdState.cabinTempC   else current.cabinTempC,
                 rduTempC     = if (obdState.rduTempC > -90)     obdState.rduTempC     else current.rduTempC,
+                awdClutchTempL = if (obdState.awdClutchTempL > -90) obdState.awdClutchTempL else current.awdClutchTempL,
+                awdClutchTempR = if (obdState.awdClutchTempR > -90) obdState.awdClutchTempR else current.awdClutchTempR,
+                awdReqTorqueL  = if (obdState.awdReqTorqueL > 0) obdState.awdReqTorqueL else current.awdReqTorqueL,
+                awdReqTorqueR  = if (obdState.awdReqTorqueR > 0) obdState.awdReqTorqueR else current.awdReqTorqueR,
+                awdDmdPressure = if (obdState.awdDmdPressure > 0) obdState.awdDmdPressure else current.awdDmdPressure,
+                awdPumpCurrent = if (obdState.awdPumpCurrent > 0) obdState.awdPumpCurrent else current.awdPumpCurrent,
+                transOilTempC  = if (obdState.transOilTempC > -90) obdState.transOilTempC else current.transOilTempC,
                 hpFuelRailPsi = if (obdState.hpFuelRailPsi >= 0) obdState.hpFuelRailPsi else current.hpFuelRailPsi,
                 batteryVoltage = if (obdState.batteryVoltage > 0) obdState.batteryVoltage else current.batteryVoltage,
                 rduEnabled   = obdState.rduEnabled   ?: current.rduEnabled,
@@ -325,6 +347,21 @@ class CanDataService : Service() {
                 lcRpmTarget  = if (obdState.lcRpmTarget >= 0) obdState.lcRpmTarget else current.lcRpmTarget,
                 assEnabled   = obdState.assEnabled   ?: current.assEnabled,
                 rsprotTimedOut = obdState.rsprotTimedOut || current.rsprotTimedOut,
+                genericValues = if (obdState.genericValues.isNotEmpty())
+                    current.genericValues + obdState.genericValues
+                else current.genericValues,
+                hvacBlowerPct       = if (obdState.hvacBlowerPct >= 0) obdState.hvacBlowerPct else current.hvacBlowerPct,
+                hvacInteriorTempC   = if (obdState.hvacInteriorTempC > -90) obdState.hvacInteriorTempC else current.hvacInteriorTempC,
+                hvacDischargeRfTempC= if (obdState.hvacDischargeRfTempC > -90) obdState.hvacDischargeRfTempC else current.hvacDischargeRfTempC,
+                hvacBlendDoorL      = if (obdState.hvacBlendDoorL >= 0) obdState.hvacBlendDoorL else current.hvacBlendDoorL,
+                hvacBlendDoorR      = if (obdState.hvacBlendDoorR >= 0) obdState.hvacBlendDoorR else current.hvacBlendDoorR,
+                hvacDefrostDoor     = if (obdState.hvacDefrostDoor >= 0) obdState.hvacDefrostDoor else current.hvacDefrostDoor,
+                warnMil         = obdState.warnMil         ?: current.warnMil,
+                warnAbs         = obdState.warnAbs         ?: current.warnAbs,
+                warnBrake       = obdState.warnBrake       ?: current.warnBrake,
+                warnCharge      = obdState.warnCharge      ?: current.warnCharge,
+                warnOilPressure = obdState.warnOilPressure ?: current.warnOilPressure,
+                warnTempHigh    = obdState.warnTempHigh    ?: current.warnTempHigh,
             )
         }
     }

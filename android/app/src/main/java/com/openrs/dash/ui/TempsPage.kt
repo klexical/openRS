@@ -84,6 +84,15 @@ import com.openrs.dash.data.VehicleState
             TempSpec("BATT TEMP",
                 if (vs.batteryTempC > -90) p.displayTemp(vs.batteryTempC) else "— —", p.tempLabel,
                 vs.batteryTempC.takeIf { it > -90 } ?: 0.0, 40.0, 60.0, "BCM"),
+            TempSpec("CLT LEFT",
+                if (vs.awdClutchTempL > -90) p.displayTemp(vs.awdClutchTempL) else "— —", p.tempLabel,
+                vs.awdClutchTempL.takeIf { it > -90 } ?: 0.0, 90.0, 120.0, "AWD"),
+            TempSpec("CLT RIGHT",
+                if (vs.awdClutchTempR > -90) p.displayTemp(vs.awdClutchTempR) else "— —", p.tempLabel,
+                vs.awdClutchTempR.takeIf { it > -90 } ?: 0.0, 90.0, 120.0, "AWD"),
+            TempSpec("TRANS OIL",
+                if (vs.transOilTempC > -90) p.displayTemp(vs.transOilTempC) else "— —", p.tempLabel,
+                vs.transOilTempC.takeIf { it > -90 } ?: 0.0, 100.0, 130.0, "AWD"),
         )
         tempItems.chunked(2).forEach { pair ->
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {

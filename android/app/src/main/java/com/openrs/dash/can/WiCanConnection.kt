@@ -187,6 +187,36 @@ class WiCanConnection(
         return if (buf.size() > 0) buf.toByteArray() else null
     }
 
+    /**
+     * Send a single SLCAN frame and wait for a response from [responseId].
+     * Reuses the DTC channel/mutex infrastructure.
+     * Returns the raw data bytes of the first matching response, or null on timeout.
+     */
+    suspend fun sendRawQuery(
+        responseId: Int,
+        frame: String,
+        timeoutMs: Long = 1_500L
+    ): ByteArray? = _dtcMutex.withLock {
+        val out = _wsOut ?: return null
+        _dtcWatchIds = setOf(responseId)
+        _dtcScanActive = true
+        while (_dtcChannel.tryReceive().isSuccess) { /* drain stale */ }
+        try {
+            sendWsText(out, frame)
+            val deadline = System.currentTimeMillis() + timeoutMs
+            while (System.currentTimeMillis() < deadline) {
+                val remaining = deadline - System.currentTimeMillis()
+                if (remaining <= 0) break
+                val resp = withTimeoutOrNull(remaining) { _dtcChannel.receive() } ?: break
+                if (resp.first == responseId) return@withLock resp.second
+            }
+            null
+        } finally {
+            _dtcScanActive = false
+            _dtcWatchIds = emptySet()
+        }
+    }
+
     // ── Connection ───────────────────────────────────────────────────────────
 
     fun connectHybrid(
@@ -387,6 +417,14 @@ class WiCanConnection(
                     }
                     if (frame.first == ObdConstants.PSCM_RESPONSE_ID) {
                         ObdResponseParser.parsePscmResponse(frame.second, getCurrentState(), onObdUpdate)
+                        continue
+                    }
+                    if (frame.first == ObdConstants.HVAC_RESPONSE_ID) {
+                        ObdResponseParser.parseHvacResponse(frame.second, getCurrentState(), onObdUpdate)
+                        continue
+                    }
+                    if (frame.first == ObdConstants.IPC_RESPONSE_ID) {
+                        ObdResponseParser.parseIpcResponse(frame.second, getCurrentState(), onObdUpdate)
                         continue
                     }
                     if (frame.first == ObdConstants.FENG_RESPONSE_ID) {

@@ -13,7 +13,7 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/version-2.2.4-blue" alt="Version">
+  <img src="https://img.shields.io/badge/version-2.2.5-blue" alt="Version">
   <img src="https://img.shields.io/badge/platform-Android-brightgreen?logo=android" alt="Platform">
   <img src="https://img.shields.io/badge/Kotlin-2.0-purple?logo=kotlin" alt="Kotlin">
   <img src="https://img.shields.io/badge/Jetpack_Compose-Material3-4285F4?logo=jetpackcompose" alt="Compose">
@@ -98,10 +98,12 @@ All data is received passively from the CAN bus via WebSocket SLCAN at ~2100 fps
 
 | ECU | Request | Response | PIDs / Function | Interval |
 |-----|---------|----------|-----------------|----------|
-| PCM | 0x7E0 | 0x7E8 | ETC actual (0x093C), ETC desired (0x091A), WGDC (0x0462), KR cyl 1 (0x03EC), OAR (0x03E8), Charge Air Temp (0x0461), Catalyst Temp (0xF43C), AFR actual (0xF434), AFR desired (0xF444), TIP actual (0x033E), TIP desired (0x0466), VCT intake (0x0318), VCT exhaust (0x0319), Oil Life (0x054B), HP Fuel Rail (0xF422), Fuel Level (0xF42F), **Battery Voltage** (0x0304) | 30 s |
+| PCM | 0x7E0 | 0x7E8 | ETC actual (0x093C), ETC desired (0x091A), WGDC (0x0462), KR cyl 1–4 (0x03EC–0x03EF), OAR (0x03E8), Charge Air Temp (0x0461), Catalyst Temp (0xF43C), AFR actual (0xF434), AFR desired (0xF444), TIP actual (0x033E), TIP desired (0x0466), VCT intake (0x0318), VCT exhaust (0x0319), Oil Life (0x054B), HP Fuel Rail (0xF422), Fuel Level (0xF42F), **Battery Voltage** (0x0304) | 30 s |
 | BCM | 0x726 | 0x72E | Battery SOC (0x4028), Battery temp (0x4029), Cabin temp (0xDD04), **TPMS pressure LF/RF/LR/RR** (0x2813-0x2816) `(((256*A)+B)/3 + 22/3) * 0.145 PSI`, **TPMS last sensor** (0x280B) `temp = raw - 40 C, pressure = (A*256+B)/20 PSI` (multi-frame ISO-TP, matched by sensor ID) | 30 s |
 | BCM (once) | 0x726 | 0x72E | Odometer (0xDD01) -- extended session, **TPMS sensor IDs** (0x280F LF, 0x2810 RF, 0x2811 RR, 0x2812 LR) -- 4-byte IDs for 0x280B matching | once |
-| AWD module | 0x703 | 0x70B | RDU oil temp (0x1E8A) — `B4 − 40 °C` | 60 s |
+| AWD module | 0x703 | 0x70B | RDU oil temp (0x1E8A), clutch temp L/R (0x1E8B/0x1E8C), requested torque L/R (0x1E90/0x1E91), demanded pressure (0x1E92), pump current (0x1E93), trans oil temp (0x1E80) — all `B4 − 40 °C` or raw | 60 s |
+| HVAC (candidate) | 0x733 | 0x73B | Blower %, interior temp, discharge air temp, blend doors — DIDs TBD via prober | — |
+| IPC (candidate) | 0x720 | 0x728 | Warning lamps (MIL, ABS, brake, charge, oil, temp) — DIDs TBD via prober | — |
 
 ### Ready-to-Race Thresholds
 
@@ -227,11 +229,12 @@ Open `android/browser-emulator/index.html` in any browser, or visit the live ver
 │  SLCAN: C / S6 / O · ~2100 fps│  Raw SLCAN + OBD polling            │
 │  Firmware probe (OPENRS?)     │                                      │
 ├──────────────────────────────────────────────────────────────────────┤
-│  PCM polling (0x7E0/30s): ETC, WGDC, KR, OAR, AFR, TIP, VCT,       │
+│  PCM polling (0x7E0/30s): ETC, WGDC, KR×4, OAR, AFR, TIP, VCT,     │
 │    charge air, CAT temp, oil life, HP fuel rail, fuel level, bat V   │
 │  BCM polling (0x726/30s): SOC, bat temp, cabin temp, TPMS×4 + 0x280B │
 │  BCM once (0x726): odometer (ext session), TPMS sensor IDs×4         │
-│  AWD polling (0x703/60s): RDU oil temp                               │
+│  AWD polling (0x703/60s): RDU temp, clutch temps, torques, pressure  │
+│  HVAC/IPC (candidate): response handlers wired, DIDs via prober      │
 ├──────────────────────┬───────────────────────────────────────────────┤
 │  MeatPi WiCAN USB-C3 │  MeatPi WiCAN Pro (optional)                 │
 │  Wi-Fi AP · WS :80/ws│  Wi-Fi AP · TCP :35000 · GPS · MicroSD       │
@@ -266,6 +269,7 @@ android/
 │   │   │   ├── MeatPiConnection.kt       # MeatPi Pro raw TCP SLCAN + OBD polling
 │   │   │   ├── ObdConstants.kt           # Shared OBD query strings + CAN IDs + timing
 │   │   │   ├── ObdResponseParser.kt      # Shared OBD Mode 22 response parsers
+│   │   │   ├── PidRegistry.kt            # Data-driven PID decode via JSON catalog + formula evaluator
 │   │   │   ├── SlcanParser.kt            # Shared SLCAN frame parser
 │   │   │   └── WiCanConnection.kt        # WiCAN WebSocket SLCAN + firmware probe
 │   │   ├── data/
@@ -372,7 +376,7 @@ Pull requests welcome. See [CONTRIBUTING.md](android/CONTRIBUTING.md) for guidel
 If you have a Focus RS and FORScan/OBDLink, we'd love help verifying:
 - 12V battery voltage — CAN ID 0x3C0 does not broadcast; needs alternative source (BCM PID or other CAN ID)
 - Brake pressure bar calibration (raw ADC 0–4095 from `0x252`, need known-pressure reference)
-- Additional BCM Mode 22 PIDs
+- HVAC / IPC ECU address and DID confirmation (use built-in DID prober)
 - MS-CAN parameters (requires second adapter)
 
 ---

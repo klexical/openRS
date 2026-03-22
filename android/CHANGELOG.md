@@ -7,6 +7,30 @@ Firmware changes are tracked separately in [firmware releases](https://github.co
 
 ---
 
+## [v2.2.5] — 2026-03-22
+
+### Added (rc.1 — FORScan PID catalog integration, data-driven PID architecture, DID prober)
+- **FORScan PID catalog integrated as JSON asset** — parsed 1,149 FORScan PIDs from a raw CSV export, organized into a structured `forscan_modules.json` catalog with 8 ECU modules (PCM, OBDII, BCM, ABS, AWD, HVAC, IPC, PSCM). Each PID entry includes name, unit, description, DID (where known), and monitoring status. Python generator script at `android/scripts/gen_forscan_catalog.py` reproduces the catalog from the source CSV. Kotlin data classes in `ForscanCatalog.kt` load and parse the JSON at runtime.
+- **PID Browser on DIAG tab** — new expandable section listing all 1,149 FORScan PIDs grouped by ECU module. Each module row shows a coverage mini-bar (monitored vs total), CAN request/response ID badges, and PID count. Expanding a module shows its PIDs sorted with monitored PIDs first (separated by a divider). Numeric PIDs display a "▥" icon with unit; boolean/status PIDs display "◻". Footer shows aggregate stats: total PIDs, monitored count, and numeric/boolean breakdown.
+- **DID Prober on DIAG tab** — interactive tool that sends Mode 22 queries to discover valid DIDs on any ECU. Select a module, tap PROBE, and it scans candidate DID ranges (module-specific: PCM scans 0x0100–0x0FFF + 0xF400–0xF4FF, BCM scans 0x2800–0x28FF + 0xDD00–0xDDFF, etc.) plus all known catalog DIDs. Each DID is classified as FOUND (positive 0x62 response), NRC (negative 0x7F with NRC code), or TIMEOUT. Progress bar, live counters, and expandable results list with hex response data. Requires active adapter connection. Uses `sendRawQuery()` infrastructure added to both `WiCanConnection` and `MeatPiConnection`.
+- **Data-driven PID decode system (PidRegistry)** — new `PidRegistry.kt` singleton loads the FORScan catalog, builds an index keyed by `(ecuResponseId, did)`, and provides a `decode(ecuResponseId, did, b4, b5)` function that evaluates formulas from the catalog to produce named values. Formula evaluator is a custom recursive-descent parser supporting `+`, `-`, `*`, `/`, parentheses, `signed()` for two's-complement, and byte variables `A`/`B`. All four OBD response parsers (PCM, AWD, HVAC, IPC) fall through to PidRegistry for unrecognized DIDs, storing decoded values in `VehicleState.genericValues`. New PIDs can be added via JSON without modifying Kotlin code.
+- **Per-cylinder knock correction (cylinders 2–4)** — PCM now polls DIDs 0x03ED, 0x03EE, 0x03EF alongside existing cylinder 1 (0x03EC). New `VehicleState` fields `ignCorrCyl2`, `ignCorrCyl3`, `ignCorrCyl4`. Displayed on POWER tab in the existing knock correction section.
+- **AWD module expansion — 7 new PIDs** — clutch temperature L/R (0x1E8B/0x1E8C), requested torque L/R (0x1E90/0x1E91), demanded pressure (0x1E92), pump motor current (0x1E93), transmission oil temp (0x1E80). All added to the AWD 60s polling cycle. Clutch temps and requested torques shown on CHASSIS tab in the AWD section; clutch temps and trans oil temp added to TEMPS tab.
+- **HVAC module scaffolding** — response handler for ECU 0x733→0x73B wired into both connection classes. `VehicleState` fields added: `hvacBlowerPct`, `hvacInteriorTempC`, `hvacDischargeRfTempC`, `hvacBlendDoorL/R`, `hvacDefrostDoor`. ECU address is a candidate — use the DID prober to confirm before relying on these values.
+- **IPC warning lamps scaffolding** — response handler for ECU 0x720→0x728 wired into both connection classes. `VehicleState` fields added: `warnMil`, `warnAbs`, `warnBrake`, `warnCharge`, `warnOilPressure`, `warnTempHigh`. Warning lamp summary banner on DASH tab shows active warnings (CEL, ABS, BRK, CHRG, OIL, TEMP) when populated. ECU address is a candidate — use the DID prober to confirm.
+- **`buildSlcanQuery()` helper in ObdConstants** — generates Mode 22 SLCAN query frames for any ECU request ID + DID, replacing hardcoded frame strings for new PIDs.
+
+### Fixed (rc.1)
+- **PidRegistry never initialized** — `PidRegistry.ensureLoaded()` was not called anywhere, so all data-driven PID decoding was silently non-functional. Added call in `CanDataService.onCreate()`.
+- **`mergeObdState` dropped `genericValues`** — PidRegistry-decoded values were computed correctly in the OBD response parsers but silently lost when the OBD state was merged into the global `VehicleState`. Now merges correctly.
+- **`mergeObdState` missing HVAC and IPC fields** — all 12 new fields (`hvacBlowerPct`, `hvacInteriorTempC`, `hvacDischargeRfTempC`, `hvacBlendDoorL/R`, `hvacDefrostDoor`, `warnMil`, `warnAbs`, `warnBrake`, `warnCharge`, `warnOilPressure`, `warnTempHigh`) were parsed but dropped during state merge.
+- **Dead code removed** — `DidProber.kt` (standalone prober class) was never referenced; `DidProberSection.kt` inlines all probing logic directly. Deleted unused file.
+
+### Changed (rc.1)
+- **Release checklist and emulator workflow rules updated** — browser emulator updates are now deferred to stable releases only, skipped for staging/RC builds. `release-checklist.mdc` and `emulator-workflow.mdc` updated to match.
+
+---
+
 ## [v2.2.4] — 2026-03-19
 
 ### Added (rc.10.1 -- TPMS tire temperature polling + UI, Focus RS wireframe)

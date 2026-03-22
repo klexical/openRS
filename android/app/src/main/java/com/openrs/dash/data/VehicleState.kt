@@ -59,6 +59,9 @@ data class VehicleState(
 
     // ── Ignition Correction (Mode 22 via PCM 0x7E0) ───────
     val ignCorrCyl1: Double = 0.0,         // 0x03EC: Knock correction cyl 1 (deg)
+    val ignCorrCyl2: Double = 0.0,         // 0x03ED: Knock correction cyl 2 (deg)
+    val ignCorrCyl3: Double = 0.0,         // 0x03EE: Knock correction cyl 3 (deg)
+    val ignCorrCyl4: Double = 0.0,         // 0x03EF: Knock correction cyl 4 (deg)
 
     // ── TPMS (Mode 22 via BCM 0x726) ──────────────────────
     val tirePressLF: Double = -1.0,        // 0x2813: LF pressure (PSI)
@@ -95,6 +98,29 @@ data class VehicleState(
     val rduTempC: Double = -99.0,   // AWD module Mode 22 PID 0x1E8A; −99 = not yet polled
     val awdMaxTorque: Double = 0.0,
     val ptuTempC: Double = -99.0,   // 0x0F8 byte7 − 60 °C; −99 = not yet received (M-8)
+    val awdClutchTempL: Double = -99.0,  // AWD 0x703: left clutch temp inferred (°C)
+    val awdClutchTempR: Double = -99.0,  // AWD 0x703: right clutch temp inferred (°C)
+    val awdReqTorqueL: Double = 0.0,     // AWD 0x703: left side requested torque (Nm)
+    val awdReqTorqueR: Double = 0.0,     // AWD 0x703: right side requested torque (Nm)
+    val awdDmdPressure: Double = 0.0,    // AWD 0x703: demanded hydraulic pressure
+    val awdPumpCurrent: Double = 0.0,    // AWD 0x703: pump motor current (A)
+    val transOilTempC: Double = -99.0,   // AWD 0x703: sump oil temperature (°C)
+
+    // ── HVAC / Climate (Mode 22 via HVAC ECU, DIDs TBD) ──────
+    val hvacBlowerPct: Double = -1.0,      // Blower motor speed (%)
+    val hvacInteriorTempC: Double = -99.0, // Interior temp sensor (°C)
+    val hvacDischargeRfTempC: Double = -99.0, // Discharge air temp, right floor (°C)
+    val hvacBlendDoorL: Double = -1.0,     // Left blend door position (%)
+    val hvacBlendDoorR: Double = -1.0,     // Right blend door position (%)
+    val hvacDefrostDoor: Double = -1.0,    // Defrost door position (%)
+
+    // ── IPC Warning Lamps (Mode 22 via IPC ECU, DIDs TBD) ─────
+    val warnMil: Boolean? = null,         // MIL (check engine) lamp
+    val warnAbs: Boolean? = null,         // ABS warning lamp
+    val warnBrake: Boolean? = null,       // Brake warning lamp
+    val warnCharge: Boolean? = null,      // Battery/charge warning lamp
+    val warnOilPressure: Boolean? = null, // Oil pressure warning lamp
+    val warnTempHigh: Boolean? = null,    // High coolant temp warning
 
     // ── Vehicle Status (CAN Sniffed) ────────────────────────
     val driveMode: DriveMode = DriveMode.NORMAL,
@@ -127,6 +153,9 @@ data class VehicleState(
     val lcRpmTarget: Int = -1,             // RSProt 0x731 probe: LC RPM setpoint (-1 = unknown)
     val assEnabled: Boolean? = null,       // RSProt 0x731 probe: auto start-stop status
     val rsprotTimedOut: Boolean = false,   // true after 3 probe cycles with no RSProt response
+
+    // ── Generic PID values (data-driven, no dedicated fields) ──
+    val genericValues: Map<String, Double> = emptyMap(),
 
     // ── Peaks ───────────────────────────────────────────────
     val peakBoostPsi: Double = 0.0,
@@ -219,8 +248,9 @@ data class VehicleState(
         if (oilTempC > -90 && oilTempC < 80)           cold += "Oil ${oilTempC.toInt()}°C < 80°C"
         if (coolantTempC > -90 && coolantTempC < 85)   cold += "Coolant ${coolantTempC.toInt()}°C < 85°C"
         if (rduTempC > -90 && rduTempC < 30)        cold += "RDU ${rduTempC.toInt()}°C < 30°C"
-        // M-8 fix: guard sentinel −99 so PTU doesn't show as cold before first 0x0F8 frame
         if (ptuTempC > -90 && ptuTempC < 40)        cold += "PTU ${ptuTempC.toInt()}°C < 40°C"
+        if (awdClutchTempL > -90 && awdClutchTempL < 25) cold += "CLT-L ${awdClutchTempL.toInt()}°C < 25°C"
+        if (awdClutchTempR > -90 && awdClutchTempR < 25) cold += "CLT-R ${awdClutchTempR.toInt()}°C < 25°C"
         return if (cold.isEmpty()) null else cold.joinToString(" · ")
     }
 
