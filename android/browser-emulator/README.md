@@ -15,6 +15,10 @@ Simulates the openRS_ phone UI in the browser (no device or WiCAN required).
 - **Trip CSV replay:** on the **MORE** tab, use **LOAD TRIP CSV** and pick `trip_*.csv` from a trip ZIP export. Columns must match the app export (`timestamp_ms`, `speed_kph`, `rpm`, `gear`, `boost_psi`, temps, wheel speeds, `lateral_g`, `drive_mode`, `race_ready`, …). The file loops continuously.
 - Raw **SLCAN `.log`** (candump) from diagnostic ZIPs is **not** replayed in the emulator — use the **trip CSV** for time-series telemetry.
 
+## Settings
+
+- Defaults match the Android app (`AppSettings` / `UserPrefs`): keep screen on **on**, auto-reconnect **on**, retry interval **10 s** (plus WiCAN host/port, units, etc.). Values persist in `localStorage` (`openrs_emulator_settings_v1`).
+
 ## What it demonstrates
 
 - Same structure and labels as the real app (`MainActivity` + 6 tabs).

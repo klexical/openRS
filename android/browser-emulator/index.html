@@ -1864,7 +1864,7 @@ body {
             <div class="settings-section-label">DISPLAY</div>
             <div class="settings-switch-row">
               <div class="settings-switch-label">Keep screen on while connected</div>
-              <div class="toggle-track" id="toggle-screen-on" onclick="toggleSwitch('screen-on')">
+              <div class="toggle-track on" id="toggle-screen-on" onclick="toggleSwitch('screen-on')">
                 <div class="toggle-thumb"></div>
               </div>
             </div>
@@ -1906,16 +1906,16 @@ body {
             <div class="settings-section-label">AUTO-RECONNECT</div>
             <div class="settings-switch-row">
               <div class="settings-switch-label">Auto-reconnect on disconnect</div>
-              <div class="toggle-track" id="toggle-auto-reconnect" onclick="toggleSwitch('auto-reconnect')">
+              <div class="toggle-track on" id="toggle-auto-reconnect" onclick="toggleSwitch('auto-reconnect')">
                 <div class="toggle-thumb"></div>
               </div>
             </div>
             <div id="reconnect-interval-row" style="margin-top:12px">
               <div class="settings-row" style="margin-bottom:4px">
                 <div class="settings-row-label">Retry interval</div>
-                <input class="settings-input short" id="input-reconnect-sec" type="number" min="1" max="60" value="5">
+                <input class="settings-input short" id="input-reconnect-sec" type="number" min="1" max="60" value="10">
               </div>
-              <div class="settings-hint">How long to wait between attempts. Default: 5s</div>
+              <div class="settings-hint">How long to wait between attempts. Default: 10s (matches app)</div>
             </div>
           </div>
 
@@ -2078,9 +2078,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
 // ── Settings state (persisted via localStorage) ────────────────────────────
 const LS_KEY = 'openrs_emulator_settings_v1';
+// Defaults mirror AppSettings / UserPrefs (Android): DEFAULT_SCREEN_ON, DEFAULT_AUTO_RECONNECT, DEFAULT_RECONNECT_INTERVAL
 const settingsState = {
   speed: 'MPH', temp: '°F', boost: 'PSI', tire: 'PSI',
-  tirePsi: 32, screenOn: false, autoReconnect: false, reconnectSec: 5,
+  tirePsi: 32, screenOn: true, autoReconnect: true, reconnectSec: 10,
   host: '192.168.80.1', port: 80, adapter: 'WiCAN', microSd: false, maxZips: 5
 };
 
