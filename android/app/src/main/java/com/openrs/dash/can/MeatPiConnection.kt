@@ -446,6 +446,7 @@ class MeatPiConnection(
             val b = inp.read()
             if (b == -1) return null
             if (b == 0x0D) break
+            if (sb.length > 32) return null  // guard against \r-less runaway frames (#127)
             sb.append(b.toChar())
         }
         return sb.toString()
