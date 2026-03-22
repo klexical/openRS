@@ -118,6 +118,21 @@ import kotlin.math.roundToInt
                     modifier = Modifier.weight(1f))
             }
         }
+        val hasAwdExpanded = vs.awdClutchTempL > -90 || vs.awdReqTorqueL > 0 || vs.awdDmdPressure > 0
+        if (hasAwdExpanded) {
+            Spacer(Modifier.height(4.dp))
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                DataCell("CLT L", if (vs.awdClutchTempL > -90) "${p.displayTemp(vs.awdClutchTempL)}${p.tempLabel}" else "—", modifier = Modifier.weight(1f))
+                DataCell("CLT R", if (vs.awdClutchTempR > -90) "${p.displayTemp(vs.awdClutchTempR)}${p.tempLabel}" else "—", modifier = Modifier.weight(1f))
+                DataCell("TRANS", if (vs.transOilTempC > -90) "${p.displayTemp(vs.transOilTempC)}${p.tempLabel}" else "—", modifier = Modifier.weight(1f))
+            }
+            Spacer(Modifier.height(4.dp))
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                DataCell("REQ L", "${vs.awdReqTorqueL.roundToInt()} Nm", modifier = Modifier.weight(1f))
+                DataCell("REQ R", "${vs.awdReqTorqueR.roundToInt()} Nm", modifier = Modifier.weight(1f))
+                DataCell("PUMP", "${"%.1f".format(vs.awdPumpCurrent)} A", modifier = Modifier.weight(1f))
+            }
+        }
     }
 }
 

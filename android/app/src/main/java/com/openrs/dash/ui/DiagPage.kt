@@ -51,7 +51,8 @@ import kotlin.math.roundToInt
     lines: List<String>,
     vs: VehicleState,
     onScanDtcs: (suspend () -> List<DtcResult>)?,
-    onClearDtcs: (suspend () -> Map<String, Boolean>)? = null
+    onClearDtcs: (suspend () -> Map<String, Boolean>)? = null,
+    onSendRawQuery: (suspend (responseId: Int, frame: String, timeoutMs: Long) -> ByteArray?)? = null
 ) {
     val ctx    = LocalContext.current
     val scope  = rememberCoroutineScope()
@@ -385,6 +386,10 @@ import kotlin.math.roundToInt
 
         HorizontalDivider(color = Brd)
         Spacer(Modifier.height(10.dp))
+        DidProberSection(vs, onSendRawQuery)
+        Spacer(Modifier.height(14.dp))
+        HorizontalDivider(color = Brd)
+        Spacer(Modifier.height(10.dp))
         SectionLabel("LIVE CAN OUTPUT")
         Spacer(Modifier.height(4.dp))
 
@@ -440,6 +445,11 @@ import kotlin.math.roundToInt
                 }
             }
         }
+
+        Spacer(Modifier.height(14.dp))
+        HorizontalDivider(color = Brd)
+        Spacer(Modifier.height(10.dp))
+        PidBrowserSection()
     }
 }
 

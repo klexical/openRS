@@ -58,10 +58,16 @@ import kotlin.math.roundToInt
             DataCell("OAR",    if (vs.calcLoad > 0) "${"%.0f".format(vs.octaneAdjustRatio * 100)}%" else ph, modifier = Modifier.weight(1f))
         }
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            val krColor = if (vs.ignCorrCyl1 < -1.0) Warn else Ok
-            DataCell("KR CYL1", if (vs.calcLoad > 0) "${"%.2f".format(vs.ignCorrCyl1)}°" else ph, valueColor = krColor, modifier = Modifier.weight(1f))
             DataCell("VCT-I",   if (vs.calcLoad > 0) "${"%.1f".format(vs.vctIntakeAngle)}°" else ph, modifier = Modifier.weight(1f))
             DataCell("VCT-E",   if (vs.calcLoad > 0) "${"%.1f".format(vs.vctExhaustAngle)}°" else ph, modifier = Modifier.weight(1f))
+        }
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            fun krColor(v: Double) = if (v < -1.0) Warn else Ok
+            val hasData = vs.calcLoad > 0
+            DataCell("KR C1", if (hasData) "${"%.2f".format(vs.ignCorrCyl1)}°" else ph, valueColor = krColor(vs.ignCorrCyl1), modifier = Modifier.weight(1f))
+            DataCell("KR C2", if (hasData) "${"%.2f".format(vs.ignCorrCyl2)}°" else ph, valueColor = krColor(vs.ignCorrCyl2), modifier = Modifier.weight(1f))
+            DataCell("KR C3", if (hasData) "${"%.2f".format(vs.ignCorrCyl3)}°" else ph, valueColor = krColor(vs.ignCorrCyl3), modifier = Modifier.weight(1f))
+            DataCell("KR C4", if (hasData) "${"%.2f".format(vs.ignCorrCyl4)}°" else ph, valueColor = krColor(vs.ignCorrCyl4), modifier = Modifier.weight(1f))
         }
 
         SectionLabel("FUEL TRIMS & AFR")

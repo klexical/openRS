@@ -51,6 +51,31 @@ class MeatPiConnection(
     @Volatile var firmwareVersion: String = "MeatPi Pro"
         private set
 
+    suspend fun sendRawQuery(
+        responseId: Int,
+        frame: String,
+        timeoutMs: Long = 1_500L
+    ): ByteArray? = _dtcMutex.withLock {
+        val out = _tcpOut ?: return null
+        _dtcWatchIds = setOf(responseId)
+        _dtcScanActive = true
+        while (_dtcChannel.tryReceive().isSuccess) { /* drain stale */ }
+        try {
+            sendFrame(out, frame)
+            val deadline = System.currentTimeMillis() + timeoutMs
+            while (System.currentTimeMillis() < deadline) {
+                val remaining = deadline - System.currentTimeMillis()
+                if (remaining <= 0) break
+                val resp = withTimeoutOrNull(remaining) { _dtcChannel.receive() } ?: break
+                if (resp.first == responseId) return@withLock resp.second
+            }
+            null
+        } finally {
+            _dtcScanActive = false
+            _dtcWatchIds = emptySet()
+        }
+    }
+
     // ── Connection ────────────────────────────────────────────────────────────
 
     fun connectHybrid(
@@ -238,6 +263,14 @@ class MeatPiConnection(
                             }
                             if (frame.first == ObdConstants.PSCM_RESPONSE_ID) {
                                 ObdResponseParser.parsePscmResponse(frame.second, getCurrentState(), onObdUpdate)
+                                continue
+                            }
+                            if (frame.first == ObdConstants.HVAC_RESPONSE_ID) {
+                                ObdResponseParser.parseHvacResponse(frame.second, getCurrentState(), onObdUpdate)
+                                continue
+                            }
+                            if (frame.first == ObdConstants.IPC_RESPONSE_ID) {
+                                ObdResponseParser.parseIpcResponse(frame.second, getCurrentState(), onObdUpdate)
                                 continue
                             }
                             if (frame.first == ObdConstants.FENG_RESPONSE_ID) {

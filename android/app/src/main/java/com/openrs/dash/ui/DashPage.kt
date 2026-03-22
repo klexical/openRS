@@ -97,6 +97,30 @@ import kotlin.math.roundToInt
             }
         }
 
+        // ── Warning Lamps (populated once IPC DIDs are discovered) ─────────
+        val activeWarnings = listOfNotNull(
+            if (vs.warnMil == true) "CEL" else null,
+            if (vs.warnAbs == true) "ABS" else null,
+            if (vs.warnBrake == true) "BRK" else null,
+            if (vs.warnCharge == true) "CHRG" else null,
+            if (vs.warnOilPressure == true) "OIL" else null,
+            if (vs.warnTempHigh == true) "TEMP" else null
+        )
+        if (activeWarnings.isNotEmpty()) {
+            Box(
+                Modifier.fillMaxWidth()
+                    .background(Red.copy(alpha = 0.1f), RoundedCornerShape(10.dp))
+                    .border(1.5.dp, Red.copy(alpha = 0.5f), RoundedCornerShape(10.dp))
+                    .padding(horizontal = 14.dp, vertical = 10.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                MonoLabel(
+                    "⚠ ${activeWarnings.joinToString(" · ")}",
+                    12.sp, Red, letterSpacing = 0.2.sp
+                )
+            }
+        }
+
         // ── Inputs & Resources bar grid ─────────────────────────────────────
         SectionLabel("INPUTS & RESOURCES")
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {

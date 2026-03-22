@@ -145,9 +145,26 @@ object ObdResponseParser {
         if ((data[1].toInt() and 0xFF) != 0x62) return
         val did = ((data[2].toInt() and 0xFF) shl 8) or (data[3].toInt() and 0xFF)
         val b4  = data[4].toInt() and 0xFF
+        val b5  = if (data.size > 5) data[5].toInt() and 0xFF else 0
         when (did) {
             0x1E8A -> onObdUpdate(currentState.copy(rduTempC = (b4 - 40).toDouble()))
+            0x1E8B -> onObdUpdate(currentState.copy(awdClutchTempL = (b4 - 40).toDouble()))
+            0x1E8C -> onObdUpdate(currentState.copy(awdClutchTempR = (b4 - 40).toDouble()))
+            0x1E90 -> onObdUpdate(currentState.copy(awdReqTorqueL = ((b4 shl 8) or b5).toDouble()))
+            0x1E91 -> onObdUpdate(currentState.copy(awdReqTorqueR = ((b4 shl 8) or b5).toDouble()))
+            0x1E92 -> onObdUpdate(currentState.copy(awdDmdPressure = ((b4 shl 8) or b5).toDouble()))
+            0x1E93 -> onObdUpdate(currentState.copy(awdPumpCurrent = b4 * 0.1))
+            0x1E80 -> onObdUpdate(currentState.copy(transOilTempC = (b4 - 40).toDouble()))
             0xEE0B -> onObdUpdate(currentState.copy(rduEnabled = b4 == 0x01))
+            else -> {
+                val decoded = PidRegistry.decode(ObdConstants.AWD_RESPONSE_ID, did, b4)
+                if (decoded != null) {
+                    val (field, value) = decoded
+                    onObdUpdate(currentState.copy(
+                        genericValues = currentState.genericValues + (field to value)
+                    ))
+                }
+            }
         }
     }
 
@@ -178,6 +195,15 @@ object ObdResponseParser {
             ))
             0x03EC -> onObdUpdate(currentState.copy(
                 ignCorrCyl1 = ((b4s.toByte().toInt() shl 8) or b5) / -512.0
+            ))
+            0x03ED -> onObdUpdate(currentState.copy(
+                ignCorrCyl2 = ((b4s.toByte().toInt() shl 8) or b5) / -512.0
+            ))
+            0x03EE -> onObdUpdate(currentState.copy(
+                ignCorrCyl3 = ((b4s.toByte().toInt() shl 8) or b5) / -512.0
+            ))
+            0x03EF -> onObdUpdate(currentState.copy(
+                ignCorrCyl4 = ((b4s.toByte().toInt() shl 8) or b5) / -512.0
             ))
             0x03E8 -> onObdUpdate(currentState.copy(
                 octaneAdjustRatio = ((b4s.toByte().toInt() shl 8) or b5) / 16384.0
@@ -210,6 +236,63 @@ object ObdResponseParser {
             ))
             0x0304 -> onObdUpdate(currentState.copy(
                 batteryVoltage = ((b4 shl 8) or b5) / 2048.0
+            ))
+            else -> {
+                val decoded = PidRegistry.decode(ObdConstants.PCM_RESPONSE_ID, did, b4, b5)
+                if (decoded != null) {
+                    val (field, value) = decoded
+                    onObdUpdate(currentState.copy(
+                        genericValues = currentState.genericValues + (field to value)
+                    ))
+                }
+            }
+        }
+    }
+
+    /**
+     * HVAC module (CAN ID 0x73B).
+     * DIDs are candidate values — will be confirmed via DID prober.
+     * Uses [PidRegistry] fallback for any formula-equipped PIDs in the catalog.
+     */
+    fun parseHvacResponse(
+        data: ByteArray,
+        currentState: VehicleState,
+        onObdUpdate: (VehicleState) -> Unit
+    ) {
+        if (data.size < 5) { logMalformed("HVAC", data, "too short (${data.size} < 5)"); return }
+        if ((data[1].toInt() and 0xFF) != 0x62) return
+        val did = ((data[2].toInt() and 0xFF) shl 8) or (data[3].toInt() and 0xFF)
+        val b4  = data[4].toInt() and 0xFF
+        val b5  = if (data.size > 5) data[5].toInt() and 0xFF else 0
+        val decoded = PidRegistry.decode(ObdConstants.HVAC_RESPONSE_ID, did, b4, b5)
+        if (decoded != null) {
+            val (field, value) = decoded
+            onObdUpdate(currentState.copy(
+                genericValues = currentState.genericValues + (field to value)
+            ))
+        }
+    }
+
+    /**
+     * IPC / Instrument Panel Cluster (CAN ID 0x728).
+     * DIDs are candidate values — will be confirmed via DID prober.
+     * Uses [PidRegistry] fallback for any formula-equipped PIDs in the catalog.
+     */
+    fun parseIpcResponse(
+        data: ByteArray,
+        currentState: VehicleState,
+        onObdUpdate: (VehicleState) -> Unit
+    ) {
+        if (data.size < 5) { logMalformed("IPC", data, "too short (${data.size} < 5)"); return }
+        if ((data[1].toInt() and 0xFF) != 0x62) return
+        val did = ((data[2].toInt() and 0xFF) shl 8) or (data[3].toInt() and 0xFF)
+        val b4  = data[4].toInt() and 0xFF
+        val b5  = if (data.size > 5) data[5].toInt() and 0xFF else 0
+        val decoded = PidRegistry.decode(ObdConstants.IPC_RESPONSE_ID, did, b4, b5)
+        if (decoded != null) {
+            val (field, value) = decoded
+            onObdUpdate(currentState.copy(
+                genericValues = currentState.genericValues + (field to value)
             ))
         }
     }

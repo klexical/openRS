@@ -117,7 +117,12 @@ class MainActivity : ComponentActivity() {
                                                 debugLines,
                                                 vs,
                                                 onScanDtcs  = service?.let { svc -> { svc.scanDtcs() } },
-                                                onClearDtcs = service?.let { svc -> { svc.clearDtcs() } }
+                                                onClearDtcs = service?.let { svc -> { svc.clearDtcs() } },
+                                                onSendRawQuery = service?.let { svc ->
+                                                    val q: suspend (Int, String, Long) -> ByteArray? =
+                                                        { r, f, t -> svc.sendRawQuery(r, f, t) }
+                                                    q
+                                                }
                                             )
                                             5 -> MorePage(vs, prefs, snackbarHostState, onSettings = { settingsOpen = true })
                                         }
