@@ -74,6 +74,8 @@ Firmware changes are tracked separately in [firmware releases](https://github.co
 - **File loader tab** — drag-and-drop or browse to load additional `trip_*.csv` or `diagnostic_detail_*.json` files from other sessions into the same viewer. CSV parser computes summary stats (distance, fuel economy, peaks, mode breakdown) on the fly.
 
 ### Fixed (rc.5)
+- **Sport/Track 0x420 bit0 polarity inverted** — `CanDecoder` had bit0=1→Track and bit0=0→Sport, but the actual car button cycle (Normal→Sport→Track→Drift) shows bit0=1 is Sport (0x11CD) and bit0=0 is Track (0x11CC). This caused the app to display the wrong mode and the firmware's closed-loop controller to overshoot by one step (tap Sport → car goes to Track). Swapped polarity in both 0x1B0 and 0x420 handlers. Default `modeDetail420` changed from `0x10C4` to `0x10CD`.
+- **Every drive mode command timed out with "Read timed out"** — `FirmwareApi.post()` read the HTTP response body in a `readLine()` loop until EOF, but the ESP-IDF HTTP server doesn't close the connection within the 5s `soTimeout`. Now parses `Content-Length` from headers and reads exactly that many bytes.
 - **TPMS displayed −40°C during sensor initialisation** — `ObdResponseParser.parseBcmReassembled()` accepted raw temp byte `0x00` as valid, which decoded to −40°C via the standard offset. Now discards `0x00` as an uninitialised sensor reading. Also removed the `< -40` floor from the range check since the offset formula cannot produce values below −40°C. ([#130](https://github.com/klexical/openRS_/issues/130))
 - **BCM 0x280B tire temperature unit tests** — 5 new tests covering valid temp decode, uninitialised `0x00` discard, stale status discard, unknown sensor ID rejection, and short payload handling.
 

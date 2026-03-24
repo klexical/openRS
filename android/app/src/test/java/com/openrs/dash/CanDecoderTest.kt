@@ -519,7 +519,7 @@ class CanDecoderTest {
 
     @Test
     fun `decode drive mode Sport (default modeDetail420)`() {
-        // byte6 upper nibble = 1, modeDetail420 default = 0x10C4 (bit0=0) -> Sport
+        // byte6 upper nibble = 1, modeDetail420 default = 0x10CD (bit0=1) -> Sport
         val data = byteArrayOf(0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x10, 0x00)
         val result = CanDecoder.decode(0x1B0, data, blank)
         assertNotNull(result)
@@ -528,9 +528,9 @@ class CanDecoderTest {
 
     @Test
     fun `decode drive mode Track via 0x420 disambiguation`() {
-        // First send 0x420 with byte7 bit0=1 (Track indicator)
-        // 0x11CD -> byte6 = 0x11, byte7 = 0xCD
-        val extData = byteArrayOf(0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x11, 0xCD.toByte())
+        // First send 0x420 with byte7 bit0=0 (Track indicator)
+        // 0x11CC -> byte6 = 0x11, byte7 = 0xCC
+        val extData = byteArrayOf(0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x11, 0xCC.toByte())
         val sportState = blank.copy(driveMode = DriveMode.SPORT)
         CanDecoder.decode(0x420, extData, sportState)
 
@@ -562,20 +562,30 @@ class CanDecoderTest {
 
     @Test
     fun `decode 0x420 re-resolves Sport to Track`() {
-        // State has Sport, 0x420 arrives with bit0=1 -> resolve to Track
+        // State has Sport, 0x420 arrives with bit0=0 (0xCC) -> resolve to Track
         val sportState = blank.copy(driveMode = DriveMode.SPORT)
-        val data = byteArrayOf(0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x11, 0xCD.toByte())
+        val data = byteArrayOf(0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x11, 0xCC.toByte())
         val result = CanDecoder.decode(0x420, data, sportState)
         assertNotNull(result)
         assertEquals(DriveMode.TRACK, result!!.driveMode)
     }
 
     @Test
+    fun `decode 0x420 re-resolves Track to Sport`() {
+        // State has Track, 0x420 arrives with bit0=1 (0xCD) -> resolve to Sport
+        val trackState = blank.copy(driveMode = DriveMode.TRACK)
+        val data = byteArrayOf(0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x11, 0xCD.toByte())
+        val result = CanDecoder.decode(0x420, data, trackState)
+        assertNotNull(result)
+        assertEquals(DriveMode.SPORT, result!!.driveMode)
+    }
+
+    @Test
     fun `decode 0x420 does not re-resolve when in Normal`() {
         // If current mode is Normal, 0x420 still updates launchControlActive
-        // but does NOT re-resolve driveMode to Track
+        // but does NOT re-resolve driveMode
         val normalState = blank.copy(driveMode = DriveMode.NORMAL)
-        val data = byteArrayOf(0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x11, 0xCD.toByte())
+        val data = byteArrayOf(0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x11, 0xCC.toByte())
         val result = CanDecoder.decode(0x420, data, normalState)
         assertNotNull(result)
         assertEquals(DriveMode.NORMAL, result!!.driveMode)
@@ -621,12 +631,12 @@ class CanDecoderTest {
 
     @Test
     fun `resetSessionState clears modeDetail420`() {
-        // Set Track via 0x420
+        // Set Track via 0x420 (bit0=0 = Track)
         val sportState = blank.copy(driveMode = DriveMode.SPORT)
-        val extData = byteArrayOf(0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x11, 0xCD.toByte())
+        val extData = byteArrayOf(0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x11, 0xCC.toByte())
         CanDecoder.decode(0x420, extData, sportState)
 
-        // Reset should clear back to default (0x10C4, bit0=0 -> Sport)
+        // Reset should clear back to default (0x10CD, bit0=1 -> Sport)
         CanDecoder.resetSessionState()
 
         val modeData = byteArrayOf(0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x10, 0x00)

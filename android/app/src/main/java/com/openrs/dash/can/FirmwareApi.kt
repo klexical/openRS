@@ -78,18 +78,29 @@ object FirmwareApi {
                     return@withContext Result.failure(RuntimeException(statusLine))
 
                 // Read response body to check for busy status.
+                // Parse Content-Length from headers and read exactly that many
+                // bytes — do NOT loop until EOF, because the ESP-IDF HTTP server
+                // may keep the connection open longer than our soTimeout.
                 if (checkBusy) {
-                    val body = buildString {
-                        var line = reader.readLine()
-                        var inBody = false
-                        while (line != null) {
-                            if (inBody) append(line)
-                            else if (line.isBlank()) inBody = true
-                            line = reader.readLine()
-                        }
+                    var contentLength = -1
+                    while (true) {
+                        val hdr = reader.readLine() ?: break
+                        if (hdr.isBlank()) break
+                        if (hdr.startsWith("Content-Length:", ignoreCase = true))
+                            contentLength = hdr.substringAfter(":").trim().toIntOrNull() ?: -1
                     }
-                    if (body.contains("\"busy\":true"))
-                        return@withContext Result.failure(BusyException())
+                    if (contentLength > 0) {
+                        val buf = CharArray(contentLength)
+                        var read = 0
+                        while (read < contentLength) {
+                            val n = reader.read(buf, read, contentLength - read)
+                            if (n < 0) break
+                            read += n
+                        }
+                        val body = String(buf, 0, read)
+                        if (body.contains("\"busy\":true"))
+                            return@withContext Result.failure(BusyException())
+                    }
                 }
 
                 Result.success(Unit)
