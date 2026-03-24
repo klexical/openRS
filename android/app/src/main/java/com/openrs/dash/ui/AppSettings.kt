@@ -75,6 +75,9 @@ object AppSettings {
     const val KEY_MEATPI_MICROSD     = "meatpi_microsd"
     const val DEFAULT_MEATPI_MICROSD = false
 
+    // ── Odometer display ──────────────────────────────────────────────────
+    const val KEY_ODOM_IN_MILES = "odom_in_miles"
+
     // ── Read helpers ────────────────────────────────────────────────────────
 
     fun getHost(ctx: Context): String {
@@ -129,6 +132,13 @@ object AppSettings {
     fun getMeatPiMicroSd(ctx: Context): Boolean =
         prefs(ctx).getBoolean(KEY_MEATPI_MICROSD, DEFAULT_MEATPI_MICROSD)
 
+    fun getOdomInMiles(ctx: Context): Boolean {
+        val p = prefs(ctx)
+        // Backward compat: if key absent, derive from speed unit.
+        return if (p.contains(KEY_ODOM_IN_MILES)) p.getBoolean(KEY_ODOM_IN_MILES, true)
+        else getSpeedUnit(ctx) == "MPH"
+    }
+
     // ── Write helpers ────────────────────────────────────────────────────────
 
     /**
@@ -167,6 +177,7 @@ object AppSettings {
             putString(KEY_TEMP_PRESET, p.tempPreset)
             putString(KEY_ADAPTER_TYPE, p.adapterType)
             putBoolean(KEY_MEATPI_MICROSD, p.meatPiMicroSdLog)
+            putBoolean(KEY_ODOM_IN_MILES, p.odomInMiles)
         }
     }
 
@@ -183,7 +194,8 @@ object AppSettings {
         themeId              = getThemeId(ctx),
         tempPreset           = getTempPreset(ctx),
         adapterType          = getAdapterType(ctx),
-        meatPiMicroSdLog     = getMeatPiMicroSd(ctx)
+        meatPiMicroSdLog     = getMeatPiMicroSd(ctx),
+        odomInMiles          = getOdomInMiles(ctx)
     )
 
     private fun prefs(ctx: Context) =

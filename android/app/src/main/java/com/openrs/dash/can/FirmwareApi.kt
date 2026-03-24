@@ -11,6 +11,9 @@ import java.io.InputStreamReader
 import java.net.InetSocketAddress
 import java.net.Socket
 
+/** Firmware rejected the command because a mode change is already in progress. */
+class BusyException : RuntimeException("Drive mode change already in progress")
+
 /**
  * Thin HTTP client for the openrs-fw REST API (`POST /api/frs`).
  *
@@ -22,7 +25,7 @@ import java.net.Socket
 object FirmwareApi {
 
     suspend fun setDriveMode(ctx: Context, host: String, mode: Int): Result<Unit> =
-        post(ctx, host, """{"token":"openrs","driveMode":$mode}""")
+        post(ctx, host, """{"token":"openrs","driveMode":$mode}""", checkBusy = true)
 
     suspend fun setEscMode(ctx: Context, host: String, mode: Int): Result<Unit> =
         post(ctx, host, """{"token":"openrs","escMode":$mode}""")
@@ -42,39 +45,57 @@ object FirmwareApi {
         return null
     }
 
-    private suspend fun post(ctx: Context, host: String, json: String): Result<Unit> =
-        withContext(Dispatchers.IO) {
-            try {
-                val port = if (':' in host) host.substringAfter(':').toInt() else 80
-                val hostname = host.substringBefore(':')
+    private suspend fun post(
+        ctx: Context, host: String, json: String, checkBusy: Boolean = false
+    ): Result<Unit> = withContext(Dispatchers.IO) {
+        try {
+            val port = if (':' in host) host.substringAfter(':').toInt() else 80
+            val hostname = host.substringBefore(':')
 
-                val wifi = findWifiNetwork(ctx)
-                val socket = wifi?.socketFactory?.createSocket() ?: Socket()
+            val wifi = findWifiNetwork(ctx)
+            val socket = wifi?.socketFactory?.createSocket() ?: Socket()
 
-                socket.use { s ->
-                    s.connect(InetSocketAddress(hostname, port), 3_000)
-                    s.soTimeout = 5_000
+            socket.use { s ->
+                s.connect(InetSocketAddress(hostname, port), 3_000)
+                s.soTimeout = 5_000
 
-                    val request = "POST /api/frs HTTP/1.1\r\n" +
-                        "Host: $host\r\n" +
-                        "Content-Type: application/json\r\n" +
-                        "Content-Length: ${json.length}\r\n" +
-                        "Connection: close\r\n" +
-                        "\r\n" +
-                        json
+                val request = "POST /api/frs HTTP/1.1\r\n" +
+                    "Host: $host\r\n" +
+                    "Content-Type: application/json\r\n" +
+                    "Content-Length: ${json.length}\r\n" +
+                    "Connection: close\r\n" +
+                    "\r\n" +
+                    json
 
-                    s.getOutputStream().apply {
-                        write(request.toByteArray(Charsets.ISO_8859_1))
-                        flush()
-                    }
-
-                    val reader = BufferedReader(InputStreamReader(s.getInputStream()))
-                    val statusLine = reader.readLine() ?: ""
-                    if (statusLine.contains("200")) Result.success(Unit)
-                    else Result.failure(RuntimeException(statusLine))
+                s.getOutputStream().apply {
+                    write(request.toByteArray(Charsets.ISO_8859_1))
+                    flush()
                 }
-            } catch (e: Exception) {
-                Result.failure(e)
+
+                val reader = BufferedReader(InputStreamReader(s.getInputStream()))
+                val statusLine = reader.readLine() ?: ""
+                if (!statusLine.contains("200"))
+                    return@withContext Result.failure(RuntimeException(statusLine))
+
+                // Read response body to check for busy status.
+                if (checkBusy) {
+                    val body = buildString {
+                        var line = reader.readLine()
+                        var inBody = false
+                        while (line != null) {
+                            if (inBody) append(line)
+                            else if (line.isBlank()) inBody = true
+                            line = reader.readLine()
+                        }
+                    }
+                    if (body.contains("\"busy\":true"))
+                        return@withContext Result.failure(BusyException())
+                }
+
+                Result.success(Unit)
             }
+        } catch (e: Exception) {
+            Result.failure(e)
         }
+    }
 }

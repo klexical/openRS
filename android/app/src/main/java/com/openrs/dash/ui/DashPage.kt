@@ -24,12 +24,11 @@ import androidx.compose.animation.core.tween
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableLongStateOf
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.openrs.dash.data.VehicleState
@@ -41,6 +40,7 @@ import kotlin.math.roundToInt
 // DASH PAGE
 // ═══════════════════════════════════════════════════════════════════════════
 @Composable fun DashPage(vs: VehicleState, p: UserPrefs) {
+    val ctx = LocalContext.current
     val accent = LocalThemeAccent.current
     val (boostVal, boostLbl) = p.displayBoost(vs.boostKpa)
     val brakeStr = "%.0f".format(vs.brakePressure.coerceIn(0.0, 100.0))
@@ -230,8 +230,8 @@ import kotlin.math.roundToInt
             DataCell("TORQUE", "${vs.torqueAtTrans.roundToInt()} Nm",  modifier = Modifier.weight(1f))
         }
 
-        // ── Odometer toggle ───────────────────────────────────────────────
-        var odomInMiles by remember { mutableStateOf(p.speedUnit == "MPH") }
+        // ── Odometer toggle (persisted to SharedPreferences) ────────────────
+        val odomInMiles = p.odomInMiles
         val odomLabel = if (odomInMiles) "ODO (mi)" else "ODO (km)"
         val odomValue = when {
             vs.odometerKm < 0 -> "—"
@@ -242,7 +242,9 @@ import kotlin.math.roundToInt
             Modifier.fillMaxWidth()
                 .background(Surf2, RoundedCornerShape(12.dp))
                 .border(1.dp, Brd, RoundedCornerShape(12.dp))
-                .clickable(enabled = vs.odometerKm >= 0) { odomInMiles = !odomInMiles }
+                .clickable(enabled = vs.odometerKm >= 0) {
+                    UserPrefsStore.update(ctx) { it.copy(odomInMiles = !it.odomInMiles) }
+                }
                 .padding(horizontal = 14.dp, vertical = 10.dp)
         ) {
             Row(

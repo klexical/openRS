@@ -61,6 +61,8 @@ Firmware changes are tracked separately in [firmware releases](https://github.co
 
 ### Fixed (rc.4 — visual polish)
 - **GForcePlot Paint objects allocated every frame** — `textPaint` and `axisPaint` were created inside the Canvas lambda, producing ~120 allocations/sec at 60 Hz. Extracted to `remember(density)` outside the draw block.
+- **Odometer mi/km toggle lost on tab switch** — the rc.3 fix improved the initial value but the toggle still used ephemeral `remember` state destroyed on recomposition. Now persisted to SharedPreferences via a new `odomInMiles` field in `UserPrefs`/`AppSettings`. Survives tab switches and app restarts. (addresses [#82](https://github.com/klexical/openRS_/issues/82))
+- **Drive mode commands silently dropped with HTTP 200** — firmware returned `{"ok":true}` even when `s_pending_mode` rejected a command, so the app showed success when nothing happened. `FirmwareApi.kt` now parses the response body for `"busy":true` and shows "Mode change in progress — please wait". After a successful command, the app watches `VehicleState.driveMode` for up to 5 seconds and warns if the mode didn't take effect.
 
 ### Added (rc.4 — visual polish)
 - **RingBuffer unit tests** — 9 test cases covering empty state, insertion order, capacity wraparound, clear/re-push, and generic type support.

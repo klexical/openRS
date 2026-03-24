@@ -32,7 +32,8 @@ data class UserPrefs(
     val themeId: String             = AppSettings.DEFAULT_THEME_ID,      // RS paint color theme
     val tempPreset: String          = AppSettings.DEFAULT_TEMP_PRESET,   // "street"|"track"|"race"
     val adapterType: String         = AppSettings.DEFAULT_ADAPTER_TYPE,  // "WICAN" | "MEATPI"
-    val meatPiMicroSdLog: Boolean   = false                               // MeatPi Pro microSD logging
+    val meatPiMicroSdLog: Boolean   = false,                              // MeatPi Pro microSD logging
+    val odomInMiles: Boolean        = speedUnit == "MPH"                  // Odometer display: true=mi, false=km
 ) {
     // ── Unit-conversion helpers used by UI ─────────────────────────────────
 

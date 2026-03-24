@@ -36,6 +36,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.openrs.dash.OpenRSDashApp
+import com.openrs.dash.can.BusyException
 import com.openrs.dash.can.FirmwareApi
 import com.openrs.dash.data.DriveMode
 import com.openrs.dash.data.EscStatus
@@ -43,6 +44,7 @@ import com.openrs.dash.data.VehicleState
 import com.openrs.dash.diagnostics.DiagnosticExporter
 import com.openrs.dash.diagnostics.DiagnosticLogger
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
@@ -98,18 +100,37 @@ import kotlinx.coroutines.withContext
                                     if (isActive || isPending) modeAccent else Brd,
                                     RoundedCornerShape(10.dp)
                                 )
-                                .clickable(enabled = canControl && !isActive) {
+                                .clickable(enabled = canControl && !isActive && pendingDriveMode == null) {
                                     pendingDriveMode = mode
                                     scope.launch {
                                         DiagnosticLogger.event("DM_CMD",
                                             "Sending driveMode=${mode.toFirmwareInt()} (${mode.label}) to $host")
                                         val result = FirmwareApi.setDriveMode(ctx, host, mode.toFirmwareInt())
                                         if (result.isFailure) {
+                                            val ex = result.exceptionOrNull()
                                             DiagnosticLogger.event("DM_CMD",
-                                                "FAILED: ${result.exceptionOrNull()?.message}")
-                                            snackbarHostState.showSnackbar("Drive mode command failed")
+                                                "FAILED: ${ex?.message}")
+                                            val msg = if (ex is BusyException)
+                                                "Mode change in progress — please wait"
+                                            else "Drive mode command failed"
+                                            snackbarHostState.showSnackbar(msg)
                                         } else {
                                             DiagnosticLogger.event("DM_CMD", "OK (HTTP 200)")
+                                            // Watch CAN for confirmation (up to 5s).
+                                            var confirmed = false
+                                            for (i in 0 until 50) {
+                                                delay(100)
+                                                if (vs.driveMode == mode) {
+                                                    confirmed = true
+                                                    break
+                                                }
+                                            }
+                                            if (!confirmed) {
+                                                DiagnosticLogger.event("DM_CMD",
+                                                    "No CAN confirmation after 5s (current=${vs.driveMode}, target=$mode)")
+                                                snackbarHostState.showSnackbar(
+                                                    "Mode change didn't take effect — try again")
+                                            }
                                         }
                                         pendingDriveMode = null
                                     }
