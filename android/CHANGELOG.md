@@ -67,6 +67,16 @@ Firmware changes are tracked separately in [firmware releases](https://github.co
 ### Added (rc.4 — visual polish)
 - **RingBuffer unit tests** — 9 test cases covering empty state, insertion order, capacity wraparound, clear/re-push, and generic type support.
 
+### Added (rc.5 — Mission Control dashboard)
+- **Mission Control HTML dashboard in exports** — trip and diagnostic ZIP exports now include a self-contained `mission_control_<ts>.html` file. Open in any browser for an interactive post-session analysis dashboard with no network or dependencies required. `MissionControlHtmlBuilder.kt` reads the HTML template from `res/raw`, inlines uPlot CSS/JS from assets, and serializes trip + diagnostic data into embedded JSON.
+- **Trip dashboard tab** — 8 summary cards (distance, duration, fuel, avg speed, peak RPM/boost/lat G, efficiency), 7 cursor-synced uPlot time-series charts (RPM, boost, speed, temperatures, lateral G, fuel, wheel speeds), SVG Mercator GPS map with speed/drive-mode coloring and peak event markers, stats panel with drive mode breakdown bar.
+- **Diagnostics dashboard tab** — sortable CAN frame inventory table with expandable detail rows (first/last hex, periodic samples, validation issues), FPS timeline chart, session events table with type badges, filterable decode trace table (last 500 of up to 10,000 entries).
+- **File loader tab** — drag-and-drop or browse to load additional `trip_*.csv` or `diagnostic_detail_*.json` files from other sessions into the same viewer. CSV parser computes summary stats (distance, fuel economy, peaks, mode breakdown) on the fly.
+
+### Fixed (rc.5)
+- **TPMS displayed −40°C during sensor initialisation** — `ObdResponseParser.parseBcmReassembled()` accepted raw temp byte `0x00` as valid, which decoded to −40°C via the standard offset. Now discards `0x00` as an uninitialised sensor reading. Also removed the `< -40` floor from the range check since the offset formula cannot produce values below −40°C. ([#130](https://github.com/klexical/openRS_/issues/130))
+- **BCM 0x280B tire temperature unit tests** — 5 new tests covering valid temp decode, uninitialised `0x00` discard, stale status discard, unknown sensor ID rejection, and short payload handling.
+
 ---
 
 ## [v2.2.4] — 2026-03-19

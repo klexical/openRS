@@ -112,8 +112,9 @@ object ObdResponseParser {
                     ((payload[5].toInt() and 0xFF).toLong() shl 8) or
                     (payload[6].toInt() and 0xFF).toLong()
                 val tempRaw = payload[9].toInt() and 0xFF
+                if (tempRaw == 0) return   // sensor initializing — no valid temp yet (#130)
                 val tempC = (tempRaw - 40).toDouble()
-                if (tempC < -40 || tempC > 120) return
+                if (tempC > 120) return
 
                 val s = currentState
                 val updated = when (sensorId) {

@@ -85,6 +85,14 @@ object DiagnosticExporter {
                         }
                 }
 
+                // Mission Control HTML dashboard (diagnostic-only, no trip data)
+                val mcFile = MissionControlHtmlBuilder.build(ctx, null, ts)
+                if (mcFile != null) {
+                    zip.putNextEntry(ZipEntry("mission_control_$ts.html"))
+                    mcFile.inputStream().buffered().use { it.copyTo(zip) }
+                    zip.closeEntry()
+                    mcFile.delete()
+                }
             }
 
             FileProvider.getUriForFile(ctx, AUTHORITY, zipFile)
@@ -139,6 +147,15 @@ object DiagnosticExporter {
                     zip.write(buildDtcText(dtcResults).toByteArray(Charsets.UTF_8))
                     zip.closeEntry()
                 }
+
+                // Mission Control HTML dashboard
+                val mcFile = MissionControlHtmlBuilder.build(ctx, tripState, ts)
+                if (mcFile != null) {
+                    zip.putNextEntry(ZipEntry("mission_control_$ts.html"))
+                    mcFile.inputStream().buffered().use { it.copyTo(zip) }
+                    zip.closeEntry()
+                    mcFile.delete()
+                }
             }
 
             val uri = FileProvider.getUriForFile(ctx, AUTHORITY, zipFile)
@@ -152,9 +169,10 @@ object DiagnosticExporter {
                 putExtra(
                     Intent.EXTRA_TEXT,
                     "openRS_ v${BuildConfig.VERSION_NAME} trip export.\n" +
-                    "• trip_$ts.gpx         — GPS track + telemetry (GPX 1.1)\n" +
-                    "• trip_$ts.csv         — telemetry spreadsheet (all TripPoint fields)\n" +
-                    "• trip_summary_$ts.txt  — human-readable trip report$dtcNote\n\n" +
+                    "• trip_$ts.gpx            — GPS track + telemetry (GPX 1.1)\n" +
+                    "• trip_$ts.csv            — telemetry spreadsheet (all TripPoint fields)\n" +
+                    "• trip_summary_$ts.txt     — human-readable trip report$dtcNote\n" +
+                    "• mission_control_$ts.html — interactive dashboard (open in browser)\n\n" +
                     "$ptCount waypoints recorded."
                 )
                 addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
@@ -325,8 +343,9 @@ object DiagnosticExporter {
             putExtra(
                 Intent.EXTRA_TEXT,
                 "openRS_ v${BuildConfig.VERSION_NAME} diagnostic bundle.\n" +
-                "• diagnostic_summary_*.txt — human-readable report\n" +
-                "• diagnostic_detail_*.json — full machine-readable data$slcanNote\n\n" +
+                "• diagnostic_summary_*.txt  — human-readable report\n" +
+                "• diagnostic_detail_*.json  — full machine-readable data$slcanNote\n" +
+                "• mission_control_*.html    — interactive dashboard (open in browser)\n\n" +
                 "App      : v${BuildConfig.VERSION_NAME} (build ${BuildConfig.VERSION_CODE})\n" +
                 "Session  : ${DiagnosticLogger.formatDuration(DiagnosticLogger.sessionDurationMs)}\n" +
                 "Firmware : ${DiagnosticLogger.firmwareVersion}\n" +
