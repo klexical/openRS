@@ -58,7 +58,7 @@ case "$TARGET" in
         IDF_TARGET="esp32c3"
         SDKCONFIG_FILE="sdkconfig.defaults.usb"
         PARTITIONS_FILE="partitions_openrs_usb.csv"
-        OUTPUT_BIN="openrs-fw-usb_v1.5.bin"
+        OUTPUT_BIN="openrs-fw-usb_v1.6.bin"
         TARGET_DESC="WiCAN USB-C3 (ESP32-C3)"
         ;;
     pro)
@@ -66,7 +66,7 @@ case "$TARGET" in
         IDF_TARGET="esp32s3"
         SDKCONFIG_FILE="sdkconfig.defaults.pro"
         PARTITIONS_FILE="partitions_openrs_pro.csv"
-        OUTPUT_BIN="openrs-fw-pro_v1.0.bin"
+        OUTPUT_BIN="openrs-fw-pro_v1.1.bin"
         TARGET_DESC="WiCAN Pro (ESP32-S3)"
         ;;
 esac

@@ -4,6 +4,18 @@ All notable changes to the openrs-fw firmware are documented here.
 
 ---
 
+## v1.6 (USB) / v1.1 (PRO) — 2026-03-25
+
+### Fixed
+- **Drive mode fell through to Normal on long cycles** — the open-loop button press counting pre-calculated cycle distance and fired all presses with fixed delays. Track→Sport required 4 presses over ~3.5 s; the car's mode selector GUI timed out at ~3 s, causing the last press to reopen the GUI instead of cycling. Confirmed via diagnostic log analysis (2026-03-23): 9 drive mode commands sent, all returned HTTP 200, car remained in Normal. Replaced with a **closed-loop press-and-verify controller** that sends one button press at a time and polls `s_state.drive_mode` (updated in real-time from CAN 0x1B0 + 0x420) for confirmation before the next press. Self-corrects if a press is missed or the GUI closes mid-sequence.
+- **REST `/api/frs` returned HTTP 200 for rejected drive mode commands** — `frs_set_drive_mode()` silently dropped commands when a mode change was already in progress (`s_pending_mode != 0xFF`), but the POST handler always responded `{"ok":true}`. Now returns `{"ok":false,"busy":true}` when busy so the Android app can show accurate feedback.
+
+### Changed
+- `frs_set_drive_mode()` return type changed from `void` to `bool` — returns `true` when accepted, `false` when busy.
+- Drive mode timing constants replaced: removed `FRS_DM_ACTIVATION_DELAY_MS` / `FRS_DM_CYCLE_DELAY_MS`; added `FRS_DM_CONFIRM_TIMEOUT_MS` (1500 ms), `FRS_DM_CONFIRM_POLL_MS` (50 ms), `FRS_DM_MAX_STEPS` (5), `FRS_DM_PRESS_RETRY` (2).
+
+---
+
 ## v1.5 — 2026-03-18
 
 ### Fixed (rc.5 — WiFi routing, drive mode bit, diagnostic traceability)
