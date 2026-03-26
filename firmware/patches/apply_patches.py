@@ -30,8 +30,8 @@ Pro-only patches:
 """
 
 OPENRS_FW_VERSIONS = {
-    "usb": "USB v1.5",
-    "pro": "PRO v1.0",
+    "usb": "USB v1.6",
+    "pro": "PRO v1.1",
 }
 OPENRS_FW_VERSION = None  # set per-target in main()
 

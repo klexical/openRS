@@ -26,7 +26,7 @@ frs_can_tx_fn_t frs_get_can_tx(void) {
 static frs_state_t s_state = {
     .drive_mode           = FRS_MODE_NORMAL,
     .boot_mode            = FRS_MODE_NORMAL,
-    .mode_420_detail      = 0xCD,
+    .mode_420_detail      = 0xC4,
     .esc_mode             = FRS_ESC_ON,
     .boot_esc             = FRS_ESC_ON,
     .lc_enabled           = false,
@@ -66,9 +66,9 @@ void frs_parse_can_frame(uint32_t can_id, const uint8_t *data, uint8_t dlc) {
             if (raw_mode == 0) s_state.drive_mode = FRS_MODE_NORMAL;
             else if (raw_mode == 1) {
                 // 0x1B0 nibble=1 is ambiguous (Sport OR Track).
-                // Disambiguate via 0x420 detail: bit0=1→Sport, bit0=0→Track.
+                // Disambiguate via 0x420 detail: bit0=0→Sport, bit0=1→Track.
                 s_state.drive_mode = (s_state.mode_420_detail & 0x01)
-                    ? FRS_MODE_SPORT : FRS_MODE_TRACK;
+                    ? FRS_MODE_TRACK : FRS_MODE_SPORT;
             }
             else if (raw_mode == 2) s_state.drive_mode = FRS_MODE_DRIFT;
         }
@@ -80,7 +80,7 @@ void frs_parse_can_frame(uint32_t can_id, const uint8_t *data, uint8_t dlc) {
             uint8_t b6 = data[6];
             if (b6 == 0x11) {
                 s_state.drive_mode = (data[7] & 0x01)
-                    ? FRS_MODE_SPORT : FRS_MODE_TRACK;
+                    ? FRS_MODE_TRACK : FRS_MODE_SPORT;
             }
         }
         break;

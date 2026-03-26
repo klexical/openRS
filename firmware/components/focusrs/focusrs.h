@@ -9,8 +9,8 @@ extern "C" {
 
 // ── Firmware version (returned to Android app via OPENRS? probe) ───────────
 // Actual value is patched per-target by apply_patches.py.
-// USB → "USB v1.5-rc.5"   PRO → "PRO v1.0"
-#define OPENRS_FW_VERSION   "USB v1.5"
+// USB → "USB v1.6"   PRO → "PRO v1.1"
+#define OPENRS_FW_VERSION   "USB v1.6"
 
 // ── Drive mode values ──────────────────────────────────────────
 // Confirmed from live CAN log (0x1B0 byte6 upper nibble, DBC VAL_ 432):
@@ -93,7 +93,7 @@ extern "C" {
 typedef struct {
     uint8_t  drive_mode;          // Current drive mode from CAN (FRS_MODE_*)
     uint8_t  boot_mode;           // Drive mode to apply on next ignition (NVS)
-    uint8_t  mode_420_detail;     // 0x420 byte7 — bit0 disambiguates Sport(1)/Track(0)
+    uint8_t  mode_420_detail;     // 0x420 byte7 — bit0 disambiguates Sport(0)/Track(1)
     uint8_t  esc_mode;            // Current ESC mode from CAN (FRS_ESC_*)
     uint8_t  boot_esc;            // ESC mode to apply on next ignition (NVS)
     bool     lc_enabled;          // Launch control

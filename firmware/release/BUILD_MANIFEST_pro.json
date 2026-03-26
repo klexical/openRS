@@ -1,7 +1,7 @@
 {
   "target": "pro",
-  "firmware_version": "PRO v1.0",
-  "output_bin": "openrs-fw-pro_v1.0.bin",
+  "firmware_version": "PRO v1.1",
+  "output_bin": "openrs-fw-pro_v1.1.bin",
   "upstream_tag": "v4.48p",
   "idf_target": "esp32s3",
   "built_at": "2026-03-25T00:00:26Z",

@@ -1,7 +1,7 @@
 {
   "target": "usb",
-  "firmware_version": "USB v1.5",
-  "output_bin": "openrs-fw-usb_v1.5.bin",
+  "firmware_version": "USB v1.6",
+  "output_bin": "openrs-fw-usb_v1.6.bin",
   "upstream_tag": "v4.20u_beta-01",
   "idf_target": "esp32c3",
   "built_at": "2026-03-24T23:59:26Z",
