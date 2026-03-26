@@ -53,14 +53,20 @@ android {
         }
     }
 
-    // Rename output APKs: openRS_v{version}-staging-debug.apk / openRS_v{version}.apk
+    // Rename output APKs:
+    //   debug:   openRS_v{version}-staging-debug.apk
+    //   release: openRS_v{version}-{rcSuffix}.apk  (or openRS_v{version}.apk when no RC)
+    val rc = project.findProperty("rcSuffix")?.toString()?.trim().orEmpty()
     applicationVariants.all {
         val variant = this
         variant.outputs.all {
             val output = this as com.android.build.gradle.internal.api.BaseVariantOutputImpl
             output.outputFileName = when (variant.buildType.name) {
                 "debug"   -> "openRS_v${variant.versionName}-staging-debug.apk"
-                "release" -> "openRS_v${variant.versionName}.apk"
+                "release" -> if (rc.isNotEmpty())
+                                 "openRS_v${variant.versionName}-${rc}.apk"
+                             else
+                                 "openRS_v${variant.versionName}.apk"
                 else      -> output.outputFileName
             }
         }
