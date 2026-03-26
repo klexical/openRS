@@ -2,19 +2,26 @@ package com.openrs.dash.ui.anim
 
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.tween
-import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.Image
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.TextMeasurer
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.drawText
@@ -23,11 +30,11 @@ import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.openrs.dash.R
 import com.openrs.dash.data.VehicleState
 import com.openrs.dash.ui.Dim
 import com.openrs.dash.ui.Frost
 import com.openrs.dash.ui.LocalThemeAccent
-import com.openrs.dash.ui.Mid
 import com.openrs.dash.ui.Ok
 import com.openrs.dash.ui.Orange
 import com.openrs.dash.ui.ShareTechMono
@@ -37,8 +44,12 @@ import com.openrs.dash.ui.UserPrefs
 import kotlin.math.roundToInt
 
 /**
- * Animated top-down car diagram overlaying live TPMS, wheel speeds, and AWD
- * torque distribution at physical wheel positions on a Focus RS MK3 outline.
+ * Focus RS MK3 wireframe with diamond wheel markers and F/R torque
+ * split bar overlaid at physical wheel positions.
+ *
+ * Designed to sit between flanking tire cards in the unified
+ * Chassis section ("Neon Connect" layout). Connector lines are
+ * drawn by the parent composable via [wheelAnchors].
  */
 @Composable
 fun CarDiagram(
@@ -47,7 +58,6 @@ fun CarDiagram(
     modifier: Modifier = Modifier
 ) {
     val accent = LocalThemeAccent.current
-    val outlineColor = accent.copy(alpha = 0.3f)
     val density = LocalDensity.current
     val textMeasurer = rememberTextMeasurer()
 
@@ -66,38 +76,10 @@ fun CarDiagram(
         tireStatusColor(vs.tirePressRR, lowThreshold), tween(400), label = "rrCol"
     )
 
-    // Pre-format display strings
-    val flPress = formatTirePressure(vs.tirePressLF, prefs)
-    val frPress = formatTirePressure(vs.tirePressRF, prefs)
-    val rlPress = formatTirePressure(vs.tirePressLR, prefs)
-    val rrPress = formatTirePressure(vs.tirePressRR, prefs)
-
-    val flSpeed = formatWheelSpeed(vs.wheelSpeedFL, prefs)
-    val frSpeed = formatWheelSpeed(vs.wheelSpeedFR, prefs)
-    val rlSpeed = formatWheelSpeed(vs.wheelSpeedRL, prefs)
-    val rrSpeed = formatWheelSpeed(vs.wheelSpeedRR, prefs)
-
     val rearPct = vs.rearTorquePct.roundToInt()
     val frontPct = 100 - rearPct
     val splitLabel = "F $frontPct% / R $rearPct%"
 
-    // Text styles
-    val pressureStyle = remember(density) {
-        TextStyle(
-            fontFamily = ShareTechMono,
-            fontSize = with(density) { 11.sp },
-            color = Frost,
-            textAlign = TextAlign.Center
-        )
-    }
-    val speedStyle = remember(density) {
-        TextStyle(
-            fontFamily = ShareTechMono,
-            fontSize = with(density) { 9.sp },
-            color = Mid,
-            textAlign = TextAlign.Center
-        )
-    }
     val splitStyle = remember(density) {
         TextStyle(
             fontFamily = ShareTechMono,
@@ -116,43 +98,34 @@ fun CarDiagram(
         )
     }
 
-    Canvas(modifier) {
-        val w = size.width
-        val h = size.height
+    Box(modifier, contentAlignment = Alignment.Center) {
+        // RS wireframe image — tinted to theme accent
+        Image(
+            painter = painterResource(R.drawable.focus_rs_wireframe),
+            contentDescription = "Focus RS",
+            colorFilter = ColorFilter.tint(accent, BlendMode.SrcIn),
+            modifier = Modifier.fillMaxSize()
+        )
 
-        // ── Car body outline ──────────────────────────────────────────────
-        drawCarOutline(w, h, outlineColor)
+        // Data overlay drawn on top of the wireframe
+        Box(
+            Modifier.fillMaxSize().drawWithContent {
+                drawContent()
+                val w = size.width
+                val h = size.height
 
-        // ── Wheel positions ───────────────────────────────────────────────
-        val wheelRadius = 5.dp.toPx()
+                // Diamond markers at wheel positions
+                val diamondSize = 5.dp.toPx()
+                drawDiamondMarker(w * 0.14f, h * 0.26f, diamondSize, flColor)
+                drawDiamondMarker(w * 0.86f, h * 0.26f, diamondSize, frColor)
+                drawDiamondMarker(w * 0.14f, h * 0.74f, diamondSize, rlColor)
+                drawDiamondMarker(w * 0.86f, h * 0.74f, diamondSize, rrColor)
 
-        // FL
-        val flX = w * 0.20f
-        val flY = h * 0.25f
-        drawWheelIndicator(flX, flY, wheelRadius, flColor, flPress, flSpeed,
-            textMeasurer, pressureStyle, speedStyle)
-
-        // FR
-        val frX = w * 0.80f
-        val frY = h * 0.25f
-        drawWheelIndicator(frX, frY, wheelRadius, frColor, frPress, frSpeed,
-            textMeasurer, pressureStyle, speedStyle)
-
-        // RL
-        val rlX = w * 0.20f
-        val rlY = h * 0.75f
-        drawWheelIndicator(rlX, rlY, wheelRadius, rlColor, rlPress, rlSpeed,
-            textMeasurer, pressureStyle, speedStyle)
-
-        // RR
-        val rrX = w * 0.80f
-        val rrY = h * 0.75f
-        drawWheelIndicator(rrX, rrY, wheelRadius, rrColor, rrPress, rrSpeed,
-            textMeasurer, pressureStyle, speedStyle)
-
-        // ── AWD torque split (center) ─────────────────────────────────────
-        drawTorqueSplit(w, h, frontPct, rearPct, splitLabel, accent,
-            textMeasurer, splitStyle, splitLabelStyle)
+                // AWD torque split (center)
+                drawTorqueSplit(w, h, frontPct, rearPct, splitLabel, accent,
+                    textMeasurer, splitStyle, splitLabelStyle)
+            }
+        )
     }
 }
 
@@ -160,101 +133,32 @@ fun CarDiagram(
 // Drawing helpers
 // ═════════════════════════════════════════════════════════════════════════════
 
-private fun DrawScope.drawCarOutline(w: Float, h: Float, outlineColor: Color) {
-    val stroke = Stroke(width = 1.5.dp.toPx())
-    val bodyW = w * 0.38f
-    val bodyH = h * 0.76f
-    val bodyX = (w - bodyW) / 2f
-    val bodyY = (h - bodyH) / 2f
-    val cornerR = 12.dp.toPx()
-
-    // Main body
-    drawRoundRect(
-        color = outlineColor,
-        topLeft = Offset(bodyX, bodyY),
-        size = Size(bodyW, bodyH),
-        cornerRadius = CornerRadius(cornerR),
-        style = stroke
-    )
-
-    // Front bumper (narrower rect at top)
-    val bumpW = bodyW * 0.75f
-    val bumpH = h * 0.06f
-    val bumpX = (w - bumpW) / 2f
-    val bumpY = bodyY - bumpH * 0.4f
-    drawRoundRect(
-        color = outlineColor,
-        topLeft = Offset(bumpX, bumpY),
-        size = Size(bumpW, bumpH),
-        cornerRadius = CornerRadius(6.dp.toPx()),
-        style = stroke
-    )
-
-    // Rear bumper (narrower rect at bottom)
-    val rBumpY = bodyY + bodyH - bumpH * 0.6f
-    drawRoundRect(
-        color = outlineColor,
-        topLeft = Offset(bumpX, rBumpY),
-        size = Size(bumpW, bumpH),
-        cornerRadius = CornerRadius(6.dp.toPx()),
-        style = stroke
-    )
-
-    // Windshield (trapezoid in upper portion of body)
-    val wsTop = bodyY + bodyH * 0.18f
-    val wsBot = bodyY + bodyH * 0.34f
-    val wsTopInset = bodyW * 0.18f
-    val wsBotInset = bodyW * 0.08f
-    val windshieldPath = Path().apply {
-        moveTo(bodyX + wsTopInset, wsTop)
-        lineTo(bodyX + bodyW - wsTopInset, wsTop)
-        lineTo(bodyX + bodyW - wsBotInset, wsBot)
-        lineTo(bodyX + wsBotInset, wsBot)
-        close()
-    }
-    drawPath(windshieldPath, outlineColor, style = stroke)
-
-    // Rear window (smaller trapezoid in lower portion)
-    val rwBot = bodyY + bodyH * 0.82f
-    val rwTop = bodyY + bodyH * 0.70f
-    val rwTopInset = bodyW * 0.08f
-    val rwBotInset = bodyW * 0.18f
-    val rearWindowPath = Path().apply {
-        moveTo(bodyX + rwTopInset, rwTop)
-        lineTo(bodyX + bodyW - rwTopInset, rwTop)
-        lineTo(bodyX + bodyW - rwBotInset, rwBot)
-        lineTo(bodyX + rwBotInset, rwBot)
-        close()
-    }
-    drawPath(rearWindowPath, outlineColor, style = stroke)
-}
-
-private fun DrawScope.drawWheelIndicator(
-    cx: Float, cy: Float, radius: Float,
-    statusColor: Color,
-    pressureText: String,
-    speedText: String,
-    textMeasurer: TextMeasurer,
-    pressureStyle: TextStyle,
-    speedStyle: TextStyle
+/** Diamond-shaped wheel marker with glow. */
+private fun DrawScope.drawDiamondMarker(
+    cx: Float, cy: Float, size: Float, color: Color
 ) {
-    // Status circle (filled)
-    drawCircle(statusColor.copy(alpha = 0.25f), radius = radius * 1.8f, center = Offset(cx, cy))
-    drawCircle(statusColor, radius = radius, center = Offset(cx, cy))
+    // Outer glow diamond
+    val glowPath = Path().apply {
+        moveTo(cx, cy - size * 1.6f)
+        lineTo(cx + size * 1.6f, cy)
+        lineTo(cx, cy + size * 1.6f)
+        lineTo(cx - size * 1.6f, cy)
+        close()
+    }
+    drawPath(glowPath, color.copy(alpha = 0.2f))
 
-    // Pressure text (above circle)
-    val pressResult = textMeasurer.measure(pressureText, pressureStyle)
-    drawText(
-        pressResult,
-        topLeft = Offset(cx - pressResult.size.width / 2f, cy - radius - pressResult.size.height - 2.dp.toPx())
-    )
+    // Filled diamond
+    val path = Path().apply {
+        moveTo(cx, cy - size)
+        lineTo(cx + size, cy)
+        lineTo(cx, cy + size)
+        lineTo(cx - size, cy)
+        close()
+    }
+    drawPath(path, color)
 
-    // Speed text (below circle)
-    val speedResult = textMeasurer.measure(speedText, speedStyle)
-    drawText(
-        speedResult,
-        topLeft = Offset(cx - speedResult.size.width / 2f, cy + radius + 2.dp.toPx())
-    )
+    // Edge stroke for definition
+    drawPath(path, color.copy(alpha = 0.7f), style = Stroke(width = 1f))
 }
 
 private fun DrawScope.drawTorqueSplit(
@@ -313,22 +217,36 @@ private fun DrawScope.drawTorqueSplit(
 }
 
 // ═════════════════════════════════════════════════════════════════════════════
+// Public helpers — wheel anchor positions for connector lines
+// ═════════════════════════════════════════════════════════════════════════════
+
+/** Fractional wheel positions within the wireframe (matches drawable geometry). */
+data class WheelAnchor(val xFraction: Float, val yFraction: Float)
+
+val WHEEL_ANCHORS = listOf(
+    WheelAnchor(0.14f, 0.26f),  // FL
+    WheelAnchor(0.86f, 0.26f),  // FR
+    WheelAnchor(0.14f, 0.74f),  // RL
+    WheelAnchor(0.86f, 0.74f),  // RR
+)
+
+// ═════════════════════════════════════════════════════════════════════════════
 // Formatting helpers
 // ═════════════════════════════════════════════════════════════════════════════
 
-private fun tireStatusColor(psi: Double, lowThreshold: Double): Color = when {
-    psi < 0          -> Dim       // no data yet
-    psi < lowThreshold -> Orange  // low pressure
-    psi > 40.0       -> Orange    // over-inflated
-    else             -> Ok        // normal
+internal fun tireStatusColor(psi: Double, lowThreshold: Double): Color = when {
+    psi < 0            -> Dim       // no data yet
+    psi < lowThreshold -> Orange    // low pressure
+    psi > 40.0         -> Orange    // over-inflated
+    else               -> Ok        // normal
 }
 
-private fun formatTirePressure(psi: Double, prefs: UserPrefs): String {
+internal fun formatTirePressure(psi: Double, prefs: UserPrefs): String {
     if (psi < 0) return "—"
     return prefs.displayTire(psi)
 }
 
-private fun formatWheelSpeed(kph: Double, prefs: UserPrefs): String {
+internal fun formatWheelSpeed(kph: Double, prefs: UserPrefs): String {
     val value = if (prefs.speedUnit == "MPH") kph * UnitConversions.KM_TO_MI else kph
     val label = if (prefs.speedUnit == "MPH") "mph" else "kph"
     return "${value.roundToInt()} $label"

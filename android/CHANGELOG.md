@@ -141,6 +141,7 @@ Firmware changes are tracked separately in [firmware releases](https://github.co
 - **Dim label contrast improved** — `Dim` color bumped from `#3D5A72` to `#547A96` in `Theme.kt` for WCAG AA compliance (≥4.5:1 contrast ratio on Surf2 background). ([#134](https://github.com/klexical/openRS_/issues/134))
 - **Compose BOM upgraded** — `2024.11.00` → `2025.11.00` (Compose UI 1.7.5 → 1.9.4). Enables `HapticFeedbackType.Confirm` and `HorizontalPager` from stable Foundation APIs.
 - **KSP annotation processing added** — Room compiler uses KSP (`com.google.devtools.ksp` v2.0.21-1.0.27) instead of KAPT for faster builds.
+- **Unified Chassis section ("Neon Connect" layout)** — merged the separate TPMS and AWD sections into a single `UnifiedChassisSection` in `ChassisPage.kt`. Tire cards (FL/RL left, FR/RR right) flank the RS wireframe with colored accent edge bars matching tire status. Cards show PSI, delta arrows, wheel speed, temp, and a temperature fill bar. Diamond-shaped wheel markers replace dots on the wireframe. AWD metrics (torque bar, bias, deltas, temps, clutch data) sit below in the same card, eliminating duplicate wheel speed displays. ([#149](https://github.com/klexical/openRS_/issues/149))
 
 ---
 
