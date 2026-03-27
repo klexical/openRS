@@ -7,7 +7,7 @@ Firmware changes are tracked separately in [firmware releases](https://github.co
 
 ---
 
-## [v2.2.5] — 2026-03-22
+## [v2.2.5] — 2026-03-27
 
 ### Added (rc.1 — FORScan PID catalog, data-driven decode, DID prober)
 - **FORScan PID catalog integrated as JSON asset** — 1,149 PIDs across 8 ECU modules (PCM, OBDII, BCM, ABS, AWD, HVAC, IPC, PSCM) loaded from `forscan_modules.json` at runtime via `ForscanCatalog.kt`. Generator script at `android/scripts/gen_forscan_catalog.py`.
