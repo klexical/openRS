@@ -349,61 +349,65 @@ fun TripPage(
         Column(
             hudModifier
                 .background(Surf)
-                .padding(horizontal = 8.dp, vertical = 6.dp)
-                .then(if (wideLayout) Modifier.verticalScroll(rememberScrollState()) else Modifier),
-            verticalArrangement = Arrangement.spacedBy(4.dp)
+                .padding(horizontal = 8.dp)
+                .padding(top = 6.dp, bottom = bottomPad + 6.dp)
         ) {
-            // Row 1 — Speed · RPM · Gear · Avg RPM
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                DataCell("SPD",
-                    "${prefs.displaySpeed(vehicleState.speedKph)} ${prefs.speedLabel}",
-                    modifier = Modifier.weight(1f))
-                DataCell("RPM",     "%.0f".format(vehicleState.rpm),       modifier = Modifier.weight(1f))
-                DataCell("GEAR",    vehicleState.gearDisplay,               modifier = Modifier.weight(1f))
-                DataCell("AVG RPM", "%.0f".format(tripState.avgRpm),        modifier = Modifier.weight(1f))
+            Column(
+                Modifier.weight(1f).verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(4.dp)
+            ) {
+                // Row 1 — Speed · RPM · Gear · Avg RPM
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                    DataCell("SPD",
+                        "${prefs.displaySpeed(vehicleState.speedKph)} ${prefs.speedLabel}",
+                        modifier = Modifier.weight(1f))
+                    DataCell("RPM",     "%.0f".format(vehicleState.rpm),       modifier = Modifier.weight(1f))
+                    DataCell("GEAR",    vehicleState.gearDisplay,               modifier = Modifier.weight(1f))
+                    DataCell("AVG RPM", "%.0f".format(tripState.avgRpm),        modifier = Modifier.weight(1f))
+                }
+
+                // Row 2 — Coolant · Oil · Ambient · Fuel %
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                    DataCell("CLT",
+                        if (vehicleState.coolantTempC > -90)
+                            "${prefs.displayTemp(vehicleState.coolantTempC)}${prefs.tempLabel}" else "--",
+                        modifier = Modifier.weight(1f))
+                    DataCell("OIL",
+                        if (vehicleState.oilTempC > -90)
+                            "${prefs.displayTemp(vehicleState.oilTempC)}${prefs.tempLabel}" else "--",
+                        modifier = Modifier.weight(1f))
+                    DataCell("AMB",  "${prefs.displayTemp(vehicleState.ambientTempC)}${prefs.tempLabel}", modifier = Modifier.weight(1f))
+                    DataCell("FUEL", "%.0f%%".format(vehicleState.fuelLevelPct),                          modifier = Modifier.weight(1f))
+                }
+
+                // Row 3 — RDU · PTU · Fuel used · Economy
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                    DataCell("RDU",
+                        if (vehicleState.rduTempC > -90)
+                            "${prefs.displayTemp(vehicleState.rduTempC)}${prefs.tempLabel}" else "--",
+                        modifier = Modifier.weight(1f))
+                    DataCell("PTU",
+                        if (vehicleState.ptuTempC > -90)
+                            "${prefs.displayTemp(vehicleState.ptuTempC)}${prefs.tempLabel}" else "--",
+                        modifier = Modifier.weight(1f))
+                    DataCell("USED", "%.2fL".format(tripState.fuelUsedL),                             modifier = Modifier.weight(1f))
+                    val (econVal, econUnit) = if (prefs.speedUnit == "MPH")
+                        "%.1f".format(tripState.avgFuelMpg)      to "MPG"
+                    else
+                        "%.1f".format(tripState.avgFuelL100km) to "L/100"
+                    DataCell("ECON", "$econVal $econUnit",                                             modifier = Modifier.weight(1f))
+                }
+
+                // Row 4 — Wheel speeds
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                    DataCell("FL", "${prefs.displaySpeed(vehicleState.wheelSpeedFL)} ${prefs.speedLabel}", modifier = Modifier.weight(1f))
+                    DataCell("FR", "${prefs.displaySpeed(vehicleState.wheelSpeedFR)} ${prefs.speedLabel}", modifier = Modifier.weight(1f))
+                    DataCell("RL", "${prefs.displaySpeed(vehicleState.wheelSpeedRL)} ${prefs.speedLabel}", modifier = Modifier.weight(1f))
+                    DataCell("RR", "${prefs.displaySpeed(vehicleState.wheelSpeedRR)} ${prefs.speedLabel}", modifier = Modifier.weight(1f))
+                }
             }
 
-            // Row 2 — Coolant · Oil · Ambient · Fuel %
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                DataCell("CLT",
-                    if (vehicleState.coolantTempC > -90)
-                        "${prefs.displayTemp(vehicleState.coolantTempC)}${prefs.tempLabel}" else "--",
-                    modifier = Modifier.weight(1f))
-                DataCell("OIL",
-                    if (vehicleState.oilTempC > -90)
-                        "${prefs.displayTemp(vehicleState.oilTempC)}${prefs.tempLabel}" else "--",
-                    modifier = Modifier.weight(1f))
-                DataCell("AMB",  "${prefs.displayTemp(vehicleState.ambientTempC)}${prefs.tempLabel}", modifier = Modifier.weight(1f))
-                DataCell("FUEL", "%.0f%%".format(vehicleState.fuelLevelPct),                          modifier = Modifier.weight(1f))
-            }
-
-            // Row 3 — RDU · PTU · Fuel used · Economy
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                DataCell("RDU",
-                    if (vehicleState.rduTempC > -90)
-                        "${prefs.displayTemp(vehicleState.rduTempC)}${prefs.tempLabel}" else "--",
-                    modifier = Modifier.weight(1f))
-                DataCell("PTU",
-                    if (vehicleState.ptuTempC > -90)
-                        "${prefs.displayTemp(vehicleState.ptuTempC)}${prefs.tempLabel}" else "--",
-                    modifier = Modifier.weight(1f))
-                DataCell("USED", "%.2fL".format(tripState.fuelUsedL),                             modifier = Modifier.weight(1f))
-                val (econVal, econUnit) = if (prefs.speedUnit == "MPH")
-                    "%.1f".format(tripState.avgFuelMpg)      to "MPG"
-                else
-                    "%.1f".format(tripState.avgFuelL100km) to "L/100"
-                DataCell("ECON", "$econVal $econUnit",                                             modifier = Modifier.weight(1f))
-            }
-
-            // Row 4 — Wheel speeds
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                DataCell("FL", "${prefs.displaySpeed(vehicleState.wheelSpeedFL)} ${prefs.speedLabel}", modifier = Modifier.weight(1f))
-                DataCell("FR", "${prefs.displaySpeed(vehicleState.wheelSpeedFR)} ${prefs.speedLabel}", modifier = Modifier.weight(1f))
-                DataCell("RL", "${prefs.displaySpeed(vehicleState.wheelSpeedRL)} ${prefs.speedLabel}", modifier = Modifier.weight(1f))
-                DataCell("RR", "${prefs.displaySpeed(vehicleState.wheelSpeedRR)} ${prefs.speedLabel}", modifier = Modifier.weight(1f))
-            }
-
-            Spacer(Modifier.weight(1f))
+            Spacer(Modifier.height(4.dp))
 
             // Start / End Trip button
             Button(
@@ -420,8 +424,7 @@ fun TripPage(
                 },
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(44.dp)
-                    .padding(bottom = bottomPad),
+                    .height(44.dp),
                 shape    = RoundedCornerShape(8.dp),
                 colors   = ButtonDefaults.buttonColors(
                     containerColor = if (tripState.isRecording) Orange else accent
@@ -460,6 +463,7 @@ fun TripPage(
                 TripSummaryContent(
                     tripState = tripState,
                     prefs     = prefs,
+                    bottomPad = bottomPad,
                     onClose   = {
                         scope.launch { sheetState.hide() }.invokeOnCompletion {
                             showSummary = false
@@ -728,7 +732,12 @@ private fun ColorLegend(colorMode: ColorMode, modifier: Modifier = Modifier) {
 // ═══════════════════════════════════════════════════════════════════════════
 
 @Composable
-private fun TripSummaryContent(tripState: TripState, prefs: UserPrefs, onClose: () -> Unit) {
+private fun TripSummaryContent(
+    tripState: TripState,
+    prefs: UserPrefs,
+    bottomPad: androidx.compose.ui.unit.Dp,
+    onClose: () -> Unit
+) {
     val accent  = LocalThemeAccent.current
     val ctx     = LocalContext.current
     val scope   = rememberCoroutineScope()
@@ -747,7 +756,11 @@ private fun TripSummaryContent(tripState: TripState, prefs: UserPrefs, onClose: 
         "%.1f".format(tripState.avgFuelL100km) to "L/100km"
 
     Column(
-        Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
+        Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp)
+            .padding(top = 8.dp, bottom = bottomPad + 16.dp)
+            .verticalScroll(rememberScrollState()),
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
         Row(
