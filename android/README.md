@@ -41,7 +41,15 @@ cd openRS_/android
 
 Open `browser-emulator/index.html` in any browser, or visit the live version:
 
-**[klexical.github.io/openRS_](https://klexical.github.io/openRS_)**
+**[klexical.github.io/openRS_/emulator](https://klexical.github.io/openRS_/emulator/)**
+
+### Sapphire — Post-Session Analytics
+
+The **Sapphire** web dashboard lives in [`web/`](../web/) and is deployed alongside the emulator:
+
+**[klexical.github.io/openRS_](https://klexical.github.io/openRS_/)**
+
+Drop an export ZIP from the app to explore charts, CAN data, and diagnostics in your browser.
 
 #### GitHub Pages (live site)
 
@@ -49,8 +57,8 @@ Deployment is handled by **GitHub Actions** — [`.github/workflows/deploy-pages
 
 | Trigger | When |
 |--------|------|
-| **Automatic** | Push to **`main`** that touches `android/browser-emulator/**` |
-| **Manual** | **Actions** → *Deploy Emulator to GitHub Pages* → **Run workflow** |
+| **Automatic** | Push to **`main`** that touches `web/**` or `android/browser-emulator/**` |
+| **Manual** | **Actions** → *Deploy Sapphire* → **Run workflow** |
 
 **One-time repo setup:** **Settings** → **Pages** → **Build and deployment** → set source to **GitHub Actions** (not “Deploy from a branch”). The workflow uses the `github-pages` environment.
 

@@ -4,7 +4,8 @@
 </div>
 
 <p align="center">
-  <a href="https://klexical.github.io/openRS_">🚀 Live Emulator</a> •
+  <a href="https://klexical.github.io/openRS_/">🔷 Sapphire Dashboard</a> •
+  <a href="https://klexical.github.io/openRS_/emulator/">🚀 Live Emulator</a> •
   <a href="#screenshots">Screenshots</a> •
   <a href="#features">Features</a> •
   <a href="#hardware">Hardware</a> •
@@ -34,7 +35,9 @@
 
 Unlike generic OBD apps, openRS_ is purpose-built for the Focus RS. It understands the GKN Twinster AWD system, polls TPMS tire pressures and temperatures from the BCM, decodes Ford-specific parameters across HS-CAN and MS-CAN, and presents everything in a dark, glanceable interface tuned for track days. A bundled **FORScan PID catalog** covers 1,149 PIDs across 8 ECU modules (PCM, OBDII, BCM, ABS, AWD, HVAC, IPC, PSCM) — and new parameters can be added from the catalog via JSON without touching code.
 
-> **Try it now:** [klexical.github.io/openRS_](https://klexical.github.io/openRS_) — live browser emulator with animated demo data, no hardware required.
+> **Try it now:** [klexical.github.io/openRS_/emulator](https://klexical.github.io/openRS_/emulator/) — live browser emulator with animated demo data, no hardware required.
+>
+> **Analyse your data:** [klexical.github.io/openRS_](https://klexical.github.io/openRS_/) — **Sapphire**, the post-session analytics dashboard. Drop an export ZIP to explore charts, CAN data, and diagnostics in your browser.
 
 ---
 
@@ -198,11 +201,22 @@ cd openRS_/android
 
 Open `android/browser-emulator/index.html` in any browser, or visit the live version:
 
-**[klexical.github.io/openRS_](https://klexical.github.io/openRS_)**
+**[klexical.github.io/openRS_/emulator](https://klexical.github.io/openRS_/emulator/)**
 
 - All tabs animate with simulated Focus RS data (RPM, boost, speed, AWD, temps, TPMS)
 - MORE tab shows drive mode, ESC, features, diagnostics
 - ⚙ Settings button demonstrates the settings dialog
+
+### Sapphire — Post-Session Analytics
+
+Drop an export ZIP from the app into the web dashboard to explore your session data:
+
+**[klexical.github.io/openRS_](https://klexical.github.io/openRS_/)**
+
+- Dashboard KPIs, session peaks, drive mode breakdown
+- 8 time-series charts (RPM, boost, speed, temps, G-force, fuel, wheel speeds, AWD torque)
+- CAN frame inventory, session events, DID probe results, decode trace
+- Persistent session library in your browser (IndexedDB)
 
 ---
 
@@ -282,6 +296,20 @@ Open `android/browser-emulator/index.html` in any browser, or visit the live ver
 <summary><strong>Project structure</strong></summary>
 
 ```
+web/                                         # Sapphire — post-session analytics dashboard
+├── src/
+│   ├── components/
+│   │   ├── layout/                          # Shell, NavRail, Header
+│   │   ├── panels/                          # Dashboard, Trip, Diagnostics, Sessions, Import
+│   │   ├── charts/                          # TimeSeriesChart (Recharts)
+│   │   └── ui/                              # MetricCard, SectionLabel, DataCell, EmptyState
+│   ├── store/                               # Zustand state (sessions, panels, UI)
+│   ├── lib/                                 # ZIP import, IndexedDB, formatting
+│   ├── styles/                              # Design tokens (openRS_ palette)
+│   └── types/                               # Session, trip, diagnostic types
+├── package.json                             # Vite + React 19 + Tailwind 4 + Recharts + Zustand
+└── vite.config.ts                           # base: '/openRS_/'
+
 android/
 ├── app/src/main/
 │   ├── assets/pids/
