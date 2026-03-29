@@ -21,6 +21,15 @@ data class TripPoint(
     val ptuTempC: Double,
     // ── Fuel ─────────────────────────────────────────────────
     val fuelLevelPct: Double,
+    // ── TPMS (BCM Mode 22, polled ~30 s) ─────────────────────
+    val tirePressLF: Double = -1.0,
+    val tirePressRF: Double = -1.0,
+    val tirePressLR: Double = -1.0,
+    val tirePressRR: Double = -1.0,
+    val tireTempLF: Double = -99.0,
+    val tireTempRF: Double = -99.0,
+    val tireTempLR: Double = -99.0,
+    val tireTempRR: Double = -99.0,
     // ── Wheel speeds (km/h) ───────────────────────────────────
     val wheelSpeedFL: Double,
     val wheelSpeedFR: Double,

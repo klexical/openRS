@@ -263,6 +263,8 @@ object DiagnosticExporter {
      * Columns (all in SI units where applicable):
      *   timestamp_ms, lat, lng, speed_kph, rpm, gear, boost_psi,
      *   coolant_c, oil_c, ambient_c, rdu_c, ptu_c, fuel_pct,
+     *   tire_press_lf_psi, tire_press_rf_psi, tire_press_lr_psi, tire_press_rr_psi,
+     *   tire_temp_lf_c, tire_temp_rf_c, tire_temp_lr_c, tire_temp_rr_c,
      *   wheel_fl_kph, wheel_fr_kph, wheel_rl_kph, wheel_rr_kph,
      *   lateral_g, drive_mode, race_ready
      */
@@ -271,6 +273,8 @@ object DiagnosticExporter {
         appendLine(
             "timestamp_ms,lat,lng,speed_kph,rpm,gear,boost_psi," +
             "coolant_c,oil_c,ambient_c,rdu_c,ptu_c,fuel_pct," +
+            "tire_press_lf_psi,tire_press_rf_psi,tire_press_lr_psi,tire_press_rr_psi," +
+            "tire_temp_lf_c,tire_temp_rf_c,tire_temp_lr_c,tire_temp_rr_c," +
             "wheel_fl_kph,wheel_fr_kph,wheel_rl_kph,wheel_rr_kph," +
             "lateral_g,drive_mode,race_ready"
         )
@@ -289,6 +293,14 @@ object DiagnosticExporter {
                 "${"%.1f".format(pt.rduTempC)}," +
                 "${"%.1f".format(pt.ptuTempC)}," +
                 "${"%.1f".format(pt.fuelLevelPct)}," +
+                "${"%.1f".format(pt.tirePressLF)}," +
+                "${"%.1f".format(pt.tirePressRF)}," +
+                "${"%.1f".format(pt.tirePressLR)}," +
+                "${"%.1f".format(pt.tirePressRR)}," +
+                "${"%.1f".format(pt.tireTempLF)}," +
+                "${"%.1f".format(pt.tireTempRF)}," +
+                "${"%.1f".format(pt.tireTempLR)}," +
+                "${"%.1f".format(pt.tireTempRR)}," +
                 "${"%.2f".format(pt.wheelSpeedFL)}," +
                 "${"%.2f".format(pt.wheelSpeedFR)}," +
                 "${"%.2f".format(pt.wheelSpeedRL)}," +
