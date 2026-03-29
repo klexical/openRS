@@ -31,6 +31,17 @@ import com.openrs.dash.BuildConfig
  * Key = versionName (e.g. "2.2.5"), Value = list of user-facing highlights.
  */
 private val versionHighlights: Map<String, List<String>> = mapOf(
+    "2.2.6" to listOf(
+        "0-60 / 0-100 performance timer — arm from DASH tab, times via CAN speed at ~100 Hz",
+        "Real-time fuel economy — instant/average MPG or L/100km plus distance to empty",
+        "Clutch pedal position — live display on DASH tab from CAN 0x138",
+        "Wheel rotation counts — per-wheel counters in TPMS section on CHASSIS tab",
+        "Passive VIN decode — 17-char VIN assembled from CAN 0x40A, shown on MORE tab",
+        "Configurable TPMS thresholds — low/warn/high pressure with 4-zone color coding",
+        "Reset session button — on DIAG tab with double-confirm, resets all live data",
+        "Mission Control HTML removed — Sapphire web dashboard is the replacement",
+        "Drive mode reliability — pre-flight logging + auto-correction on overshoot"
+    ),
     "2.2.5" to listOf(
         "FORScan PID catalog — 1,149 PIDs across 8 ECU modules, browsable on DIAG tab",
         "DID Prober — interactive Mode 22 scanner for any ECU + DID range",
@@ -53,7 +64,9 @@ private val versionHighlights: Map<String, List<String>> = mapOf(
 fun WhatsNewDialog(onDismiss: () -> Unit) {
     val accent = LocalThemeAccent.current
     val version = BuildConfig.VERSION_NAME
-    val highlights = versionHighlights[version] ?: return onDismiss()
+    val highlights = versionHighlights[version]
+        ?: versionHighlights.values.lastOrNull()
+        ?: return onDismiss()
 
     Dialog(
         onDismissRequest = onDismiss,

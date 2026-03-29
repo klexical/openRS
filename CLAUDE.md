@@ -1,0 +1,302 @@
+# openRS_
+
+Native Android telemetry dashboard for the Ford Focus RS MK3.
+Kotlin 2.0.21 + Jetpack Compose (Material3). Current: v2.2.6 (versionCode 32).
+Android app → `android/`  |  Firmware → `firmware/`  |  Sapphire (web dashboard) → `web/`  |  Docs → `docs/`  |  Feature pipeline → `docs/feature-roadmap.md`
+
+## Source Layout
+
+All source under `android/app/src/main/java/com/openrs/dash/`:
+
+```
+OpenRSDashApp.kt          — App singleton: vehicleState: MutableStateFlow<VehicleState>,
+                            debugLines, isOpenRsFirmware, firmwareVersionLabel, tripRecorder
+can/
+  CanDecoder.kt           — 22 passive HS-CAN decoders. decode(id,data,state)→VehicleState?
+                            Call resetSessionState() on EVERY new connection (resets modeDetail420 + has420Arrived)
+                            has420Arrived gate: Sport/Track resolution blocked until first 0x420 frame received
+                            modeDetail420Hex: public accessor for diagnostics logging
+  ObdConstants.kt         — All SLCAN query strings, ECU request/response IDs, poll intervals
+  ObdResponseParser.kt    — Mode 22 DID dispatch by module (PCM/BCM/AWD/PSCM/FENG/RSProt/HVAC/IPC)
+  PidRegistry.kt          — Data-driven catalog decoder; builds index from ForscanCatalog on first load
+                            Fallback for ObdResponseParser when DID not hardcoded; stores in genericValues
+  WiCanConnection.kt      — WiCAN: WebSocket ws://192.168.80.1:80/ws
+  MeatPiConnection.kt     — MeatPi Pro: raw TCP 192.168.0.10:35000
+  AdapterState.kt         — Disconnected / Connecting / Connected / Idle / Error (sealed class)
+  SlcanParser.kt          — SLCAN frame tokenizer ('t'=standard, 'T'=extended)
+  IsoTpBuffer.kt          — ISO-TP SF/FF/CF reassembly; caller sends BCM_FLOW_CONTROL after FF
+  FirmwareApi.kt          — REST POST to openRS_ firmware /api/frs (drive mode, ESC)
+                            Parses response body for {"busy":true}; throws BusyException
+data/
+  VehicleState.kt         — Immutable data class ~95 fields. See sentinel rules below.
+  ForscanCatalog.kt       — Lazy loader for assets/pids/forscan_modules.json (1,149 PIDs)
+  TripState.kt            — GPS+OBD trip accumulator (distance, peaks, mode breakdown, fuel economy)
+  TripPoint.kt            — Single waypoint: lat/lng + 20 telemetry fields
+  DtcResult.kt            — module, code, description, status (ACTIVE/PENDING/PERMANENT/UNKNOWN)
+  DtcModuleSpec.kt        — name, requestId, responseId for DTC scan targets
+diagnostics/
+  DtcScanner.kt           — UDS 0x19/02 scan across PCM(7E0)/BCM(726)/ABS(760)/AWD(703)/PSCM(730)
+  DiagnosticLogger.kt     — Thread-safe singleton: frame inventory (opt B), decode trace, SLCAN log (opt C)
+  DiagnosticExporter.kt   — ZIP builder (inventory+trace+JSON+SLCAN+DID probe CSVs); shareTrip()→GPX+CSV+summary
+                            Crash telemetry files retained after export (not deleted); crashFiles()/clearCrashHistory()
+  DtcDatabase.kt          — 873-code bundled Ford DTC lookup (from res/raw/dtc_database.json)
+  CrashReporter.kt        — Installs UncaughtExceptionHandler; persists CrashTelemetryBuffer to disk
+  CrashTelemetryBuffer.kt — 100-snapshot ring buffer of VehicleState; flushed on crash to JSON
+service/
+  CanDataService.kt       — Foreground service; WiFi-gated auto-reconnect; owns connection lifecycle
+                            Adapter selection: AppSettings.getAdapterType() → "WICAN"|"MEATPI"
+  TripRecorder.kt         — FusedLocationProviderClient @ 1 Hz; fuses GPS with VehicleState snapshots
+  WeatherRepository.kt    — OpenWeatherMap /data/2.5/weather (BuildConfig.OPENWEATHER_API_KEY)
+ui/
+  MainActivity.kt         — 6-tab Compose host (DASH/POWER/CHASSIS/TEMPS/DIAG/MORE)
+                            Binds CanDataService via LocalBinder; passes callbacks to child composables
+  AppSettings.kt          — SharedPreferences wrapper; prefs file: "openrs_settings"
+  UserPrefs.kt            — Observable prefs data class + unit-conversion helpers
+                            UserPrefsStore object: MutableStateFlow<UserPrefs>
+  Components.kt           — Shared composables: HeroCard, DataCell, BarCard, TireCard, GfCard,
+                            WheelCell, AfrCard, SectionLabel, FocusRsOutline, tireTempColor()
+  Theme.kt                — Color tokens (see below), typography (Orbitron/JetBrains/ShareTech/Barlow)
+  SettingsSheet.kt        — Settings drawer: units, TPMS threshold, adapter, connection, reconnect, diag,
+                            theme picker (RS paint colours), floating HUD toggle, What's New button
+  PidBrowserSection.kt    — DIAG tab: expandable FORScan catalog per module with coverage bar
+  DidProberSection.kt     — DIAG tab: interactive Mode 22 scanner for any ECU+DID
+  WhatsNewDialog.kt       — Version changelog dialog; shown on first launch after update
+  trip/TripPage.kt        — Full-screen overlay: OSMDroid map + stats + export
+```
+
+## ECU Addresses
+
+| ECU    | Request | Response | Session                         |
+|--------|---------|----------|---------------------------------|
+| PCM    | 0x7E0   | 0x7E8    | default                         |
+| BCM    | 0x726   | 0x72E    | default                         |
+| AWD    | 0x703   | 0x70B    | extended (0x10 0x03)            |
+| ABS    | 0x760   | 0x768    | default                         |
+| PSCM   | 0x730   | 0x738    | extended                        |
+| FENG   | 0x727   | 0x72F    | extended                        |
+| RSProt | 0x731   | 0x739    | extended                        |
+| IPC    | 0x720   | 0x728    | scaffolded — not yet active     |
+| HVAC   | 0x733   | 0x73B    | scaffolded — not yet active     |
+
+## Active CAN IDs (HS-CAN 500 kbps)
+
+```
+0x010  steering angle (Motorola 15-bit + sign)
+0x070  torque at trans (Motorola 11-bit bits 37-47, offset −500 Nm)
+0x076  throttle % (byte0 × 0.392)
+0x080  accel pedal (bits 0-9 LE × 0.1%), reverse (bit 5)
+0x090  RPM (bytes 4-5) + baro (byte2 × 0.5 kPa)
+0x0C8  gauge brightness (bits 0-4), e-brake (byte3 bit 6), ignition (byte2 bits 3-6)
+0x0F8  oil temp (byte1−50°C), boost kPa absolute (byte5+baro), PTU temp (byte7−60°C)
+0x130  speed (bytes 6-7 BE × 0.01 kph)
+0x160  longitudinal G (bits 48-57 LE)
+0x180  lateral G + yaw rate + vertical G
+0x190  wheel speeds FL/FR/RL/RR (4 × Motorola 15-bit × 0.011343 km/h)
+0x1A4  ambient temp from MS-CAN bridge (byte4 signed × 0.25°C)
+0x1B0  drive mode nibble (byte6>>4); combine with 0x420 to distinguish Sport vs Track
+0x1C0  ESC mode (2-bit at bit position 10)
+0x230  gear (4-bit) — does NOT broadcast on this car
+0x252  brake pressure (12-bit Motorola)
+0x2C0  AWD left/right torque (12-bit each at bits 0, 12)
+0x2F0  coolant + intake air temp (10-bit each)
+0x340  PCM ambient (byte7 signed × 0.25°C) — NOT TPMS
+0x360  odometer (bytes [3:5] 24-bit BE) + engine status (byte0)
+0x380  fuel level (Motorola 10-bit × 0.4%, clamped 0-100)
+0x420  drive mode detail + launch control flag (byte6/7, ~600 ms broadcast; bit0=0→Sport, bit0=1→Track)
+```
+
+## VehicleState Rules
+
+**Sentinel values:**
+- `-99.0` = not yet received — temps (coolant, oil, tires, charge air, PTU, RDU, cabin, etc.)
+- `-1.0` / `-1L` = not yet polled — OBD scalars (oilLife, tirePressures, odometer, batterySoc, etc.)
+- `0L` = not yet received — timestamps (tpmsLastUpdate)
+- `null` = unknown — Boolean? fields (rduEnabled, pdcEnabled, fengEnabled, lcArmed, assEnabled, IPC/HVAC warning lamps)
+
+**Rules:**
+- VehicleState is **immutable** — always `.copy(...)`, never mutate directly
+- `CanDecoder.decode()` returns `null` if data is too short — callers must null-check
+- `CanDecoder.resetSessionState()` MUST be called on every new connection (resets modeDetail420 + has420Arrived)
+- `genericValues: Map<String, Double>` — populated by PidRegistry for catalog DIDs without a dedicated field
+- HVAC/IPC fields in VehicleState are scaffolded (v2.2.5) but not yet reliably populated
+
+## OBD Mode 22 Response Layout
+
+```
+data[0] = PCI  (0x0N, N = payload length)
+data[1] = 0x62 (positive response SID)
+data[2] = DID high byte
+data[3] = DID low byte
+data[4] = B4   ← first data byte
+data[5] = B5,  data[6] = B6 …
+```
+
+## Known Gotchas
+
+- `0x340` is PCMmsg17 (PCM ambient temp), **NOT** a TPMS broadcast — TPMS only via BCM Mode 22 DIDs 0x2813/14/15/16
+- Drive mode needs **both** `0x1B0` (nibble) **AND** `0x420` (bytes 6-7) — `0x1B0` alone cannot distinguish Sport from Track. **Polarity: bit0=0→Sport (0xCC), bit0=1→Track (0xCD).** Button cycle order: Normal→Sport→Track→Drift
+- Skip `0x1B0` frames where byte4 ≠ 0 (button-event transition frames; steady-state has byte4 == 0)
+- `0x230` (gear) and `0x3C0` (battery voltage) do **NOT** broadcast on this car — battery from PCM DID 0x0304
+- `boostKpa` is **absolute** pressure (not gauge) — gauge pressure = `boostKpa − 101.325`
+- TPMS PID `0x280B` is multi-frame ISO-TP — send `BCM_FLOW_CONTROL` after receiving First Frame
+- Extended session (`0x10 0x03`) required before: RDU_STATUS (AWD 0x703), PDC (PSCM 0x730), FENG (0x727), RSProt (0x731)
+- Firmware drive mode is **hybrid scroll-then-wait** (v1.61+) — pre-calculates scroll count, sends all presses open-loop, waits up to 6s for auto-confirm. Do NOT revert to closed-loop press-and-poll (v1.6 bug) or pure open-loop press counting (v1.5 bug). The Focus RS mode selector GUI requires ~4s of inactivity to auto-confirm — CAN does not update during scrolling
+- Firmware REST POST `/api/frs` returns `{"ok":false,"busy":true}` when a drive mode change is in progress — app must handle this
+- `fengTimedOut` / `rsprotTimedOut` = true after 3 failed probe cycles — do not suggest retrying indefinitely
+- **Drive mode cold-start gate** — `has420Arrived` flag in CanDecoder prevents Sport/Track resolution until the first `0x420` frame is received. Without this gate, `0x1B0` nibble=1 resolves against stale `modeDetail420` default during the 0-600ms blind window after connection, causing wrong mode flashes. The drive mode confirmation loop in MorePage adds a 2s post-command settling delay, a 15s timeout, and auto-correction if the car lands on the wrong mode (sends a corrective command automatically).
+- Android 10+ silently routes new sockets through cellular when WiFi has no internet — `FirmwareApi` uses `Network.socketFactory` via `ConnectivityManager` to force all traffic on WiFi
+
+## Theme Colors
+
+```
+Bg      #05070A   Surf    #0A0D12   Surf2  #0F141C   Surf3  #141B26
+Frost   #E8F4FF   Dim     #3D5A72   Mid    #7A9AB8   Brd    #162030
+Accent  #0091EA   AccentD #006DB3   Orange #FF4D00   Ok     #00FF88   Warn #FFCC00
+```
+
+RS paint themes (`themeId`): `cyan`=Nitrous Blue, `red`=Race Red, `orange`=Deep Orange,
+`grey`=Stealth Grey, `black`=Shadow Black, `white`=Frozen White
+
+## AppSettings Defaults
+
+```
+Speed: MPH  |  Temp: °F  |  Boost: PSI  |  Tire: PSI  |  TireLowPsi: 30
+WiCAN:   192.168.80.1:80     MeatPi: 192.168.0.10:35000
+ScreenOn: true  |  AutoReconnect: true  |  MaxDiagZips: 5
+AdapterType: "WICAN"  (alt: "MEATPI")
+Prefs file: "openrs_settings"
+```
+
+## Assets
+
+```
+android/app/src/main/assets/pids/combined_catalog.json   — 136 KB merged PID catalog
+android/app/src/main/assets/pids/forscan_modules.json    — 185 KB FORScan catalog (1,149 PIDs)
+android/app/src/main/res/raw/dtc_database.json           — 873-code Ford DTC descriptions
+android/app/src/main/res/raw/map_style_dark.json         — OSMDroid dark map style
+```
+
+Regenerate catalogs: `python3 android/scripts/gen_forscan_catalog.py`
+
+## Build
+
+```bash
+cd android
+./gradlew assembleDebug                    # → openRS_v{ver}-staging-debug.apk
+./gradlew assembleRelease                  # → openRS_v{ver}.apk  (main release)
+./gradlew assembleRelease -PrcSuffix=rc.5  # → openRS_v{ver}-rc.5.apk
+./gradlew test                             # 150+ unit tests across 4 files
+bash scripts/install-debug.sh              # quick build + ADB install + launch
+```
+
+Requires `android/local.properties` (`OPENWEATHER_API_KEY=...`) and `android/keystore.properties` for release signing.
+Version display format: `openRS_ v2.2.6` or `openRS_ v2.2.6-rc.1` (set via `-PrcSuffix=rc.1`).
+RC builds MUST use `-PrcSuffix` so the APK filename reflects the RC version.
+
+## Tests
+
+```
+android/app/src/test/java/com/openrs/dash/
+  can/CanDecoderTest.kt          — 50+ tests: all 22 CAN ID decoders
+  can/ObdResponseParserTest.kt   — 41 tests: PCM/BCM/AWD/PSCM/FENG/RSProt DIDs
+  can/SlcanParserTest.kt         — 28 tests: standard/extended frames, error cases
+  data/VehicleStateTest.kt       — 30 tests: conversions, AWD split, peaks, TPMS, RTR
+```
+
+## Branch / Release Workflow
+
+```
+feature/* → staging → main          (code, tests, android/CHANGELOG.md)
+docs/*    → main    (direct)        (README.md, assets/, docs/, firmware/README.md)
+Release tags: android-v*  (triggers CI signing + GitHub Release)
+Rolling RC: one pre-release per version stream; tag/APK updated in place as RCs progress
+```
+
+Docs branches skip staging entirely — branch from main, PR to main.
+Never route README.md, assets/, or docs/ through staging.
+
+**Release checklist (staging → main):**
+1. Scan open GitHub issues for any fixed by commits in the release (`gh issue list --state open` vs commit history)
+2. Close standalone issues that shipped — comment with commit SHA
+3. Update umbrella issue checklists — check off shipped sub-items with version annotation
+4. Close umbrella issues only when ALL sub-items are checked off
+5. Add/update `versionHighlights` entry in `WhatsNewDialog.kt` for the new version — dialog falls back to the latest entry if missing, but every release should have its own highlights
+
+## Changelog Format (`android/CHANGELOG.md`)
+
+Every release follows the same structure. Consistency matters — do not deviate.
+
+**Entry template:**
+```
+- **Short title** — Description of what changed and why. ([#N](https://github.com/klexical/openRS_/issues/N))
+```
+
+**Rules:**
+1. **Sections** — use only these four, in this order: `Added`, `Fixed`, `Changed`, `Removed`. No synonyms (not "Improved", "Refactored", "Stability", "Performance").
+2. **RC sub-sections** — append `(rc.N)` to the section header when a version has multiple RCs: `### Fixed (rc.3)`. Add a short label after the RC number for context: `### Added (rc.4 — visual polish)`.
+3. **Issue links are mandatory** — every entry that originated from or addresses a GitHub issue MUST end with the issue link: `([#N](url))`. If it addresses a sub-item in an umbrella issue, use: `(addresses [#N](url))`. Entries for bugs found and fixed within the same RC (no issue exists) are exempt.
+4. **One format for links** — always `[#N](https://github.com/klexical/openRS_/issues/N)`. Never bare `(#N)`, never `Fixes #N` or `Addresses sub-item in #N` inline.
+5. **Entry length** — 1-3 sentences. Lead with what changed, then why. Include the file/class name when it helps locate the change. Do not write paragraphs — the commit message has the full detail.
+6. **Never shorten or rewrite previous RC entries** — when adding a new RC section, append it. Do not edit, condense, or rephrase entries from earlier RCs.
+7. **Every fix shipped in a commit gets a changelog entry** — if a commit touches code that fixes something, it goes in the changelog, even if the commit's primary purpose was a feature.
+
+## GitHub Release Notes
+
+Release notes are a **condensed highlight reel**, not a copy of the changelog.
+
+**Format:**
+- "What's new in rc.N" — bullet list of user-facing highlights (1 line each, no implementation details)
+- "Previous RCs" — one-liner per prior RC summarizing its theme, with issue links
+- "Testing notes" — quick checklist of what to verify
+- Link back to `android/CHANGELOG.md` for full detail
+
+**Rule:** `CHANGELOG.md` is the authoritative record. Release notes summarize it. Never put detail in release notes that isn't in the changelog.
+
+## Sapphire — Web Analytics Dashboard (`web/`)
+
+Post-session analysis dashboard replacing the old Mission Control HTML export.
+Named after the Ford Sierra Sapphire RS Cosworth + Nitrous Blue gemstone connection.
+
+**Tech stack:** Vite + React 19 + TypeScript + Tailwind CSS + Recharts + Zustand.
+Pure client-side (no server). Deployed as static files to GitHub Pages.
+
+**Data contract:** Android app exports ZIP → user imports into Sapphire via drag-and-drop.
+ZIP contains: `trip_*.csv`, `diagnostic_detail_*.json`, `diagnostic_summary_*.txt`, `did_probe_*.csv`.
+Sapphire parses these and stores sessions in browser IndexedDB.
+
+**Design:** Dark "Void" aesthetic matching the openRS_ in-app palette. Nav rail + panel layout.
+
+```
+web/
+  src/
+    components/
+      layout/          — Shell, NavRail, Header
+      panels/          — DashboardPanel, TripPanel, DiagnosticsPanel, SessionsPanel
+      charts/          — TimeSeriesChart, GpsMap (Recharts + Leaflet)
+      ui/              — MetricCard, SectionLabel, DataCell, Button
+    store/             — Zustand store (sessions, active panel, UI state)
+    lib/               — ZIP import, IndexedDB, unit conversions
+    styles/            — Design tokens (openRS_ palette)
+    types/             — Session, trip, diagnostic, vehicle state types
+```
+
+```bash
+cd web
+pnpm install                  # install dependencies
+pnpm dev                      # local dev server (Vite)
+pnpm build                    # production build → dist/
+pnpm preview                  # preview production build
+```
+
+Old `MissionControlHtmlBuilder.kt` + `mission_control.html` remain as a "lite" fallback
+until Sapphire reaches feature parity.
+
+## Near-Horizon Work
+
+```
+2.1  Knock event logger       — KR cyl 1-4 (0x03EC-EF) scatter plot: RPM vs boost
+2.2  Fuel trim drift tracker  — STFT (PID 0x06) + LTFT (PID 0x07) per session, line chart
+2.3  Boost target vs actual   — TIP desired/actual, WGDC (0x0462), boost across RPM sweep
+```
+
+See `docs/feature-roadmap.md` for full pipeline.
