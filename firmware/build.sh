@@ -58,7 +58,7 @@ case "$TARGET" in
         IDF_TARGET="esp32c3"
         SDKCONFIG_FILE="sdkconfig.defaults.usb"
         PARTITIONS_FILE="partitions_openrs_usb.csv"
-        OUTPUT_BIN="openrs-fw-usb_v1.6.bin"
+        OUTPUT_BIN="openrs-fw-usb_v1.61.bin"
         TARGET_DESC="WiCAN USB-C3 (ESP32-C3)"
         ;;
     pro)
@@ -66,7 +66,7 @@ case "$TARGET" in
         IDF_TARGET="esp32s3"
         SDKCONFIG_FILE="sdkconfig.defaults.pro"
         PARTITIONS_FILE="partitions_openrs_pro.csv"
-        OUTPUT_BIN="openrs-fw-pro_v1.1.bin"
+        OUTPUT_BIN="openrs-fw-pro_v1.2.bin"
         TARGET_DESC="WiCAN Pro (ESP32-S3)"
         ;;
 esac
@@ -142,6 +142,14 @@ cp -r "$COMPONENTS_DIR/ble_transport" "$WICAN_DIR/components/"
 # ── 5. Apply source patches ───────────────────────────────────────────────────
 log "Applying source patches (target: $TARGET)..."
 python3 "$PATCHES_DIR/apply_patches.py" "$WICAN_DIR" --target "$TARGET"
+
+# ── 5b. Touch patched files to guarantee rebuild ─────────────────────────────
+# Ninja/CMake tracks file timestamps. If apply_patches.py re-applies the same
+# content, timestamps may not advance and ninja skips recompilation — leaving
+# stale version strings baked into object files.  Explicit touch forces rebuild.
+touch "$WICAN_DIR/main/slcan.c"              2>/dev/null || true
+touch "$WICAN_DIR/main/config_server.c"      2>/dev/null || true
+touch "$WICAN_DIR/components/focusrs/focusrs.h" 2>/dev/null || true
 
 # ── 6. Build ──────────────────────────────────────────────────────────────────
 log "Building for $IDF_TARGET..."

@@ -235,16 +235,17 @@ class ObdResponseParserTest {
     }
 
     @Test
-    fun `PCM - fuel level (0xF42F)`() {
+    fun `PCM - fuel level (0xF42F) stored in genericValues`() {
         // DID 0xF42F: (B4 * 100/255) clamped 0-100
         // 128 -> 128 * 100/255 = 50.2%
+        // Stored in genericValues (not fuelLevelPct) to avoid race with CAN 0x380
         var result: VehicleState? = null
         ObdResponseParser.parsePcmResponse(
             makeResponse(0xF4, 0x2F, 128),
             blank
         ) { result = it }
         assertNotNull(result)
-        assertEquals(50.2, result!!.fuelLevelPct, 0.5)
+        assertEquals(50.2, result!!.genericValues["FuelLevel_OBD"]!!, 0.5)
     }
 
     @Test
