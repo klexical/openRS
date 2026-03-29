@@ -147,7 +147,8 @@ class MainActivity : ComponentActivity() {
                                                     val q: suspend (Int, String, Long) -> ByteArray? =
                                                         { r, f, t -> svc.sendRawQuery(r, f, t) }
                                                     q
-                                                }
+                                                },
+                                                onResetSession = { service?.resetSession() }
                                             )
                                             5 -> MorePage(vs, prefs, snackbarHostState, onSettings = { settingsOpen = true }, onCustomDash = { showCustomDash = true })
                                         }

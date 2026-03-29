@@ -264,13 +264,17 @@ import com.openrs.dash.R
     tempC: Double = -99.0,
     deltaText: String = ""
 ) {
-    val isLow     = psi in 0.0..(lowThreshold - 0.001)
     val isMissing = psi < 0
+    val warnThreshold = p.tireWarnPsi.toDouble()
+    val highThreshold = p.tireHighPsi.toDouble()
+    val isLow     = psi in 0.0..(lowThreshold - 0.001)
+    val isWarn    = psi in lowThreshold..(warnThreshold - 0.001)
     val tireColor = when {
-        isMissing  -> Dim
-        isLow      -> Orange
-        psi > 40.0 -> Warn
-        else       -> Ok
+        isMissing       -> Dim
+        isLow           -> Orange        // critically under-inflated
+        isWarn          -> Warn          // getting low
+        psi > highThreshold -> Orange   // over-inflated
+        else            -> Ok            // optimal range
     }
     val hasTemp = tempC > -90
     Column(

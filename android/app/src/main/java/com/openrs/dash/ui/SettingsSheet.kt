@@ -43,6 +43,8 @@ fun SettingsDialog(onDismiss: () -> Unit) {
     var boostUnit       by remember { mutableStateOf(current.boostUnit) }
     var tireUnit        by remember { mutableStateOf(current.tireUnit) }
     var tireLowPsi      by remember { mutableStateOf(current.tireLowPsi.toString()) }
+    var tireWarnPsi     by remember { mutableStateOf(current.tireWarnPsi.toString()) }
+    var tireHighPsi     by remember { mutableStateOf(current.tireHighPsi.toString()) }
     var screenOn        by remember { mutableStateOf(current.screenOn) }
     var autoReconnect   by remember { mutableStateOf(current.autoReconnect) }
     var reconnectSec    by remember { mutableStateOf(current.reconnectIntervalSec.toString()) }
@@ -121,22 +123,50 @@ fun SettingsDialog(onDismiss: () -> Unit) {
 
                 // ── TPMS section ──────────────────────────────────────────────
                 SettingsSection("TPMS") {
-                    SettingsRow("Low Pressure Warning") {
+                    SettingsRow("Low (critical)") {
                         OutlinedTextField(
                             value = tireLowPsi,
                             onValueChange = { tireLowPsi = it; error = null },
-                        label = { Text("PSI threshold", fontFamily = ShareTechMono, fontSize = 10.sp) },
-                        singleLine = true,
-                        modifier = Modifier.width(120.dp),
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-                        colors = outlinedFieldColors(),
-                        textStyle = androidx.compose.ui.text.TextStyle(
-                            fontFamily = ShareTechMono, fontSize = 14.sp, color = Frost
+                            label = { Text("PSI", fontFamily = ShareTechMono, fontSize = 10.sp) },
+                            singleLine = true,
+                            modifier = Modifier.width(90.dp),
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                            colors = outlinedFieldColors(),
+                            textStyle = androidx.compose.ui.text.TextStyle(
+                                fontFamily = ShareTechMono, fontSize = 14.sp, color = Frost
+                            )
                         )
+                    }
+                    SettingsRow("Warn (getting low)") {
+                        OutlinedTextField(
+                            value = tireWarnPsi,
+                            onValueChange = { tireWarnPsi = it; error = null },
+                            label = { Text("PSI", fontFamily = ShareTechMono, fontSize = 10.sp) },
+                            singleLine = true,
+                            modifier = Modifier.width(90.dp),
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                            colors = outlinedFieldColors(),
+                            textStyle = androidx.compose.ui.text.TextStyle(
+                                fontFamily = ShareTechMono, fontSize = 14.sp, color = Frost
+                            )
+                        )
+                    }
+                    SettingsRow("High (over-inflated)") {
+                        OutlinedTextField(
+                            value = tireHighPsi,
+                            onValueChange = { tireHighPsi = it; error = null },
+                            label = { Text("PSI", fontFamily = ShareTechMono, fontSize = 10.sp) },
+                            singleLine = true,
+                            modifier = Modifier.width(90.dp),
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                            colors = outlinedFieldColors(),
+                            textStyle = androidx.compose.ui.text.TextStyle(
+                                fontFamily = ShareTechMono, fontSize = 14.sp, color = Frost
+                            )
                         )
                     }
                     Spacer(Modifier.height(4.dp))
-                    Text("Tires below this value show red. Default: ${AppSettings.DEFAULT_TIRE_LOW_PSI} PSI",
+                    Text("Red < ${AppSettings.DEFAULT_TIRE_LOW_PSI} | Gold < ${AppSettings.DEFAULT_TIRE_WARN_PSI} | Green | Red > ${AppSettings.DEFAULT_TIRE_HIGH_PSI} PSI",
                         fontSize = 10.sp, color = Dim, fontFamily = ShareTechMono)
                 }
 
@@ -434,6 +464,8 @@ fun SettingsDialog(onDismiss: () -> Unit) {
                     onClick = {
                         val p = port.toIntOrNull()
                         val threshold = tireLowPsi.toFloatOrNull()
+                        val warnThr   = tireWarnPsi.toFloatOrNull()
+                        val highThr   = tireHighPsi.toFloatOrNull()
                         // M-10 fix: only validate the retry interval field when auto-reconnect
                         // is enabled. When disabled the field is hidden and may hold a stale
                         // string; fall back to the default so SAVE never gets permanently stuck.
@@ -443,7 +475,9 @@ fun SettingsDialog(onDismiss: () -> Unit) {
                         when {
                             host.isBlank() -> error = "Host cannot be empty"
                             p == null || p !in 1..65535 -> error = "Port must be 1–65535"
-                            threshold == null || threshold <= 0 -> error = "Tire threshold must be > 0"
+                            threshold == null || threshold <= 0 -> error = "Low threshold must be > 0"
+                            warnThr == null || warnThr <= threshold -> error = "Warn must be > Low"
+                            highThr == null || highThr <= warnThr -> error = "High must be > Warn"
                             autoReconnect && (retryInt == null || retryInt < 1) -> error = "Retry interval must be ≥ 1 s"
                             maxZips == null || maxZips < 1 -> error = "Max ZIPs must be ≥ 1"
                             else -> {
@@ -454,6 +488,8 @@ fun SettingsDialog(onDismiss: () -> Unit) {
                                     boostUnit            = boostUnit,
                                     tireUnit             = tireUnit,
                                     tireLowPsi           = threshold,
+                                    tireWarnPsi          = warnThr,
+                                    tireHighPsi          = highThr,
                                     screenOn             = screenOn,
                                     autoReconnect        = autoReconnect,
                                     reconnectIntervalSec = retryInt ?: AppSettings.DEFAULT_RECONNECT_INTERVAL,

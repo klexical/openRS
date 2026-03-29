@@ -33,6 +33,7 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.sp
 import com.openrs.dash.data.DtcResult
 import com.openrs.dash.data.DtcStatus
@@ -52,7 +53,8 @@ import kotlin.math.roundToInt
     vs: VehicleState,
     onScanDtcs: (suspend () -> List<DtcResult>)?,
     onClearDtcs: (suspend () -> Map<String, Boolean>)? = null,
-    onSendRawQuery: (suspend (responseId: Int, frame: String, timeoutMs: Long) -> ByteArray?)? = null
+    onSendRawQuery: (suspend (responseId: Int, frame: String, timeoutMs: Long) -> ByteArray?)? = null,
+    onResetSession: () -> Unit = {}
 ) {
     val ctx    = LocalContext.current
     val scope  = rememberCoroutineScope()
@@ -387,6 +389,54 @@ import kotlin.math.roundToInt
         Spacer(Modifier.height(4.dp))
         MonoLabel("Exports ZIP (summary + raw log + JSON) via share sheet.", 9.sp, Dim,
             modifier = Modifier.padding(bottom = 12.dp))
+
+        // ── Reset Session ────────────────────────────────────────────────
+        if (vs.isConnected) {
+            var confirmReset by remember { mutableStateOf(false) }
+            Row(
+                Modifier.fillMaxWidth().padding(bottom = 12.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                MonoLabel("SESSION", 9.sp, Dim, letterSpacing = 0.2.sp)
+                Spacer(Modifier.weight(1f))
+                if (confirmReset) {
+                    MonoLabel("Reset all data?", 10.sp, Orange)
+                    Spacer(Modifier.width(8.dp))
+                    Box(
+                        Modifier
+                            .background(Orange.copy(0.15f), RoundedCornerShape(6.dp))
+                            .border(1.dp, Orange.copy(0.4f), RoundedCornerShape(6.dp))
+                            .clickable {
+                                onResetSession()
+                                confirmReset = false
+                            }
+                            .padding(horizontal = 10.dp, vertical = 6.dp)
+                    ) {
+                        MonoLabel("CONFIRM", 10.sp, Orange, FontWeight.Bold, 0.1.sp)
+                    }
+                    Box(
+                        Modifier
+                            .background(Surf2, RoundedCornerShape(6.dp))
+                            .border(1.dp, Brd, RoundedCornerShape(6.dp))
+                            .clickable { confirmReset = false }
+                            .padding(horizontal = 10.dp, vertical = 6.dp)
+                    ) {
+                        MonoLabel("CANCEL", 10.sp, Dim, FontWeight.Bold, 0.1.sp)
+                    }
+                } else {
+                    Box(
+                        Modifier
+                            .background(Surf2, RoundedCornerShape(6.dp))
+                            .border(1.dp, Brd, RoundedCornerShape(6.dp))
+                            .clickable { confirmReset = true }
+                            .padding(horizontal = 10.dp, vertical = 6.dp)
+                    ) {
+                        MonoLabel("RESET SESSION", 10.sp, Frost, FontWeight.Bold, 0.1.sp)
+                    }
+                }
+            }
+        }
 
         HorizontalDivider(color = Brd)
         Spacer(Modifier.height(10.dp))

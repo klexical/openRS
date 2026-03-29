@@ -736,4 +736,110 @@ class CanDecoderTest {
         assertNotNull(result)
         assertEquals(-200.0, result!!.torqueAtTrans, 1.0)
     }
+
+    // ── 0x138: Clutch pedal position ───────────────────────────────────────
+
+    @Test
+    fun `decode clutch pedal full press`() {
+        // ((data[2] & 0x03) << 8 | data[3]) × 0.1
+        // raw 1000 → 100.0%: data[2]=0x03, data[3]=0xE8
+        val data = byteArrayOf(0x00, 0x00, 0x03, 0xE8.toByte())
+        val result = CanDecoder.decode(0x138, data, blank)
+        assertNotNull(result)
+        assertEquals(100.0, result!!.clutchPedalPct, 0.1)
+    }
+
+    @Test
+    fun `decode clutch pedal zero`() {
+        val data = byteArrayOf(0x00, 0x00, 0x00, 0x00)
+        val result = CanDecoder.decode(0x138, data, blank)
+        assertNotNull(result)
+        assertEquals(0.0, result!!.clutchPedalPct, 0.01)
+    }
+
+    @Test
+    fun `decode clutch pedal short data returns null`() {
+        val data = byteArrayOf(0x00, 0x00, 0x00)
+        val result = CanDecoder.decode(0x138, data, blank)
+        assertNull(result)
+    }
+
+    // ── 0x1E0: Wheel rotation counts ───────────────────────────────────────
+
+    @Test
+    fun `decode wheel rotation counts`() {
+        // FL=10, FR=20, RL=30, RR=40, avgFront = word(4,5) × 0.01
+        // 5000 × 0.01 = 50.0 kph: 0x1388 → byte4=0x13, byte5=0x88
+        val data = byteArrayOf(10, 20, 30, 40, 0x13, 0x88.toByte())
+        val result = CanDecoder.decode(0x1E0, data, blank)
+        assertNotNull(result)
+        assertEquals(10, result!!.wheelRotFL)
+        assertEquals(20, result.wheelRotFR)
+        assertEquals(30, result.wheelRotRL)
+        assertEquals(40, result.wheelRotRR)
+        assertEquals(50.0, result.avgFrontWheelSpeedKph, 0.01)
+    }
+
+    @Test
+    fun `decode wheel rotation short data returns null`() {
+        val data = byteArrayOf(10, 20, 30, 40, 0x13)
+        val result = CanDecoder.decode(0x1E0, data, blank)
+        assertNull(result)
+    }
+
+    // ── 0x40A: VIN multiplexed decode ──────────────────────────────────────
+
+    @Test
+    fun `decode VIN assembles from three mux pages`() {
+        // VIN = "WF0XXXGCDXGY12345" (17 chars)
+        // 8-byte CAN frame: 2 mux bytes + 6 data bytes per page
+        // Page C1 00: bytes 2-7 = "WF0XXX" (6 chars)
+        // Page C1 01: bytes 2-7 = "GCDXGY" (6 chars)
+        // Page C1 02: bytes 2-6 = "12345"  (5 chars) → total 17
+        val page0 = byteArrayOf(0xC1.toByte(), 0x00, 'W'.code.toByte(), 'F'.code.toByte(), '0'.code.toByte(), 'X'.code.toByte(), 'X'.code.toByte(), 'X'.code.toByte())
+        val page1 = byteArrayOf(0xC1.toByte(), 0x01, 'G'.code.toByte(), 'C'.code.toByte(), 'D'.code.toByte(), 'X'.code.toByte(), 'G'.code.toByte(), 'Y'.code.toByte())
+        val page2 = byteArrayOf(0xC1.toByte(), 0x02, '1'.code.toByte(), '2'.code.toByte(), '3'.code.toByte(), '4'.code.toByte(), '5'.code.toByte(), 0x00)
+
+        // Page 0 alone — not complete
+        val r0 = CanDecoder.decode(0x40A, page0, blank)
+        assertNull(r0)
+
+        // Page 1
+        val r1 = CanDecoder.decode(0x40A, page1, blank)
+        assertNull(r1)
+
+        // Page 2 completes VIN
+        val r2 = CanDecoder.decode(0x40A, page2, blank)
+        assertNotNull(r2)
+        assertEquals("WF0XXXGCDXGY12345", r2!!.vin)
+        assertEquals(17, r2.vin.length)
+    }
+
+    @Test
+    fun `decode VIN ignores non-C1 mux pages`() {
+        val data = byteArrayOf(0xC0.toByte(), 0x01, 0x00, 0x01, 0x07, 0xAC.toByte(), 0x00, 0x00)
+        val result = CanDecoder.decode(0x40A, data, blank)
+        assertNull(result)
+    }
+
+    @Test
+    fun `decode VIN short data returns null`() {
+        val data = byteArrayOf(0xC1.toByte(), 0x00, 'W'.code.toByte(), 'F'.code.toByte(), '0'.code.toByte(), 'X'.code.toByte())
+        val result = CanDecoder.decode(0x40A, data, blank)
+        assertNull(result)
+    }
+
+    @Test
+    fun `decode VIN reset clears assembly state`() {
+        val page0 = byteArrayOf(0xC1.toByte(), 0x00, 'W'.code.toByte(), 'F'.code.toByte(), '0'.code.toByte(), 'X'.code.toByte(), 'X'.code.toByte(), 0x00)
+        CanDecoder.decode(0x40A, page0, blank)
+
+        // Reset should clear VIN segments
+        CanDecoder.resetSessionState()
+
+        val page2 = byteArrayOf(0xC1.toByte(), 0x02, 'G'.code.toByte(), 'Y'.code.toByte(), '1'.code.toByte(), '2'.code.toByte(), '3'.code.toByte(), '4'.code.toByte())
+        val result = CanDecoder.decode(0x40A, page2, blank)
+        // Should be null — page 0 and 1 not received after reset
+        assertNull(result)
+    }
 }

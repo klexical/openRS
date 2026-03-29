@@ -25,6 +25,8 @@ data class UserPrefs(
     val boostUnit: String           = AppSettings.DEFAULT_BOOST_UNIT,   // "PSI" | "BAR" | "KPA"
     val tireUnit: String            = AppSettings.DEFAULT_TIRE_UNIT,    // "PSI" | "BAR"
     val tireLowPsi: Float           = AppSettings.DEFAULT_TIRE_LOW_PSI,
+    val tireWarnPsi: Float          = AppSettings.DEFAULT_TIRE_WARN_PSI,
+    val tireHighPsi: Float          = AppSettings.DEFAULT_TIRE_HIGH_PSI,
     val screenOn: Boolean           = AppSettings.DEFAULT_SCREEN_ON,
     val autoReconnect: Boolean      = AppSettings.DEFAULT_AUTO_RECONNECT,
     val reconnectIntervalSec: Int   = AppSettings.DEFAULT_RECONNECT_INTERVAL,

@@ -43,8 +43,12 @@ object AppSettings {
     const val DEFAULT_TIRE_UNIT   = "PSI"
 
     // ── TPMS ────────────────────────────────────────────────────────────────
-    const val KEY_TIRE_LOW_PSI = "tire_low_psi"   // Low pressure warning threshold
-    const val DEFAULT_TIRE_LOW_PSI = 30f
+    const val KEY_TIRE_LOW_PSI  = "tire_low_psi"    // Critical low threshold
+    const val DEFAULT_TIRE_LOW_PSI  = 30f
+    const val KEY_TIRE_WARN_PSI = "tire_warn_psi"   // Warn (getting low) threshold
+    const val DEFAULT_TIRE_WARN_PSI = 34f
+    const val KEY_TIRE_HIGH_PSI = "tire_high_psi"   // Over-inflated threshold
+    const val DEFAULT_TIRE_HIGH_PSI = 50f            // Ford track max (cold)
 
     // ── Display ─────────────────────────────────────────────────────────────
     const val KEY_SCREEN_ON = "screen_on"
@@ -118,6 +122,12 @@ object AppSettings {
     fun getTireLowPsi(ctx: Context): Float =
         prefs(ctx).getFloat(KEY_TIRE_LOW_PSI, DEFAULT_TIRE_LOW_PSI)
 
+    fun getTireWarnPsi(ctx: Context): Float =
+        prefs(ctx).getFloat(KEY_TIRE_WARN_PSI, DEFAULT_TIRE_WARN_PSI)
+
+    fun getTireHighPsi(ctx: Context): Float =
+        prefs(ctx).getFloat(KEY_TIRE_HIGH_PSI, DEFAULT_TIRE_HIGH_PSI)
+
     fun getScreenOn(ctx: Context): Boolean =
         prefs(ctx).getBoolean(KEY_SCREEN_ON, DEFAULT_SCREEN_ON)
 
@@ -185,7 +195,9 @@ object AppSettings {
             putString(KEY_TEMP_UNIT,   p.tempUnit)
             putString(KEY_BOOST_UNIT,  p.boostUnit)
             putString(KEY_TIRE_UNIT,   p.tireUnit)
-            putFloat (KEY_TIRE_LOW_PSI, p.tireLowPsi)
+            putFloat (KEY_TIRE_LOW_PSI,  p.tireLowPsi)
+            putFloat (KEY_TIRE_WARN_PSI, p.tireWarnPsi)
+            putFloat (KEY_TIRE_HIGH_PSI, p.tireHighPsi)
             putBoolean(KEY_SCREEN_ON,  p.screenOn)
             putBoolean(KEY_AUTO_RECONNECT,    p.autoReconnect)
             putInt   (KEY_RECONNECT_INTERVAL, p.reconnectIntervalSec)
@@ -204,6 +216,8 @@ object AppSettings {
         boostUnit            = getBoostUnit(ctx),
         tireUnit             = getTireUnit(ctx),
         tireLowPsi           = getTireLowPsi(ctx),
+        tireWarnPsi          = getTireWarnPsi(ctx),
+        tireHighPsi          = getTireHighPsi(ctx),
         screenOn             = getScreenOn(ctx),
         autoReconnect        = getAutoReconnect(ctx),
         reconnectIntervalSec = getReconnectInterval(ctx),

@@ -41,6 +41,9 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.runtime.collectAsState
+import com.openrs.dash.data.FuelEconomy
+import com.openrs.dash.data.PerformanceTimer
 import com.openrs.dash.data.VehicleState
 import com.openrs.dash.ui.anim.ShiftLightBar
 import com.openrs.dash.ui.anim.SparklineData
@@ -166,6 +169,16 @@ import kotlin.math.roundToInt
             }
         }
 
+        // ── Performance Timer (0-60 / 0-100) ──────────────────────────────
+        val timerState by PerformanceTimer.state.collectAsState()
+        SideEffect {
+            if (timerState.state == PerformanceTimer.State.ARMED ||
+                timerState.state == PerformanceTimer.State.RUNNING) {
+                PerformanceTimer.onSpeedUpdate(vs.speedKph, vs.rpm, vs.boostPsi)
+            }
+        }
+        PerformanceTimerSection(timerState, accent)
+
         // ── Warning Lamps (populated once IPC DIDs are discovered) ─────────
         val activeWarnings = listOfNotNull(
             if (vs.warnMil == true) "CEL" else null,
@@ -197,7 +210,7 @@ import kotlin.math.roundToInt
             // Landscape / wide: single row of 4 BarCards
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 BarCard(
-                    name = if (vs.throttleHasSource) "THROTTLE" else "PEDAL",
+                    name = "THROTTLE",
                     value = "${animThr.roundToInt()}%",
                     fraction = (animThr / 100f),
                     barBrush = Brush.horizontalGradient(listOf(accent.copy(0.4f), accent)),
@@ -221,7 +234,7 @@ import kotlin.math.roundToInt
                     barGlowColor = Ok
                 )
                 BarCard(
-                    name = "BATTERY", value = "${"%.1f".format(animBatt)}V",
+                    name = "BATTERY", value = "${"%.2f".format(animBatt)}V",
                     fraction = ((animBatt - 10f) / 6f).coerceIn(0f, 1f),
                     barBrush = Brush.horizontalGradient(listOf(Warn.copy(0.4f), Warn)),
                     modifier = Modifier.weight(1f),
@@ -232,7 +245,7 @@ import kotlin.math.roundToInt
             // Portrait: two rows of 2 BarCards
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 BarCard(
-                    name = if (vs.throttleHasSource) "THROTTLE" else "PEDAL",
+                    name = "THROTTLE",
                     value = "${animThr.roundToInt()}%",
                     fraction = (animThr / 100f),
                     barBrush = Brush.horizontalGradient(listOf(accent.copy(0.4f), accent)),
@@ -258,12 +271,19 @@ import kotlin.math.roundToInt
                     barGlowColor = Ok
                 )
                 BarCard(
-                    name = "BATTERY", value = "${"%.1f".format(animBatt)}V",
+                    name = "BATTERY", value = "${"%.2f".format(animBatt)}V",
                     fraction = ((animBatt - 10f) / 6f).coerceIn(0f, 1f),
                     barBrush = Brush.horizontalGradient(listOf(Warn.copy(0.4f), Warn)),
                     modifier = Modifier.weight(1f),
                     barGlowColor = Warn
                 )
+            }
+        }
+
+        // ── Clutch pedal (CAN 0x138) ─────────────────────────────────────
+        if (vs.clutchPedalPct > 0.1) {
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                DataCell("CLUTCH", "${vs.clutchPedalPct.roundToInt()}%", modifier = Modifier.weight(1f))
             }
         }
 
@@ -321,6 +341,38 @@ import kotlin.math.roundToInt
             if (vs.odometerKm >= 0) {
                 MonoLabel("tap to toggle", 8.sp, Dim,
                     modifier = Modifier.align(Alignment.CenterEnd).padding(end = 74.dp))
+            }
+        }
+
+        // ── Fuel Economy ───────────────────────────────────────────────────
+        val econState by FuelEconomy.state.collectAsState()
+        SideEffect {
+            if (vs.fuelLevelPct > 0) FuelEconomy.onUpdate(vs.fuelLevelPct, vs.speedKph)
+        }
+        if (econState.isValid) {
+            SectionLabel("FUEL ECONOMY")
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                if (vs.speedKph < 2.0 && econState.idleFuelLPerHr > 0.01) {
+                    DataCell("IDLE", "${"%.1f".format(econState.idleFuelLPerHr)} L/hr",
+                        modifier = Modifier.weight(1f))
+                } else if (p.speedUnit == "MPH") {
+                    DataCell("INST", if (econState.instantMpg > 0.1) "${"%.1f".format(econState.instantMpg)} MPG" else "—",
+                        modifier = Modifier.weight(1f))
+                } else {
+                    DataCell("INST", if (econState.instantL100km > 0.1) "${"%.1f".format(econState.instantL100km)} L/100" else "—",
+                        modifier = Modifier.weight(1f))
+                }
+                if (p.speedUnit == "MPH") {
+                    DataCell("AVG", if (econState.avgMpg > 0.1) "${"%.1f".format(econState.avgMpg)} MPG" else "—",
+                        modifier = Modifier.weight(1f))
+                } else {
+                    DataCell("AVG", if (econState.avgL100km > 0.1) "${"%.1f".format(econState.avgL100km)} L/100" else "—",
+                        modifier = Modifier.weight(1f))
+                }
+                val dteVal = if (p.speedUnit == "MPH")
+                    "${"%.0f".format(econState.distanceToEmptyKm * UnitConversions.KM_TO_MI)} mi"
+                else "${"%.0f".format(econState.distanceToEmptyKm)} km"
+                DataCell("DTE", dteVal, modifier = Modifier.weight(1f))
             }
         }
     }
@@ -410,4 +462,120 @@ internal fun tempColorShade(c: Double, warnC: Double, critC: Double) = when {
     c >= warnC  -> Warn
     c >= warnC * 0.6 -> Ok
     else        -> Frost
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// PERFORMANCE TIMER SECTION
+// ═══════════════════════════════════════════════════════════════════════════
+
+@Composable private fun PerformanceTimerSection(
+    ts: PerformanceTimer.TimerState,
+    accent: androidx.compose.ui.graphics.Color
+) {
+    Column(
+        Modifier.fillMaxWidth()
+            .background(Surf2, RoundedCornerShape(12.dp))
+            .border(1.dp, when (ts.state) {
+                PerformanceTimer.State.RUNNING  -> accent.copy(0.6f)
+                PerformanceTimer.State.ARMED    -> Warn.copy(0.4f)
+                PerformanceTimer.State.FINISHED -> Ok.copy(0.4f)
+                else -> Brd
+            }, RoundedCornerShape(12.dp))
+            .padding(horizontal = 14.dp, vertical = 10.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(6.dp)
+    ) {
+        // Header row: label + target toggle
+        Row(
+            Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            MonoLabel("PERFORMANCE TIMER", 9.sp, Dim, letterSpacing = 0.15.sp)
+            Box(
+                Modifier
+                    .background(Surf, RoundedCornerShape(6.dp))
+                    .border(1.dp, Brd, RoundedCornerShape(6.dp))
+                    .clickable {
+                        val next = if (ts.target == PerformanceTimer.Target.ZERO_TO_60)
+                            PerformanceTimer.Target.ZERO_TO_100
+                        else PerformanceTimer.Target.ZERO_TO_60
+                        if (ts.state == PerformanceTimer.State.IDLE) PerformanceTimer.arm(next)
+                        else if (ts.state == PerformanceTimer.State.FINISHED) {
+                            PerformanceTimer.reset()
+                            PerformanceTimer.arm(next)
+                        }
+                    }
+                    .padding(horizontal = 8.dp, vertical = 4.dp)
+            ) {
+                MonoLabel(ts.target.label, 9.sp, Frost, letterSpacing = 0.1.sp)
+            }
+        }
+
+        // Timer display
+        val timeStr = when (ts.state) {
+            PerformanceTimer.State.IDLE     -> "—.——"
+            PerformanceTimer.State.ARMED    -> "0.00"
+            PerformanceTimer.State.RUNNING  -> "%.2f".format(ts.elapsedMs / 1000.0)
+            PerformanceTimer.State.FINISHED -> "%.2f".format(ts.resultMs / 1000.0)
+        }
+        val timeColor = when (ts.state) {
+            PerformanceTimer.State.RUNNING  -> accent
+            PerformanceTimer.State.FINISHED -> Ok
+            PerformanceTimer.State.ARMED    -> Warn
+            else -> Frost
+        }
+        HeroNum(timeStr, 42.sp, timeColor)
+        MonoLabel("seconds", 8.sp, Dim)
+
+        // Status / details row
+        when (ts.state) {
+            PerformanceTimer.State.IDLE -> {
+                Box(
+                    Modifier
+                        .background(accent.copy(0.12f), RoundedCornerShape(6.dp))
+                        .border(1.dp, accent.copy(0.3f), RoundedCornerShape(6.dp))
+                        .clickable { PerformanceTimer.arm(ts.target) }
+                        .padding(horizontal = 16.dp, vertical = 8.dp)
+                ) {
+                    MonoLabel("ARM TIMER", 10.sp, accent, androidx.compose.ui.text.font.FontWeight.Bold)
+                }
+            }
+            PerformanceTimer.State.ARMED -> {
+                MonoLabel("Waiting for launch…", 10.sp, Warn)
+            }
+            PerformanceTimer.State.RUNNING -> {
+                MonoLabel("Launch RPM: ${ts.launchRpm.roundToInt()}", 9.sp, Dim)
+            }
+            PerformanceTimer.State.FINISHED -> {
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    DataCell("LAUNCH", "${ts.launchRpm.roundToInt()} RPM", modifier = Modifier.weight(1f))
+                    DataCell("BOOST", "${"%.1f".format(ts.peakBoostPsi)} PSI", modifier = Modifier.weight(1f))
+                    if (ts.bestResultMs > 0) {
+                        DataCell("BEST", "${"%.2f".format(ts.bestResultMs / 1000.0)}s", modifier = Modifier.weight(1f))
+                    }
+                }
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Box(
+                        Modifier
+                            .background(accent.copy(0.12f), RoundedCornerShape(6.dp))
+                            .border(1.dp, accent.copy(0.3f), RoundedCornerShape(6.dp))
+                            .clickable { PerformanceTimer.reset(); PerformanceTimer.arm(ts.target) }
+                            .padding(horizontal = 12.dp, vertical = 6.dp)
+                    ) {
+                        MonoLabel("GO AGAIN", 10.sp, accent, androidx.compose.ui.text.font.FontWeight.Bold)
+                    }
+                    Box(
+                        Modifier
+                            .background(Surf, RoundedCornerShape(6.dp))
+                            .border(1.dp, Brd, RoundedCornerShape(6.dp))
+                            .clickable { PerformanceTimer.reset() }
+                            .padding(horizontal = 12.dp, vertical = 6.dp)
+                    ) {
+                        MonoLabel("RESET", 10.sp, Dim)
+                    }
+                }
+            }
+        }
+    }
 }

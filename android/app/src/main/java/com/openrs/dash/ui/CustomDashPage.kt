@@ -40,9 +40,13 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.core.view.ViewCompat
+import androidx.core.view.WindowInsetsCompat
 import com.openrs.dash.data.AVAILABLE_FIELDS
 import com.openrs.dash.data.DashCell
 import com.openrs.dash.data.DashLayout
@@ -62,6 +66,13 @@ fun CustomDashPage(
 ) {
     val ctx = LocalContext.current
     val accent = LocalThemeAccent.current
+    val view = LocalView.current
+    val density = LocalDensity.current
+    val topPad = remember(view) {
+        val insets = ViewCompat.getRootWindowInsets(view)
+            ?.getInsets(WindowInsetsCompat.Type.systemBars())
+        if (insets != null) with(density) { insets.top.toDp() } else 0.dp
+    }
     val wide = isWideLayout()
     val columns = if (wide) 3 else 2
 
@@ -82,7 +93,8 @@ fun CustomDashPage(
                 Modifier
                     .fillMaxWidth()
                     .background(Surf)
-                    .padding(horizontal = 14.dp, vertical = 10.dp),
+                    .padding(top = topPad + 10.dp, bottom = 10.dp)
+                    .padding(horizontal = 14.dp),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {

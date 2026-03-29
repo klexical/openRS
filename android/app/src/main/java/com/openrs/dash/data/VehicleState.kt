@@ -85,6 +85,9 @@ data class VehicleState(
     val tireStartLR: Double = -1.0,        // Session-start LR pressure (PSI); -1 = not yet captured
     val tireStartRR: Double = -1.0,        // Session-start RR pressure (PSI); -1 = not yet captured
 
+    // ── Driver Inputs (CAN Sniffed) ─────────────────────────
+    val clutchPedalPct: Double = 0.0,  // CAN 0x138: clutch pedal position 0-100%
+
     // ── Dynamics (CAN Sniffed) ──────────────────────────────
     val speedKph: Double = 0.0,
     val steeringAngle: Double = 0.0,
@@ -99,6 +102,13 @@ data class VehicleState(
     val wheelSpeedFR: Double = 0.0,
     val wheelSpeedRL: Double = 0.0,
     val wheelSpeedRR: Double = 0.0,
+
+    // ── Wheel Rotation Counts (CAN 0x1E0 ABSmsg06) ────────
+    val wheelRotFL: Int = 0,           // 8-bit rolling counter 0-255
+    val wheelRotFR: Int = 0,
+    val wheelRotRL: Int = 0,
+    val wheelRotRR: Int = 0,
+    val avgFrontWheelSpeedKph: Double = 0.0,
 
     // ── AWD / GKN Twinster (CAN Sniffed / Mode 22 polled) ───────────────────
     val awdLeftTorque: Double = 0.0,
@@ -129,6 +139,9 @@ data class VehicleState(
     val warnCharge: Boolean? = null,      // Battery/charge warning lamp
     val warnOilPressure: Boolean? = null, // Oil pressure warning lamp
     val warnTempHigh: Boolean? = null,    // High coolant temp warning
+
+    // ── Vehicle Identification (CAN 0x40A multiplexed) ──────
+    val vin: String = "",                  // 17-char VIN assembled from mux pages C1 00/01/02
 
     // ── Vehicle Status (CAN Sniffed) ────────────────────────
     val driveMode: DriveMode = DriveMode.NORMAL,

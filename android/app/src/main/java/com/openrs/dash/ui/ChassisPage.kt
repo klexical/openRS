@@ -270,6 +270,20 @@ import kotlin.math.roundToInt
             MonoLabel(updatedText, 8.sp, Dim.copy(alpha = 0.7f))
         }
 
+        // ── Wheel Rotation Counts (CAN 0x1E0) ──
+        val hasRotation = vs.wheelRotFL > 0 || vs.wheelRotFR > 0 || vs.wheelRotRL > 0 || vs.wheelRotRR > 0
+        if (hasRotation) {
+            Spacer(Modifier.height(10.dp))
+            MonoLabel("WHEEL ROTATION", 8.sp, Dim.copy(alpha = 0.7f), letterSpacing = 0.1.sp)
+            Spacer(Modifier.height(4.dp))
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                DataCell("FL", "${vs.wheelRotFL}", modifier = Modifier.weight(1f))
+                DataCell("FR", "${vs.wheelRotFR}", modifier = Modifier.weight(1f))
+                DataCell("RL", "${vs.wheelRotRL}", modifier = Modifier.weight(1f))
+                DataCell("RR", "${vs.wheelRotRR}", modifier = Modifier.weight(1f))
+            }
+        }
+
         // ── AWD Drivetrain Section (always visible) ──
         Spacer(Modifier.height(12.dp))
         AwdMetrics(vs, p)

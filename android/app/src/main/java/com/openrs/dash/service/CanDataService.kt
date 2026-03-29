@@ -160,8 +160,17 @@ class CanDataService : Service() {
             .build()
         wifiCallback = object : ConnectivityManager.NetworkCallback() {
             override fun onAvailable(network: Network) {
-                // WiFi gained — reset and attempt connection if not already active
-                if (connectionJob?.isActive != true) startConnection()
+                // WiFi gained — attempt connection if not already active.
+                // Guard: onAvailable can fire when the app is backgrounded; starting a
+                // foreground service from a background context throws
+                // ForegroundServiceStartNotAllowedException on Android 12+.
+                if (connectionJob?.isActive != true) {
+                    try {
+                        startConnection()
+                    } catch (e: Exception) {
+                        android.util.Log.w("CAN", "Cannot start foreground service from background", e)
+                    }
+                }
             }
             override fun onLost(network: Network) {
                 stopConnection()
@@ -514,6 +523,15 @@ class CanDataService : Service() {
 
     fun resetPeaks() {
         OpenRSDashApp.instance.vehicleState.update { it.withPeaksReset() }
+    }
+
+    /** Reset the current session without disconnecting from the adapter. */
+    fun resetSession() {
+        stopSessionRecording()
+        CanDecoder.resetSessionState()
+        val connected = OpenRSDashApp.instance.vehicleState.value.isConnected
+        OpenRSDashApp.instance.vehicleState.update { VehicleState(isConnected = connected) }
+        startSessionRecording()
     }
 
 }

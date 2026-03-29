@@ -399,6 +399,25 @@ private const val SAPPHIRE_URL = "https://klexical.github.io/openRS_/"
 
         HorizontalDivider(color = Brd)
 
+        // ── VIN (passive CAN 0x40A) ──────────────────────────────────────
+        if (vs.vin.isNotEmpty()) {
+            MoreSection("VEHICLE IDENTIFICATION") {
+                Row(
+                    Modifier.fillMaxWidth()
+                        .background(Surf2, RoundedCornerShape(8.dp))
+                        .border(1.dp, Brd, RoundedCornerShape(8.dp))
+                        .padding(horizontal = 12.dp, vertical = 10.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    MonoLabel("VIN", 9.sp, Dim, letterSpacing = 0.1.sp)
+                    Spacer(Modifier.weight(1f))
+                    MonoText(vs.vin, 12.sp, Frost)
+                }
+            }
+
+            HorizontalDivider(color = Brd)
+        }
+
         // ── Custom Dashboard ──────────────────────────────────────────────
         MoreSection("CUSTOM DASHBOARD") {
             val savedLayout = remember { AppSettings.loadCustomDash(ctx) }
@@ -534,6 +553,7 @@ private val sessionDateFormat = SimpleDateFormat("MMM dd, HH:mm", Locale.getDefa
     var sessions by remember { mutableStateOf<List<SessionEntity>>(emptyList()) }
     var expandedId by remember { mutableStateOf<Long?>(null) }
     var snapshots by remember { mutableStateOf<List<SnapshotEntity>>(emptyList()) }
+    var sectionExpanded by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
 
     LaunchedEffect(Unit) {
@@ -542,45 +562,60 @@ private val sessionDateFormat = SimpleDateFormat("MMM dd, HH:mm", Locale.getDefa
         }
     }
 
-    MoreSection("SESSION HISTORY") {
-        if (sessions.isEmpty()) {
-            Box(
-                Modifier.fillMaxWidth()
-                    .background(Surf2, RoundedCornerShape(10.dp))
-                    .border(1.dp, Brd, RoundedCornerShape(10.dp))
-                    .padding(16.dp),
-                contentAlignment = Alignment.Center
-            ) {
-                MonoLabel("No sessions recorded yet", 10.sp, Dim)
-            }
-        } else {
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                sessions.forEach { session ->
-                    val isExpanded = expandedId == session.id
-                    SessionCard(
-                        session = session,
-                        prefs = prefs,
-                        isExpanded = isExpanded,
-                        snapshots = if (isExpanded) snapshots else emptyList(),
-                        onToggle = {
-                            if (isExpanded) {
-                                expandedId = null
-                                snapshots = emptyList()
-                            } else {
-                                expandedId = session.id
-                                scope.launch(Dispatchers.IO) {
-                                    val loaded = SessionDatabase.getInstance(ctx)
-                                        .sessionDao().getSnapshots(session.id)
-                                    withContext(Dispatchers.Main) { snapshots = loaded }
+    Column {
+        SectionLabel(
+            "SESSION HISTORY",
+            collapsible = true,
+            expanded = sectionExpanded,
+            onToggle = { sectionExpanded = !sectionExpanded },
+            modifier = Modifier.padding(bottom = 10.dp)
+        )
+        AnimatedVisibility(
+            visible = sectionExpanded,
+            enter = expandVertically(),
+            exit = shrinkVertically()
+        ) {
+            Column {
+                if (sessions.isEmpty()) {
+                    Box(
+                        Modifier.fillMaxWidth()
+                            .background(Surf2, RoundedCornerShape(10.dp))
+                            .border(1.dp, Brd, RoundedCornerShape(10.dp))
+                            .padding(16.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        MonoLabel("No sessions recorded yet", 10.sp, Dim)
+                    }
+                } else {
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        sessions.forEach { session ->
+                            val isExpanded = expandedId == session.id
+                            SessionCard(
+                                session = session,
+                                prefs = prefs,
+                                isExpanded = isExpanded,
+                                snapshots = if (isExpanded) snapshots else emptyList(),
+                                onToggle = {
+                                    if (isExpanded) {
+                                        expandedId = null
+                                        snapshots = emptyList()
+                                    } else {
+                                        expandedId = session.id
+                                        scope.launch(Dispatchers.IO) {
+                                            val loaded = SessionDatabase.getInstance(ctx)
+                                                .sessionDao().getSnapshots(session.id)
+                                            withContext(Dispatchers.Main) { snapshots = loaded }
+                                        }
+                                    }
                                 }
-                            }
+                            )
                         }
-                    )
+                    }
                 }
+                Spacer(Modifier.height(6.dp))
+                MonoLabel("Last 10 sessions. Auto-pruned after 30 days.", 9.sp, Dim)
             }
         }
-        Spacer(Modifier.height(6.dp))
-        MonoLabel("Last 10 sessions. Auto-pruned after 30 days.", 9.sp, Dim)
     }
 }
 

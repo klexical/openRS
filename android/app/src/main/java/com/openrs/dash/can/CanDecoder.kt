@@ -53,6 +53,9 @@ object CanDecoder {
      */
     @Volatile private var has420Arrived: Boolean = false
 
+    // VIN assembly state: 0x40A multiplexed pages C1 00/01/02
+    private var vinSegments = arrayOfNulls<String>(3)
+
     /** Current modeDetail420 as hex string — for diagnostic logging. */
     val modeDetail420Hex: String get() = "%04X".format(modeDetail420)
 
@@ -63,6 +66,7 @@ object CanDecoder {
     fun resetSessionState() {
         modeDetail420 = 0x10CC
         has420Arrived = false
+        vinSegments = arrayOfNulls(3)
     }
 
     // ── HS-CAN engine / powertrain ──────────────────────────────────────────
@@ -100,6 +104,15 @@ object CanDecoder {
     // SteeringAngleSign  : 39|1@0+ (1,0)        → (byte4>>7)&1 → 1=CW(right) 0=CCW/left
     const val ID_STEERING     = 0x010
 
+    // ── RS_HS.dbc PCMmsg10 (0x138): Clutch pedal position ────────────────────
+    // ClutchPedalPosition : 17|10@0+ (0.1,0) [0|102.3] "%"
+    // Extract: ((data[2] & 0x03) << 8 | data[3]) × 0.1 %
+    const val ID_CLUTCH       = 0x138
+
+    // ── RS_HS.dbc ABSmsg06 (0x1E0): Wheel rotation counts ─────────────────
+    // 4 × 8-bit rolling counters (FL/FR/RL/RR) + 16-bit avg front speed × 0.01 km/h
+    const val ID_WHEEL_ROT    = 0x1E0
+
     // ── RS_HS.dbc ABSmsg10 (0x252): Brake pressure ──────────────────────────
     // BrakePressureMeasured : 11|12@0+ (1,0) → (byte1&0x0F)<<8|byte2 raw 0-4095
     // Displayed as 0-100% (raw / 40.95) until bar calibration is confirmed.
@@ -119,6 +132,10 @@ object CanDecoder {
     // 12V battery voltage is now polled via PCM Mode 22 DID 0x0304 in ObdResponseParser (refs #92).
     const val ID_FUEL_LEVEL   = 0x380
 
+    // ── 0x40A: Multiplexed VIN + odometer (community-discovered by @adamsouthern) ──
+    // Mux bytes B0-B1: C1 00 / C1 01 / C1 02 = VIN segments; C0 01 = odometer (redundant)
+    const val ID_VIN_MUX      = 0x40A
+
     // BCMmsg_x360 (0x360): Odometer — bytes [3:5] big-endian, 24-bit unsigned, 1 km/bit.
     // ~5 Hz broadcast. Full 24-bit value matches DID 0xDD01 exactly (no rollover needed).
     // Community-verified: Discussion #102 (@adamsouthern, 14-point linear test on 40K km car).
@@ -128,12 +145,12 @@ object CanDecoder {
 
     private val KNOWN_IDS = setOf(
         ID_TORQUE, ID_THROTTLE, ID_PEDALS, ID_ENGINE_RPM,
-        ID_GAUGE_ILLUM, ID_ENGINE_TEMPS, ID_SPEED,
-        ID_LONG_ACCEL, ID_LAT_ACCEL,
+        ID_CLUTCH, ID_GAUGE_ILLUM, ID_ENGINE_TEMPS, ID_SPEED,
+        ID_LONG_ACCEL, ID_LAT_ACCEL, ID_WHEEL_ROT,
         ID_DRIVE_MODE, ID_DRIVE_MODE_EXT, ID_ESC_ABS,
         ID_WHEEL_SPEEDS, ID_GEAR, ID_AWD_TORQUE, ID_COOLANT,
         ID_PCM_AMBIENT, ID_AMBIENT_TEMP,
-        ID_FUEL_LEVEL, ID_ODOMETER,
+        ID_FUEL_LEVEL, ID_ODOMETER, ID_VIN_MUX,
         ID_STEERING, ID_BRAKE_PRESS
     )
 
@@ -407,6 +424,28 @@ object CanDecoder {
                 )
             } else null
 
+            // ── 0x138: Clutch pedal position ──────────────────────────────────
+            // RS_HS.dbc PCMmsg10 (20 ms broadcast):
+            //   ClutchPedalPosition : 17|10@0+ (0.1,0) [0|102.3] "%"
+            //   = ((data[2] & 0x03) << 8 | data[3]) × 0.1
+            ID_CLUTCH -> if (n >= 4) {
+                val raw = ((data[2].toInt() and 0x03) shl 8) or (data[3].toInt() and 0xFF)
+                state.copy(clutchPedalPct = (raw * 0.1).coerceIn(0.0, 100.0), lastUpdate = now)
+            } else null
+
+            // ── 0x1E0: Wheel rotation counts ────────────────────────────────
+            // RS_HS.dbc ABSmsg06 (20 ms broadcast):
+            //   4 × 8-bit rolling counters (FL/FR/RL/RR bytes 0-3)
+            //   AverageFrontWheelSpeed : 39|16@0+ (0.01,0) km/h = word(data,4) × 0.01
+            ID_WHEEL_ROT -> if (n >= 6) state.copy(
+                wheelRotFL = ubyte(data, 0),
+                wheelRotFR = ubyte(data, 1),
+                wheelRotRL = ubyte(data, 2),
+                wheelRotRR = ubyte(data, 3),
+                avgFrontWheelSpeedKph = word(data, 4) * 0.01,
+                lastUpdate = now
+            ) else null
+
             // ── 0x380: Fuel level filtered ────────────────────────────────────
             // RS_HS.dbc PCMmsg30: FuelLevelFiltered : 17|10@0+ (0.4,0) [0|102] "%"
             // Motorola 10-bit: MSB at DBC bit 17 → (data[2]&0x03)<<8 | data[3], × 0.4 %
@@ -415,6 +454,29 @@ object CanDecoder {
                 val raw = ((data[2].toInt() and 0x03) shl 8) or (data[3].toInt() and 0xFF)
                 val pct = (raw * 0.4).coerceIn(0.0, 100.0)  // clamp: DBC range [0|102], cap at 100
                 state.copy(fuelLevelPct = pct, lastUpdate = now)
+            } else null
+
+            // ── 0x40A: Multiplexed VIN decode ───────────────────────────────
+            // Mux B0-B1: C1 00 = VIN[0..5], C1 01 = VIN[6..11], C1 02 = VIN[12..16]
+            // 8-byte CAN frame: 2 mux bytes + 6 data bytes per page → 6+6+5 = 17 chars
+            ID_VIN_MUX -> if (n >= 7) {
+                val mux0 = ubyte(data, 0)
+                val mux1 = ubyte(data, 1)
+                if (mux0 == 0xC1) {
+                    val len = minOf(n - 2, 6)  // up to 6 ASCII chars after mux bytes
+                    when (mux1) {
+                        0x00 -> vinSegments[0] = String(data, 2, len, Charsets.US_ASCII)
+                        0x01 -> vinSegments[1] = String(data, 2, len, Charsets.US_ASCII)
+                        0x02 -> vinSegments[2] = String(data, 2, minOf(n - 2, 5), Charsets.US_ASCII)
+                    }
+                    val s0 = vinSegments[0]
+                    val s1 = vinSegments[1]
+                    val s2 = vinSegments[2]
+                    if (s0 != null && s1 != null && s2 != null) {
+                        val vin = (s0 + s1 + s2).take(17)
+                        state.copy(vin = vin, lastUpdate = now)
+                    } else null
+                } else null
             } else null
 
             else -> null
@@ -448,8 +510,11 @@ object CanDecoder {
         ID_ESC_ABS      -> "escStatus=${state.escStatus.label}"
         ID_GEAR         -> "gear=${state.gearDisplay}"
         ID_TORQUE       -> "torqueNm=${"%.0f".format(state.torqueAtTrans)}"
+        ID_CLUTCH       -> "clutchPct=${"%.1f".format(state.clutchPedalPct)}"
+        ID_WHEEL_ROT    -> "rotFL=${state.wheelRotFL} FR=${state.wheelRotFR} RL=${state.wheelRotRL} RR=${state.wheelRotRR} avgFront=${"%.2f".format(state.avgFrontWheelSpeedKph)}kph"
         ID_FUEL_LEVEL   -> "fuelPct=${"%.1f".format(state.fuelLevelPct)} (0x380 Motorola)"
         ID_ODOMETER     -> "odometerKm=${state.odometerKm} engStatus=${state.engineStatus} (0x360 passive)"
+        ID_VIN_MUX      -> "vin=${state.vin.ifEmpty { "(assembling)" }}"
         else            -> "(unknown id 0x%03X)".format(id)
     }
 
