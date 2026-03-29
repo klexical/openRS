@@ -5,6 +5,7 @@ plugins {
     id("org.jetbrains.kotlin.android")
     id("org.jetbrains.kotlin.plugin.compose")
     id("com.google.devtools.ksp")
+    id("io.gitlab.arturbosch.detekt")
 }
 
 // ── Release signing ───────────────────────────────────────────────────────────
@@ -110,8 +111,18 @@ android {
     lint {
         abortOnError = false
         warningsAsErrors = false
-        checkReleaseBuilds = false  // AGP 8.7 lint crashes with Compose BOM 2025.11.00
+        // AGP 8.7 lint crashes with Compose BOM 2025.11.00 (IncompatibleClassChangeError
+        // in RememberInCompositionDetector). Enable abortOnError + baseline once
+        // BOM is upgraded to 2026.03.00+ or AGP to 8.8+.
+        checkReleaseBuilds = false
     }
+}
+
+detekt {
+    config.setFrom(files("${rootProject.projectDir}/config/detekt/detekt.yml"))
+    baseline = file("detekt-baseline.xml")
+    buildUponDefaultConfig = true
+    parallel = true
 }
 
 dependencies {

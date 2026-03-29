@@ -1,0 +1,128 @@
+<?xml version="1.0" ?>
+<SmellBaseline>
+  <ManuallySuppressedIssues></ManuallySuppressedIssues>
+  <CurrentIssues>
+    <ID>ComplexCondition:MissionControlHtmlBuilder.kt$MissionControlHtmlBuilder$inventory.isEmpty() &amp;&amp; fps.isEmpty() &amp;&amp; events.isEmpty() &amp;&amp; trace.isEmpty()</ID>
+    <ID>CyclomaticComplexMethod:CanDataService.kt$CanDataService$private fun mergeObdState(obdState: VehicleState)</ID>
+    <ID>CyclomaticComplexMethod:CanDecoder.kt$CanDecoder$fun decode(id: Int, data: ByteArray, state: VehicleState): VehicleState?</ID>
+    <ID>CyclomaticComplexMethod:CanDecoder.kt$CanDecoder$fun describeDecoded(id: Int, state: VehicleState): String</ID>
+    <ID>CyclomaticComplexMethod:CanDecoder.kt$CanDecoder$fun validateDecoded(id: Int, state: VehicleState): String?</ID>
+    <ID>CyclomaticComplexMethod:DashLayout.kt$fun resolveValue(vs: VehicleState, prefs: UserPrefs, cell: DashCell): Pair&lt;String, Double&gt;</ID>
+    <ID>CyclomaticComplexMethod:DashPage.kt$@Composable fun DashPage(vs: VehicleState, p: UserPrefs)</ID>
+    <ID>CyclomaticComplexMethod:DiagPage.kt$@Composable fun DiagPage( lines: List&lt;String&gt;, vs: VehicleState, onScanDtcs: (suspend () -&gt; List&lt;DtcResult&gt;)?, onClearDtcs: (suspend () -&gt; Map&lt;String, Boolean&gt;)? = null, onSendRawQuery: (suspend (responseId: Int, frame: String, timeoutMs: Long) -&gt; ByteArray?)? = null )</ID>
+    <ID>CyclomaticComplexMethod:DiagnosticExporter.kt$DiagnosticExporter$fun export(ctx: Context): Uri?</ID>
+    <ID>CyclomaticComplexMethod:DiagnosticExporter.kt$DiagnosticExporter$private fun buildSummary(ts: String): String</ID>
+    <ID>CyclomaticComplexMethod:DidProberSection.kt$@Composable fun DidProberSection( vs: VehicleState, onSendRawQuery: (suspend (responseId: Int, frame: String, timeoutMs: Long) -&gt; ByteArray?)? = null )</ID>
+    <ID>CyclomaticComplexMethod:FirmwareApi.kt$FirmwareApi$private suspend fun post( ctx: Context, host: String, json: String, checkBusy: Boolean = false ): Result&lt;Unit&gt;</ID>
+    <ID>CyclomaticComplexMethod:MainActivity.kt$@Composable fun AppHeader( vs: VehicleState, prefs: UserPrefs, onSettings: () -&gt; Unit, onConnect: () -&gt; Unit, onDisconnect: () -&gt; Unit, onReconnect: () -&gt; Unit, onTrip: () -&gt; Unit = {} )</ID>
+    <ID>CyclomaticComplexMethod:MeatPiConnection.kt$MeatPiConnection$fun connectHybrid( onObdUpdate: (VehicleState) -&gt; Unit, getCurrentState: () -&gt; VehicleState ): Flow&lt;Pair&lt;Int, ByteArray&gt;&gt;</ID>
+    <ID>CyclomaticComplexMethod:MeatPiConnection.kt$MeatPiConnection$private suspend fun assembleIsotpResponse( responseId: Int, requestId: Int, out: OutputStream, timeoutMs: Long ): ByteArray?</ID>
+    <ID>CyclomaticComplexMethod:MorePage.kt$@Composable fun MorePage( vs: VehicleState, p: UserPrefs, snackbarHostState: SnackbarHostState, onSettings: () -&gt; Unit, onCustomDash: () -&gt; Unit = {} )</ID>
+    <ID>CyclomaticComplexMethod:ObdResponseParser.kt$ObdResponseParser$fun parseBcmResponse( data: ByteArray, currentState: VehicleState, onObdUpdate: (VehicleState) -&gt; Unit )</ID>
+    <ID>CyclomaticComplexMethod:ObdResponseParser.kt$ObdResponseParser$fun parsePcmResponse( data: ByteArray, currentState: VehicleState, onObdUpdate: (VehicleState) -&gt; Unit )</ID>
+    <ID>CyclomaticComplexMethod:PidRegistry.kt$PidRegistry$private fun tokenize(formula: String, a: Double, b: Double): List&lt;Token&gt;</ID>
+    <ID>CyclomaticComplexMethod:PowerPage.kt$@Composable fun PowerPage(vs: VehicleState, p: UserPrefs)</ID>
+    <ID>CyclomaticComplexMethod:SettingsSheet.kt$@Composable fun SettingsDialog(onDismiss: () -&gt; Unit)</ID>
+    <ID>CyclomaticComplexMethod:TempsPage.kt$@Composable fun TempsPage(vs: VehicleState, p: UserPrefs)</ID>
+    <ID>CyclomaticComplexMethod:TripPage.kt$@Composable private fun OsmTripMap( tripState: TripState, segments: List&lt;Pair&lt;List&lt;GeoPoint&gt;, Color&gt;&gt;, modifier: Modifier = Modifier )</ID>
+    <ID>CyclomaticComplexMethod:TripPage.kt$@OptIn(ExperimentalMaterial3Api::class) @Composable fun TripPage( tripState: TripState, vehicleState: VehicleState, prefs: UserPrefs, onStartTrip: () -&gt; Unit, onEndTrip: () -&gt; Unit, onDismiss: () -&gt; Unit )</ID>
+    <ID>CyclomaticComplexMethod:WiCanConnection.kt$WiCanConnection$fun connectHybrid( onObdUpdate: (VehicleState) -&gt; Unit, getCurrentState: () -&gt; VehicleState ): Flow&lt;Pair&lt;Int, ByteArray&gt;&gt;</ID>
+    <ID>CyclomaticComplexMethod:WiCanConnection.kt$WiCanConnection$private fun readWsFrame(inp: InputStream, out: OutputStream): Pair&lt;Int, ByteArray&gt;?</ID>
+    <ID>CyclomaticComplexMethod:WiCanConnection.kt$WiCanConnection$private suspend fun assembleIsotpResponse( responseId: Int, requestId: Int, out: OutputStream, timeoutMs: Long ): ByteArray?</ID>
+    <ID>DestructuringDeclarationWithTooManyEntries:MorePage.kt$(label, state, timedOut, subtitle)</ID>
+    <ID>EmptyElseBlock:MeatPiConnection.kt$MeatPiConnection$if (fb &gt; 0) buf.write(data, 2, fb)</ID>
+    <ID>EmptyElseBlock:MeatPiConnection.kt$MeatPiConnection$if (take &lt;= 0) break</ID>
+    <ID>ImplicitDefaultLocale:MorePage.kt$String.format("%.1f", session.peakBoostPsi)</ID>
+    <ID>ImplicitDefaultLocale:MorePage.kt$String.format("%dh %02dm", h, m)</ID>
+    <ID>ImplicitDefaultLocale:MorePage.kt$String.format("%dm %02ds", m, s)</ID>
+    <ID>LongMethod:CanDataService.kt$CanDataService$private fun mergeObdState(obdState: VehicleState)</ID>
+    <ID>LongMethod:CanDecoder.kt$CanDecoder$fun decode(id: Int, data: ByteArray, state: VehicleState): VehicleState?</ID>
+    <ID>LongMethod:ChassisPage.kt$@Composable fun UnifiedChassisSection(vs: VehicleState, p: UserPrefs)</ID>
+    <ID>LongMethod:ChassisPage.kt$@Composable private fun AwdMetrics(vs: VehicleState, p: UserPrefs)</ID>
+    <ID>LongMethod:CustomDashPage.kt$@Composable fun CustomDashPage( vehicleState: VehicleState, prefs: UserPrefs, onDismiss: () -&gt; Unit )</ID>
+    <ID>LongMethod:CustomDashPage.kt$@OptIn(ExperimentalMaterial3Api::class) @Composable private fun DashBuilderSheet( layout: DashLayout, onSave: (DashLayout) -&gt; Unit, onDismiss: () -&gt; Unit )</ID>
+    <ID>LongMethod:DashPage.kt$@Composable fun DashPage(vs: VehicleState, p: UserPrefs)</ID>
+    <ID>LongMethod:DiagPage.kt$@Composable fun DiagPage( lines: List&lt;String&gt;, vs: VehicleState, onScanDtcs: (suspend () -&gt; List&lt;DtcResult&gt;)?, onClearDtcs: (suspend () -&gt; Map&lt;String, Boolean&gt;)? = null, onSendRawQuery: (suspend (responseId: Int, frame: String, timeoutMs: Long) -&gt; ByteArray?)? = null )</ID>
+    <ID>LongMethod:DiagnosticExporter.kt$DiagnosticExporter$private fun buildJson(ts: String): String</ID>
+    <ID>LongMethod:DiagnosticExporter.kt$DiagnosticExporter$private fun buildSummary(ts: String): String</ID>
+    <ID>LongMethod:DidProberSection.kt$@Composable fun DidProberSection( vs: VehicleState, onSendRawQuery: (suspend (responseId: Int, frame: String, timeoutMs: Long) -&gt; ByteArray?)? = null )</ID>
+    <ID>LongMethod:MainActivity.kt$@Composable fun AppHeader( vs: VehicleState, prefs: UserPrefs, onSettings: () -&gt; Unit, onConnect: () -&gt; Unit, onDisconnect: () -&gt; Unit, onReconnect: () -&gt; Unit, onTrip: () -&gt; Unit = {} )</ID>
+    <ID>LongMethod:MainActivity.kt$MainActivity$override fun onCreate(savedInstanceState: Bundle?)</ID>
+    <ID>LongMethod:MeatPiConnection.kt$MeatPiConnection$fun connectHybrid( onObdUpdate: (VehicleState) -&gt; Unit, getCurrentState: () -&gt; VehicleState ): Flow&lt;Pair&lt;Int, ByteArray&gt;&gt;</ID>
+    <ID>LongMethod:MissionControlHtmlBuilder.kt$MissionControlHtmlBuilder$private fun buildDiagJson(): String</ID>
+    <ID>LongMethod:MorePage.kt$@Composable fun MorePage( vs: VehicleState, p: UserPrefs, snackbarHostState: SnackbarHostState, onSettings: () -&gt; Unit, onCustomDash: () -&gt; Unit = {} )</ID>
+    <ID>LongMethod:MorePage.kt$@Composable private fun SessionCard( session: SessionEntity, prefs: UserPrefs, isExpanded: Boolean, snapshots: List&lt;SnapshotEntity&gt;, onToggle: () -&gt; Unit )</ID>
+    <ID>LongMethod:PowerPage.kt$@Composable fun PowerPage(vs: VehicleState, p: UserPrefs)</ID>
+    <ID>LongMethod:SettingsSheet.kt$@Composable fun SettingsDialog(onDismiss: () -&gt; Unit)</ID>
+    <ID>LongMethod:TripPage.kt$@Composable private fun OsmTripMap( tripState: TripState, segments: List&lt;Pair&lt;List&lt;GeoPoint&gt;, Color&gt;&gt;, modifier: Modifier = Modifier )</ID>
+    <ID>LongMethod:TripPage.kt$@Composable private fun TripSummaryContent(tripState: TripState, prefs: UserPrefs, onClose: () -&gt; Unit)</ID>
+    <ID>LongMethod:TripPage.kt$@OptIn(ExperimentalMaterial3Api::class) @Composable fun TripPage( tripState: TripState, vehicleState: VehicleState, prefs: UserPrefs, onStartTrip: () -&gt; Unit, onEndTrip: () -&gt; Unit, onDismiss: () -&gt; Unit )</ID>
+    <ID>LongMethod:TripRecorder.kt$TripRecorder$fun startTrip()</ID>
+    <ID>LongMethod:WiCanConnection.kt$WiCanConnection$fun connectHybrid( onObdUpdate: (VehicleState) -&gt; Unit, getCurrentState: () -&gt; VehicleState ): Flow&lt;Pair&lt;Int, ByteArray&gt;&gt;</ID>
+    <ID>LoopWithTooManyJumpStatements:CanDataService.kt$CanDataService$while</ID>
+    <ID>LoopWithTooManyJumpStatements:FirmwareApi.kt$FirmwareApi$while</ID>
+    <ID>LoopWithTooManyJumpStatements:MeatPiConnection.kt$MeatPiConnection$while</ID>
+    <ID>LoopWithTooManyJumpStatements:PidRegistry.kt$PidRegistry$for</ID>
+    <ID>LoopWithTooManyJumpStatements:WiCanConnection.kt$WiCanConnection$while</ID>
+    <ID>MatchingDeclarationName:Sparkline.kt$SparklineData</ID>
+    <ID>MaxLineLength:CanDataService.kt$CanDataService$hvacDischargeRfTempC= if (obdState.hvacDischargeRfTempC &gt; -90) obdState.hvacDischargeRfTempC else current.hvacDischargeRfTempC</ID>
+    <ID>MaxLineLength:CanDataService.kt$CanDataService$odometerRolloverOffset = if (obdState.odometerRolloverOffset &gt; 0) obdState.odometerRolloverOffset else current.odometerRolloverOffset</ID>
+    <ID>MaxLineLength:CanDecoder.kt$CanDecoder$ID_ENGINE_TEMPS -&gt; "oilTempC=${"%.0f".format(state.oilTempC)}, boost=${state.boostKpa.toInt()}kPa, ptuTempC=${"%.0f".format(state.ptuTempC)}"</ID>
+    <ID>MaxLineLength:CanDecoder.kt$CanDecoder$ID_LAT_ACCEL -&gt; "latG=${"%.4f".format(state.lateralG)}g yaw=${"%.2f".format(state.yawRate)}°/s vertG=${"%.4f".format(state.verticalG)}g"</ID>
+    <ID>MaxLineLength:CanDecoder.kt$CanDecoder$ID_WHEEL_SPEEDS -&gt; "FL=${"%.1f".format(state.wheelSpeedFL)} FR=${"%.1f".format(state.wheelSpeedFR)} RL=${"%.1f".format(state.wheelSpeedRL)} RR=${"%.1f".format(state.wheelSpeedRR)} km/h"</ID>
+    <ID>MaxLineLength:ChassisPage.kt$DataCell("TRANS", if (vs.transOilTempC &gt; -90) "${p.displayTemp(vs.transOilTempC)}${p.tempLabel}" else "—", modifier = Modifier.weight(1f))</ID>
+    <ID>MaxLineLength:DashPage.kt$val animBrake by animateFloatAsState(vs.brakePressure.toFloat().coerceIn(0f, 100f), spring(stiffness = Spring.StiffnessHigh), label = "brk")</ID>
+    <ID>MaxLineLength:DiagnosticExporter.kt$DiagnosticExporter$appendLine(" ${ps.module} (0x${"%03X".format(ps.requestId)}→0x${"%03X".format(ps.responseId)}) @ +${log.formatDuration(ps.relMs)}")</ID>
+    <ID>MaxLineLength:DiagnosticExporter.kt$DiagnosticExporter$appendLine(" Distance : ${"%.2f".format(tripState.cumulativeDistanceKm)} km (${"%.2f".format(tripState.cumulativeDistanceKm * 0.621371)} mi)")</ID>
+    <ID>MaxLineLength:DiagnosticExporter.kt$DiagnosticExporter$appendLine(" Fuel Used : ${"%.2f".format(tripState.fuelUsedL)} L (start ${tripState.startFuelPct.toInt()}% → end ${tripState.latestFuelPct.toInt()}%)")</ID>
+    <ID>MaxLineLength:DiagnosticExporter.kt$DiagnosticExporter$appendLine(" {\"did\": \"0x${"%04X".format(r.did)}\", \"status\": \"${r.status}\", \"response\": \"${r.responseHex.jsonEscape()}\"}$rc")</ID>
+    <ID>MaxLineLength:DiagnosticExporter.kt$DiagnosticExporter$appendLine(" {\"relMs\": ${t.relMs}, \"id\": \"${t.idHex}\", \"raw\": \"${t.rawHex}\", \"decoded\": \"${t.decoded.jsonEscape()}\", \"issue\": $issJson}$c")</ID>
+    <ID>MaxLineLength:MainActivity.kt$MainActivity$5 -&gt; MorePage(vs, prefs, snackbarHostState, onSettings = { settingsOpen = true }, onCustomDash = { showCustomDash = true })</ID>
+    <ID>MaxLineLength:MeatPiConnection.kt$MeatPiConnection$sendFrame(out, ObdConstants.AWD_QUERY_RDU_STATUS)</ID>
+    <ID>MaxLineLength:MeatPiConnection.kt$MeatPiConnection$sendFrame(out, ObdConstants.FENG_QUERY_STATUS)</ID>
+    <ID>MaxLineLength:MeatPiConnection.kt$MeatPiConnection$sendFrame(out, ObdConstants.PSCM_QUERY_PDC)</ID>
+    <ID>MaxLineLength:MeatPiConnection.kt$MeatPiConnection$sendFrame(out, q)</ID>
+    <ID>MaxLineLength:MorePage.kt$"No CAN confirmation after 17s (current=${live.driveMode}, target=$mode, modeDetail420=0x${CanDecoder.modeDetail420Hex})"</ID>
+    <ID>MaxLineLength:PowerPage.kt$DataCell("CMD AFR", if (vs.commandedAfr &gt; 0) "${"%.3f".format(vs.commandedAfr)}λ" else ph, modifier = Modifier.weight(1f))</ID>
+    <ID>MaxLineLength:PowerPage.kt$DataCell("ETC ACT", if (vs.etcAngleActual &gt; 0) "${"%.1f".format(vs.etcAngleActual)}°" else ph, modifier = Modifier.weight(1f))</ID>
+    <ID>MaxLineLength:PowerPage.kt$DataCell("ETC DES", if (vs.etcAngleDesired &gt; 0) "${"%.1f".format(vs.etcAngleDesired)}°" else ph, modifier = Modifier.weight(1f))</ID>
+    <ID>MaxLineLength:PowerPage.kt$DataCell("HP FUEL", if (vs.hpFuelRailPsi &gt;= 0) "${"%.0f".format(vs.hpFuelRailPsi)} PSI" else ph, modifier = Modifier.weight(1f))</ID>
+    <ID>MaxLineLength:PowerPage.kt$DataCell("KR C1", if (hasData) "${"%.2f".format(vs.ignCorrCyl1)}°" else ph, valueColor = krColor(vs.ignCorrCyl1), modifier = Modifier.weight(1f).background(krBg1, RoundedCornerShape(10.dp)))</ID>
+    <ID>MaxLineLength:PowerPage.kt$DataCell("KR C2", if (hasData) "${"%.2f".format(vs.ignCorrCyl2)}°" else ph, valueColor = krColor(vs.ignCorrCyl2), modifier = Modifier.weight(1f).background(krBg2, RoundedCornerShape(10.dp)))</ID>
+    <ID>MaxLineLength:PowerPage.kt$DataCell("KR C3", if (hasData) "${"%.2f".format(vs.ignCorrCyl3)}°" else ph, valueColor = krColor(vs.ignCorrCyl3), modifier = Modifier.weight(1f).background(krBg3, RoundedCornerShape(10.dp)))</ID>
+    <ID>MaxLineLength:PowerPage.kt$DataCell("KR C4", if (hasData) "${"%.2f".format(vs.ignCorrCyl4)}°" else ph, valueColor = krColor(vs.ignCorrCyl4), modifier = Modifier.weight(1f).background(krBg4, RoundedCornerShape(10.dp)))</ID>
+    <ID>MaxLineLength:PowerPage.kt$DataCell("LOAD", if (vs.calcLoad &gt; 0) "${"%.0f".format(vs.calcLoad)}%" else ph, modifier = Modifier.weight(1f))</ID>
+    <ID>MaxLineLength:PowerPage.kt$DataCell("LONG FT", if (vs.calcLoad &gt; 0) "${"%.1f".format(vs.longFuelTrim)}%" else ph, valueColor = ltftColor, modifier = Modifier.weight(1f))</ID>
+    <ID>MaxLineLength:PowerPage.kt$DataCell("LP FUEL", if (vs.fuelRailPsi &gt; 0) "${"%.0f".format(vs.fuelRailPsi)} PSI" else ph, modifier = Modifier.weight(1f))</ID>
+    <ID>MaxLineLength:PowerPage.kt$DataCell("OAR", if (vs.calcLoad &gt; 0) "${"%.0f".format(vs.octaneAdjustRatio * 100)}%" else ph, modifier = Modifier.weight(1f))</ID>
+    <ID>MaxLineLength:PowerPage.kt$DataCell("SHORT FT", if (vs.calcLoad &gt; 0) "${"%.1f".format(vs.shortFuelTrim)}%" else ph, valueColor = stftColor, modifier = Modifier.weight(1f))</ID>
+    <ID>MaxLineLength:PowerPage.kt$DataCell("VCT-E", if (vs.calcLoad &gt; 0) "${"%.1f".format(vs.vctExhaustAngle)}°" else ph, modifier = Modifier.weight(1f))</ID>
+    <ID>MaxLineLength:PowerPage.kt$DataCell("WGDC", if (vs.wgdcDesired &gt; 0) "${"%.0f".format(vs.wgdcDesired)}%" else ph, valueColor = accent, modifier = Modifier.weight(1f))</ID>
+    <ID>MaxLineLength:PowerPage.kt$SectionLabel("ENGINE MANAGEMENT", collapsible = true, expanded = isExpanded("ENGINE"), onToggle = { expandedSections["ENGINE"] = !isExpanded("ENGINE") })</ID>
+    <ID>MaxLineLength:PowerPage.kt$SectionLabel("FUEL TRIMS &amp; AFR", collapsible = true, expanded = isExpanded("FUEL"), onToggle = { expandedSections["FUEL"] = !isExpanded("FUEL") })</ID>
+    <ID>MaxLineLength:PowerPage.kt$SectionLabel("THROTTLE &amp; BOOST", collapsible = true, expanded = isExpanded("THROTTLE"), onToggle = { expandedSections["THROTTLE"] = !isExpanded("THROTTLE") })</ID>
+    <ID>MaxLineLength:PowerPage.kt$val krBg1 by animateColorAsState(if (vs.ignCorrCyl1 &lt; -1.0) Warn.copy(alpha = 0.08f) else Color.Transparent, tween(400), label = "kr1")</ID>
+    <ID>MaxLineLength:PowerPage.kt$val krBg2 by animateColorAsState(if (vs.ignCorrCyl2 &lt; -1.0) Warn.copy(alpha = 0.08f) else Color.Transparent, tween(400), label = "kr2")</ID>
+    <ID>MaxLineLength:PowerPage.kt$val krBg3 by animateColorAsState(if (vs.ignCorrCyl3 &lt; -1.0) Warn.copy(alpha = 0.08f) else Color.Transparent, tween(400), label = "kr3")</ID>
+    <ID>MaxLineLength:PowerPage.kt$val krBg4 by animateColorAsState(if (vs.ignCorrCyl4 &lt; -1.0) Warn.copy(alpha = 0.08f) else Color.Transparent, tween(400), label = "kr4")</ID>
+    <ID>MaxLineLength:TempsPage.kt$.</ID>
+    <ID>MaxLineLength:VehicleStateTest.kt$VehicleStateTest$val state = VehicleState(boostKpa = 101.325, rpm = 3000.0, speedKph = 80.0, peakBoostPsi = 20.0, peakRpm = 7000.0, peakSpeedKph = 200.0)</ID>
+    <ID>MaxLineLength:VehicleStateTest.kt$VehicleStateTest$val state = VehicleState(boostKpa = 250.0, rpm = 6000.0, speedKph = 180.0, peakBoostPsi = 10.0, peakRpm = 5000.0, peakSpeedKph = 150.0)</ID>
+    <ID>ReturnCount:ObdResponseParser.kt$ObdResponseParser$fun parseBcmReassembled( payload: ByteArray, currentState: VehicleState, onObdUpdate: (VehicleState) -&gt; Unit )</ID>
+    <ID>ReturnCount:ObdResponseParser.kt$ObdResponseParser$fun parseBcmResponse( data: ByteArray, currentState: VehicleState, onObdUpdate: (VehicleState) -&gt; Unit )</ID>
+    <ID>TooManyFunctions:AppSettings.kt$AppSettings</ID>
+    <ID>TooManyFunctions:CanDataService.kt$CanDataService : Service</ID>
+    <ID>TooManyFunctions:DiagnosticExporter.kt$DiagnosticExporter</ID>
+    <ID>TooManyFunctions:DiagnosticLogger.kt$DiagnosticLogger</ID>
+    <ID>UnusedParameter:MainActivity.kt$prefs: UserPrefs</ID>
+    <ID>UnusedParameter:MorePage.kt$onSettings: () -&gt; Unit</ID>
+    <ID>UnusedParameter:MorePage.kt$p: UserPrefs</ID>
+    <ID>UnusedParameter:TempsPage.kt$p: UserPrefs</ID>
+    <ID>UnusedPrivateProperty:DashPage.kt$val brakeStr = "%.0f".format(vs.brakePressure.coerceIn(0.0, 100.0))</ID>
+    <ID>UnusedPrivateProperty:MorePage.kt$i</ID>
+    <ID>VariableNaming:MeatPiConnection.kt$MeatPiConnection$val PROBE_GRACE_MS = 3_000L</ID>
+    <ID>VariableNaming:MeatPiConnection.kt$MeatPiConnection$val PROBE_TIMEOUT_CYCLES = 3</ID>
+    <ID>VariableNaming:WiCanConnection.kt$WiCanConnection$val PROBE_GRACE_MS = 3_000L</ID>
+    <ID>VariableNaming:WiCanConnection.kt$WiCanConnection$val PROBE_TIMEOUT_CYCLES = 3</ID>
+  </CurrentIssues>
+</SmellBaseline>

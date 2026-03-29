@@ -124,7 +124,6 @@ android/
 │       ├── xml/file_paths.xml            # FileProvider path config
 │       └── mipmap-*/ic_launcher*.png     # App icon (all densities)
 ├── docs/
-│   ├── images/openrs-banner.svg          # Banner image
 │   ├── images/focus-rs-a4.png             # Focus RS wireframe source (TPMS UI)
 │   ├── hardware-setup.md
 │   ├── firmware-update.md

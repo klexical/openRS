@@ -44,13 +44,30 @@ import importlib
 # ── Utilities ────────────────────────────────────────────────────────────────
 
 def read(path):
-    with open(path, "r", encoding="utf-8") as f:
-        return f.read()
+    try:
+        with open(path, "r", encoding="utf-8") as f:
+            return f.read()
+    except FileNotFoundError:
+        print(f"ERROR: file not found: {path}")
+        sys.exit(1)
+    except PermissionError:
+        print(f"ERROR: permission denied reading: {path}")
+        sys.exit(1)
+    except UnicodeDecodeError as e:
+        print(f"ERROR: encoding error reading {path}: {e}")
+        sys.exit(1)
 
 def write(path, content):
-    with open(path, "w", encoding="utf-8") as f:
-        f.write(content)
-    print(f"  patched: {os.path.basename(path)}")
+    try:
+        with open(path, "w", encoding="utf-8") as f:
+            f.write(content)
+        print(f"  patched: {os.path.basename(path)}")
+    except PermissionError:
+        print(f"ERROR: permission denied writing: {path}")
+        sys.exit(1)
+    except OSError as e:
+        print(f"ERROR: failed to write {path}: {e}")
+        sys.exit(1)
 
 def replace_once(content, old, new, label):
     if old not in content:
@@ -69,6 +86,9 @@ def load_profile(target):
     except ModuleNotFoundError:
         print(f"ERROR: no profile found for target '{target}'")
         print(f"  Available profiles: {', '.join(f[:-3] for f in os.listdir(profiles_dir) if f.endswith('.py') and f != '__init__.py')}")
+        sys.exit(1)
+    except AttributeError:
+        print(f"ERROR: profile module '{target}' has no PROFILE dict")
         sys.exit(1)
 
 # ── Common patches (all targets) ────────────────────────────────────────────
@@ -524,6 +544,13 @@ def main():
     if not os.path.isdir(base):
         print(f"ERROR: directory not found: {base}")
         sys.exit(1)
+
+    for subdir in ["main", "components"]:
+        expected = os.path.join(base, subdir)
+        if not os.path.isdir(expected):
+            print(f"ERROR: expected directory not found: {expected}")
+            print(f"  Is '{base}' a valid wican-fw clone?")
+            sys.exit(1)
 
     profile = load_profile(args.target)
 

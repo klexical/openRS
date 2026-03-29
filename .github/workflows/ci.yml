@@ -63,6 +63,9 @@ jobs:
       - name: Run lint
         run: chmod +x gradlew && ./gradlew lint --no-daemon
 
+      - name: Run detekt
+        run: ./gradlew detekt --no-daemon
+
   release:
     name: Release APK
     runs-on: ubuntu-latest
@@ -82,6 +85,21 @@ jobs:
           java-version: '17'
           distribution: 'temurin'
           cache: 'gradle'
+
+      - name: Decode release keystore
+        env:
+          KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+        run: |
+          if [ -z "$KEYSTORE_BASE64" ]; then
+            echo "::warning::Keystore secrets not configured — APK will be unsigned"
+            exit 0
+          fi
+          echo "$KEYSTORE_BASE64" | base64 -d > openrs-release.jks
+          printf 'storeFile=openrs-release.jks\nstorePassword=%s\nkeyAlias=%s\nkeyPassword=%s\n' \
+            "$KEYSTORE_PASSWORD" "$KEY_ALIAS" "$KEY_PASSWORD" > keystore.properties
 
       - name: Build release APK
         run: chmod +x gradlew && ./gradlew assembleRelease --no-daemon
@@ -158,6 +176,21 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           files: ${{ steps.apk.outputs.path }}
+
+  firmware-tests:
+    name: Firmware Script Tests
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Run apply_patches tests
+        run: python3 -m unittest firmware/patches/test_apply_patches.py -v
 
   verify-firmware:
     name: Verify Firmware Binaries
