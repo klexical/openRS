@@ -22,6 +22,9 @@ import androidx.compose.ui.text.style.TextAlign
 import android.content.Intent
 import android.net.Uri
 import android.provider.Settings
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.tween
+import androidx.compose.ui.graphics.Brush
 import com.openrs.dash.BuildConfig
 import com.openrs.dash.service.HudOverlayService
 import androidx.compose.ui.unit.dp
@@ -51,6 +54,10 @@ fun SettingsDialog(onDismiss: () -> Unit) {
     var maxDiagZips     by remember { mutableStateOf(current.maxDiagZips.toString()) }
     var adapterType     by remember { mutableStateOf(current.adapterType) }
     var meatPiMicroSd   by remember { mutableStateOf(current.meatPiMicroSdLog) }
+    var edgeShiftLight  by remember { mutableStateOf(current.edgeShiftLight) }
+    var edgeShiftColor  by remember { mutableStateOf(current.edgeShiftColor) }
+    var edgeShiftIntensity by remember { mutableStateOf(current.edgeShiftIntensity) }
+    var edgeShiftRpm    by remember { mutableStateOf(current.edgeShiftRpm.toString()) }
     var error           by remember { mutableStateOf<String?>(null) }
     var resetConfirm    by remember { mutableStateOf(false) }
 
@@ -177,6 +184,73 @@ fun SettingsDialog(onDismiss: () -> Unit) {
                         checked = screenOn,
                         onCheckedChange = { screenOn = it }
                     )
+                }
+
+                // ── Shift light section ──────────────────────────────────────
+                SettingsSection("SHIFT LIGHT") {
+                    SettingsSwitchRow(
+                        label = "Peripheral edge glow",
+                        checked = edgeShiftLight,
+                        onCheckedChange = { edgeShiftLight = it }
+                    )
+                    if (edgeShiftLight) {
+                        Spacer(Modifier.height(12.dp))
+                        SettingsRow("Color") {
+                            SegmentedPicker(
+                                options = listOf("Accent", "White", "Progressive"),
+                                selected = when (edgeShiftColor) {
+                                    "white" -> "White"
+                                    "progressive" -> "Progressive"
+                                    else -> "Accent"
+                                },
+                                onSelect = {
+                                    edgeShiftColor = when (it) {
+                                        "White" -> "white"
+                                        "Progressive" -> "progressive"
+                                        else -> "accent"
+                                    }
+                                }
+                            )
+                        }
+                        Spacer(Modifier.height(12.dp))
+                        SettingsRow("Intensity") {
+                            SegmentedPicker(
+                                options = listOf("Low", "Med", "High"),
+                                selected = when (edgeShiftIntensity) {
+                                    "low" -> "Low"
+                                    "med" -> "Med"
+                                    else -> "High"
+                                },
+                                onSelect = {
+                                    edgeShiftIntensity = when (it) {
+                                        "Low" -> "low"
+                                        "Med" -> "med"
+                                        else -> "high"
+                                    }
+                                }
+                            )
+                        }
+                        Spacer(Modifier.height(12.dp))
+                        SettingsRow("Shift RPM") {
+                            OutlinedTextField(
+                                value = edgeShiftRpm,
+                                onValueChange = { edgeShiftRpm = it; error = null },
+                                label = { Text("RPM", fontFamily = ShareTechMono, fontSize = 10.sp) },
+                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                                singleLine = true,
+                                modifier = Modifier.width(90.dp),
+                                colors = outlinedFieldColors(),
+                                textStyle = androidx.compose.ui.text.TextStyle(
+                                    fontFamily = ShareTechMono, fontSize = 13.sp, color = Frost
+                                )
+                            )
+                        }
+                        Spacer(Modifier.height(6.dp))
+                        Text(
+                            "Screen edges glow as RPM approaches shift point.",
+                            fontSize = 10.sp, color = Dim, fontFamily = ShareTechMono
+                        )
+                    }
                 }
 
                 // ── Theme section ────────────────────────────────────────────
@@ -452,6 +526,10 @@ fun SettingsDialog(onDismiss: () -> Unit) {
                         maxDiagZips   = AppSettings.DEFAULT_MAX_DIAG_ZIPS.toString()
                         adapterType   = AppSettings.DEFAULT_ADAPTER_TYPE
                         meatPiMicroSd = AppSettings.DEFAULT_MEATPI_MICROSD
+                        edgeShiftLight    = AppSettings.DEFAULT_EDGE_SHIFT_LIGHT
+                        edgeShiftColor    = AppSettings.DEFAULT_EDGE_SHIFT_COLOR
+                        edgeShiftIntensity = AppSettings.DEFAULT_EDGE_SHIFT_INTENSITY
+                        edgeShiftRpm      = AppSettings.DEFAULT_EDGE_SHIFT_RPM.toString()
                         error         = null
                         resetConfirm  = true
                     },
@@ -472,6 +550,7 @@ fun SettingsDialog(onDismiss: () -> Unit) {
                         val retryInt = if (autoReconnect) reconnectSec.toIntOrNull()
                                        else reconnectSec.toIntOrNull() ?: AppSettings.DEFAULT_RECONNECT_INTERVAL
                         val maxZips = maxDiagZips.toIntOrNull()
+                        val shiftRpm = edgeShiftRpm.toIntOrNull()
                         when {
                             host.isBlank() -> error = "Host cannot be empty"
                             p == null || p !in 1..65535 -> error = "Port must be 1–65535"
@@ -480,6 +559,7 @@ fun SettingsDialog(onDismiss: () -> Unit) {
                             highThr == null || highThr <= warnThr -> error = "High must be > Warn"
                             autoReconnect && (retryInt == null || retryInt < 1) -> error = "Retry interval must be ≥ 1 s"
                             maxZips == null || maxZips < 1 -> error = "Max ZIPs must be ≥ 1"
+                            edgeShiftLight && (shiftRpm == null || shiftRpm !in 1000..9000) -> error = "Shift RPM must be 1000–9000"
                             else -> {
                                 AppSettings.save(ctx, host, p)
                                 UserPrefsStore.update(ctx) { it.copy(
@@ -495,7 +575,11 @@ fun SettingsDialog(onDismiss: () -> Unit) {
                                     reconnectIntervalSec = retryInt ?: AppSettings.DEFAULT_RECONNECT_INTERVAL,
                                     maxDiagZips          = maxZips,
                                     adapterType          = adapterType,
-                                    meatPiMicroSdLog     = meatPiMicroSd
+                                    meatPiMicroSdLog     = meatPiMicroSd,
+                                    edgeShiftLight       = edgeShiftLight,
+                                    edgeShiftColor       = edgeShiftColor,
+                                    edgeShiftIntensity   = edgeShiftIntensity,
+                                    edgeShiftRpm         = shiftRpm ?: AppSettings.DEFAULT_EDGE_SHIFT_RPM
                                 )}
                                 onDismiss()
                             }
@@ -515,14 +599,25 @@ fun SettingsDialog(onDismiss: () -> Unit) {
 
 @Composable
 private fun SettingsSection(title: String, content: @Composable ColumnScope.() -> Unit) {
+    val accent = LocalThemeAccent.current
     Column(
         Modifier.fillMaxWidth()
-            .background(Surf2, RoundedCornerShape(8.dp))
-            .border(1.dp, Brd, RoundedCornerShape(8.dp))
-            .padding(14.dp)
+            .background(
+                Brush.verticalGradient(listOf(Surf2, Surf.copy(alpha = 0.5f))),
+                RoundedCornerShape(10.dp)
+            )
+            .border(Tokens.CardBorder, Brd, RoundedCornerShape(10.dp))
+            .padding(16.dp)
     ) {
-        Text(title, fontSize = 9.sp, color = Dim, letterSpacing = 1.5.sp, fontFamily = ShareTechMono)
-        Spacer(Modifier.height(12.dp))
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Box(
+                Modifier.width(3.dp).height(14.dp)
+                    .background(accent, RoundedCornerShape(1.5.dp))
+            )
+            Spacer(Modifier.width(8.dp))
+            MonoLabel(title, 9.sp, accent, letterSpacing = 1.5.sp)
+        }
+        Spacer(Modifier.height(14.dp))
         content()
     }
 }
@@ -572,12 +667,18 @@ fun SegmentedPicker(options: List<String>, selected: String, onSelect: (String) 
     ) {
         options.forEach { option ->
             val isSelected = option == selected
+            val bgColor by animateColorAsState(
+                targetValue = if (isSelected) pickerAccent else Color.Transparent,
+                animationSpec = tween(250), label = "segBg"
+            )
+            val borderColor by animateColorAsState(
+                targetValue = if (isSelected) pickerAccent.copy(alpha = 0.6f) else Color.Transparent,
+                animationSpec = tween(250), label = "segBrd"
+            )
             Box(
                 Modifier
-                    .background(
-                        if (isSelected) pickerAccent else Color.Transparent,
-                        RoundedCornerShape(4.dp)
-                    )
+                    .background(bgColor, RoundedCornerShape(4.dp))
+                    .border(1.dp, borderColor, RoundedCornerShape(4.dp))
                     .clickable { haptic.performHapticFeedback(HapticFeedbackType.Confirm); onSelect(option) }
                     .padding(horizontal = 10.dp, vertical = 5.dp),
                 contentAlignment = Alignment.Center

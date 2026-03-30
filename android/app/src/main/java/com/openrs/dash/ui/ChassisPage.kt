@@ -54,6 +54,7 @@ import com.openrs.dash.ui.anim.GForcePlot
 import com.openrs.dash.ui.anim.RingBuffer
 import com.openrs.dash.ui.anim.WHEEL_ANCHORS
 import com.openrs.dash.ui.anim.tireStatusColor
+import com.openrs.dash.ui.Tokens.PagePad
 import kotlin.math.abs
 import kotlin.math.roundToInt
 
@@ -62,7 +63,7 @@ import kotlin.math.roundToInt
 // ═══════════════════════════════════════════════════════════════════════════
 @Composable fun ChassisPage(vs: VehicleState, p: UserPrefs, onReset: () -> Unit) {
     Column(
-        Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(12.dp),
+        Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(PagePad),
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
         GForceSection(vs, onReset)

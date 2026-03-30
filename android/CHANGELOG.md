@@ -46,6 +46,36 @@ Firmware changes are tracked separately in [firmware releases](https://github.co
 - **Fuel economy never appeared** — OBD DID 0xF42F and CAN 0x380 both wrote to the same `fuelLevelPct` field. CAN fires at ~3 fps and OBD once per 30s, creating a sawtooth pattern that broke the 60-second rolling window calculation. OBD 0xF42F now stores its value in `genericValues["FuelLevel_OBD"]` for diagnostic visibility; CAN 0x380 is the sole source for fuel economy. (`ObdResponseParser.kt`) ([#118](https://github.com/klexical/openRS_/issues/118))
 - **DID prober EXPORT button removed** — clipboard copy of 500+ TSV lines was impractical. Probe results are already included in the diagnostic ZIP as CSV files. Removed button and unused imports. (`DidProberSection.kt`)
 
+### Added (rc.4 — visual polish)
+- **Neon glow border system** — 4 new Compose modifiers (`neonBorder`, `neonPulse`, `bloomGlow`, `scanLine`) replace flat `border()` on all card components with gradient-based glow effects. Animated pulse on hero-tier cards, static glow on secondary cards. (`GlowModifiers.kt`) ([#82](https://github.com/klexical/openRS_/issues/82))
+- **Design token consolidation** — new `DesignTokens.kt` provides single-source-of-truth spacing, shapes, and sizing constants (`Tokens.PagePad`, `CardGap`, `SectionGap`, `CardShape`, `HeroShape`, etc.) replacing hardcoded dp values across UI files.
+- **NeonDivider composable** — accent-colored horizontal gradient divider replacing solid `Brd` rules in section headers. (`Components.kt`)
+- **AnimatedHeroNum composable** — `AnimatedContent` wrapper with vertical slide transitions for hero value changes. Targets formatted string to avoid per-frame recomposition. (`Components.kt`)
+- **Staggered card entrance animations** — `StaggeredColumn` composable with 40ms per-child fade+slide-up entrance effect. (`StaggeredEntrance.kt`)
+- **Press feedback modifier** — `pressScale()` modifier provides tactile scale-down on press with spring-back physics for interactive elements. (`InteractionModifiers.kt`)
+- **Peripheral edge shift light** — multi-zone screen-edge glow overlay with three phases keyed to RPM: breathing (70%), progressive fill (81%), flash (95.5%). Configurable color (accent/white/progressive), intensity (low/med/high), and RPM threshold. (`EdgeShiftLight.kt`, `AppSettings.kt`, `UserPrefs.kt`)
+- **DiagPage summary strip** — 3-cell overview row (STATUS/FPS/DTCs) at top of DIAG tab for at-a-glance diagnostics without scrolling. (`DiagPage.kt`)
+- **DiagPage collapsible sections** — CRASH HISTORY, DID PROBER, LIVE CAN OUTPUT, FRAME INVENTORY, and PID BROWSER sections now collapsed by default with animated expand/collapse. Frame inventory limited to 15 visible rows with "Show all" toggle. (`DiagPage.kt`)
+- **HeroCard value-driven glow intensity** — `valueFraction` parameter (0.0–1.0) scales bloom glow and border alpha proportionally. Applied to RPM/6800, boost/180kPa, speed/250kph on DASH tab. (`Components.kt`, `DashPage.kt`)
+- **CRT scan line on DASH tab** — faint horizontal light sweep across the dashboard when connected, 4-second cycle at 6% alpha. (`DashPage.kt`)
+- **Connection "going live" sweep** — one-shot 800ms accent light band sweeping top-to-bottom across the entire app when adapter connects. (`MainActivity.kt`)
+- **Tab crossfade during swipe** — subtle 15% opacity dip on pages during horizontal pager transitions. (`MainActivity.kt`)
+- **Connection dot bloom** — `bloomGlow` halo behind the connection status dot when connected. (`MainActivity.kt`)
+- **Sparkline glow enhancement** — polyline drawn with 2.5× width ghost layer for glow effect, plus live endpoint dot with bloom halo. (`Sparkline.kt`)
+- **SettingsSheet visual upgrade** — accent left-bar section titles, gradient section backgrounds, animated `SegmentedPicker` with color transitions. (`SettingsSheet.kt`)
+- **SectionLabel chevron animation** — smooth rotation animation on collapse/expand chevron via `animateFloatAsState` + `graphicsLayer`. (`Components.kt`)
+- **AnimatedHeroNum applied to all hero values** — HeroCards, performance timer, and AWD split percentages now use animated vertical slide transitions on value changes. (`Components.kt`, `DashPage.kt`)
+- **Press feedback on interactive buttons** — drive mode buttons, ESC buttons, DTC scan button, and performance timer controls now scale down on press with spring-back physics via `pressClick()`. (`MorePage.kt`, `DiagPage.kt`, `DashPage.kt`)
+- **Tab bar sliding neon indicator** — active tab indicator converted from per-tab conditional to a single sliding `Box` with spring-animated position. (`MainActivity.kt`)
+- **G-Force Plot Compose text rendering** — replaced Android Canvas `drawText` with Compose `rememberTextMeasurer` + JetBrains Mono for consistent typography. Trail points now have radial gradient halos, crosshairs use accent color. (`GForcePlot.kt`)
+- **AWD torque flow animation** — animated flow dots travel along the torque split bar proportional to torque delta between left/right. Direction indicates dominant side. (`DashPage.kt`)
+- **Enhanced TempCard** — neon glow border (color tracks temp status), radial bloom behind value when above warn threshold, progress bar gets `neonGlowRect` when in warn zone, peak tick mark on progress bar. (`TempsPage.kt`)
+- **Staggered entrance on TempsPage** — temperature card grid rows animate in with staggered fade+slide-up on composition. (`TempsPage.kt`)
+- **Design token migration** — `Tokens.PagePad` and `Tokens.CardGap` now used across DashPage, PowerPage, ChassisPage, TempsPage, and MorePage replacing hardcoded `12.dp` and `10.dp` values.
+
+### Fixed (rc.4 — visual polish)
+- **Gear detection thresholds recalibrated for dual final drive** — previous thresholds were derived from a single log with a 3.82 average final drive. Updated to use midpoints between official MMT6 overall ratios (dual final drive 4.063 gears 1-4, 2.955 gears 5-6 per 2016 Owner's Manual p242). (`VehicleState.kt`)
+
 ---
 
 ## [v2.2.5] — 2026-03-27

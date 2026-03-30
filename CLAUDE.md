@@ -53,11 +53,24 @@ ui/
   AppSettings.kt          — SharedPreferences wrapper; prefs file: "openrs_settings"
   UserPrefs.kt            — Observable prefs data class + unit-conversion helpers
                             UserPrefsStore object: MutableStateFlow<UserPrefs>
-  Components.kt           — Shared composables: HeroCard, DataCell, BarCard, TireCard, GfCard,
-                            WheelCell, AfrCard, SectionLabel, FocusRsOutline, tireTempColor()
+  Components.kt           — Shared composables: HeroCard (valueFraction glow), DataCell, BarCard,
+                            TireCard, GfCard, WheelCell, AfrCard, SectionLabel (animated chevron),
+                            NeonDivider, AnimatedHeroNum, FocusRsOutline, tireTempColor()
+                            All cards use neonBorder() instead of flat border()
+  DesignTokens.kt         — Tokens object: PagePad, CardGap, SectionGap, InnerH/V,
+                            CardShape(12dp), HeroShape(14dp), CardRadius, HeroRadius, CardBorder
   Theme.kt                — Color tokens (see below), typography (Orbitron/JetBrains/ShareTech/Barlow)
-  SettingsSheet.kt        — Settings drawer: units, TPMS threshold, adapter, connection, reconnect, diag,
-                            theme picker (RS paint colours), floating HUD toggle, What's New button
+  SettingsSheet.kt        — Settings drawer: units, TPMS threshold, shift light, adapter, connection,
+                            reconnect, diag, theme picker (RS paint colours), floating HUD toggle
+                            Accent left-bar titles, gradient section backgrounds, animated SegmentedPicker
+  anim/
+    EdgeShiftLight.kt     — Peripheral shift light: multi-zone edge glow overlay (breathing → fill → flash)
+                            Three phases keyed to shiftRpm: 70% breathing, 81% progressive, 95.5% flash
+    GlowModifiers.kt      — neonGlow, neonGlowRect, neonBorder (animated pulse), neonPulse,
+                            bloomGlow (double-layer radial), scanLine (CRT sweep)
+    Sparkline.kt          — Inline trend chart with glow line + live endpoint dot + gradient fill
+    StaggeredEntrance.kt  — StaggeredColumn: fade+slide-up with 40ms stagger delay per child
+    InteractionModifiers.kt — pressScale() modifier for tactile button press feedback
   PidBrowserSection.kt    — DIAG tab: expandable FORScan catalog per module with coverage bar
   DidProberSection.kt     — DIAG tab: interactive Mode 22 scanner for any ECU+DID
   WhatsNewDialog.kt       — Version changelog dialog; shown on first launch after update
@@ -136,7 +149,8 @@ data[5] = B5,  data[6] = B6 …
 - `0x340` is PCMmsg17 (PCM ambient temp), **NOT** a TPMS broadcast — TPMS only via BCM Mode 22 DIDs 0x2813/14/15/16
 - Drive mode needs **both** `0x1B0` (nibble) **AND** `0x420` (bytes 6-7) — `0x1B0` alone cannot distinguish Sport from Track. **Polarity: bit0=0→Sport (0xCC), bit0=1→Track (0xCD).** Button cycle order: Normal→Sport→Track→Drift
 - Skip `0x1B0` frames where byte4 ≠ 0 (button-event transition frames; steady-state has byte4 == 0)
-- `0x230` (gear) and `0x3C0` (battery voltage) do **NOT** broadcast on this car — battery from PCM DID 0x0304
+- `0x230` (gear) and `0x3C0` (battery voltage) do **NOT** broadcast on this car — battery from PCM DID 0x0304. Gear is estimated from RPM/speed in `VehicleState.derivedGear`
+- **Gear detection dual final drive** — MMT6 has final drive 4.063 (gears 1-4) and 2.955 (gears 5-6). Official ratios from 2016 Ford Focus RS Owner's Manual p242. The `GEAR_FACTOR` constant uses 3.82 in the denominator but thresholds are calibrated against the true overall ratios — do not recalibrate with a single final drive
 - `boostKpa` is **absolute** pressure (not gauge) — gauge pressure = `boostKpa − 101.325`
 - TPMS PID `0x280B` is multi-frame ISO-TP — send `BCM_FLOW_CONTROL` after receiving First Frame
 - Extended session (`0x10 0x03`) required before: RDU_STATUS (AWD 0x703), PDC (PSCM 0x730), FENG (0x727), RSProt (0x731)
@@ -164,6 +178,7 @@ Speed: MPH  |  Temp: °F  |  Boost: PSI  |  Tire: PSI  |  TireLowPsi: 30
 WiCAN:   192.168.80.1:80     MeatPi: 192.168.0.10:35000
 ScreenOn: true  |  AutoReconnect: true  |  MaxDiagZips: 5
 AdapterType: "WICAN"  (alt: "MEATPI")
+EdgeShiftLight: false  |  EdgeShiftColor: "accent"  |  EdgeShiftIntensity: "high"  |  EdgeShiftRpm: 6800
 Prefs file: "openrs_settings"
 ```
 

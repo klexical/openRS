@@ -54,6 +54,8 @@ import com.openrs.dash.data.VehicleState
 import com.openrs.dash.diagnostics.DiagnosticLogger
 import android.content.Intent
 import android.net.Uri
+import com.openrs.dash.ui.Tokens.PagePad
+import com.openrs.dash.ui.anim.pressClick
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -87,7 +89,7 @@ private const val SAPPHIRE_URL = "https://klexical.github.io/openRS_/"
     var pendingEsc       by remember { mutableStateOf<EscStatus?>(null) }
 
     Column(
-        Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(12.dp),
+        Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(PagePad),
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
 
@@ -118,7 +120,7 @@ private const val SAPPHIRE_URL = "https://klexical.github.io/openRS_/"
                                     if (isActive || isPending) modeAccent else Brd,
                                     RoundedCornerShape(10.dp)
                                 )
-                                .clickable(enabled = canControl && !isActive && pendingDriveMode == null) {
+                                .pressClick(enabled = canControl && !isActive && pendingDriveMode == null) {
                                     haptic.performHapticFeedback(HapticFeedbackType.Confirm)
                                     pendingDriveMode = mode
                                     scope.launch {
@@ -239,7 +241,7 @@ private const val SAPPHIRE_URL = "https://klexical.github.io/openRS_/"
                                     if (isActive || isPending) color else Brd,
                                     RoundedCornerShape(10.dp)
                                 )
-                                .clickable(enabled = canControl && !isActive) {
+                                .pressClick(enabled = canControl && !isActive) {
                                     haptic.performHapticFeedback(HapticFeedbackType.Confirm)
                                     pendingEsc = status
                                     scope.launch {

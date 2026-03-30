@@ -15,6 +15,8 @@ import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.*
 import androidx.compose.animation.core.*
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -42,6 +44,8 @@ import com.openrs.dash.data.DriveMode
 import com.openrs.dash.data.EscStatus
 import com.openrs.dash.data.VehicleState
 import com.openrs.dash.service.CanDataService
+import com.openrs.dash.ui.anim.EdgeShiftLight
+import com.openrs.dash.ui.anim.bloomGlow
 import com.openrs.dash.ui.trip.TripPage
 import androidx.compose.ui.platform.LocalContext
 
@@ -82,6 +86,17 @@ class MainActivity : ComponentActivity() {
             var showTripOverlay by remember { mutableStateOf(false) }
             var showCustomDash  by remember { mutableStateOf(false) }
             val snackbarHostState = remember { SnackbarHostState() }
+
+            // "Going live" connection sweep
+            var wasConnected by remember { mutableStateOf(vs.isConnected) }
+            val sweepProgress = remember { Animatable(0f) }
+            LaunchedEffect(vs.isConnected) {
+                if (vs.isConnected && !wasConnected) {
+                    sweepProgress.snapTo(0f)
+                    sweepProgress.animateTo(1f, tween(800, easing = EaseInOut))
+                }
+                wasConnected = vs.isConnected
+            }
 
             // What's New — show once after version update
             val whatsNewCtx = LocalContext.current
@@ -133,6 +148,10 @@ class MainActivity : ComponentActivity() {
                                         beyondViewportPageCount = 0,
                                         key = { it }
                                     ) { page ->
+                                        val pageOffset = (pagerState.currentPage - page) +
+                                            pagerState.currentPageOffsetFraction
+                                        val alpha = 1f - (kotlin.math.abs(pageOffset) * 0.15f).coerceIn(0f, 0.15f)
+                                        Box(Modifier.graphicsLayer { this.alpha = alpha }) {
                                         when (page) {
                                             0 -> DashPage(vs, prefs)
                                             1 -> PowerPage(vs, prefs)
@@ -151,6 +170,7 @@ class MainActivity : ComponentActivity() {
                                                 onResetSession = { service?.resetSession() }
                                             )
                                             5 -> MorePage(vs, prefs, snackbarHostState, onSettings = { settingsOpen = true }, onCustomDash = { showCustomDash = true })
+                                        }
                                         }
                                     }
                                 }
@@ -192,6 +212,39 @@ class MainActivity : ComponentActivity() {
                                 vehicleState = vs,
                                 prefs        = prefs,
                                 onDismiss    = { showCustomDash = false }
+                            )
+                        }
+
+                        EdgeShiftLight(
+                            rpm       = vs.rpm.toFloat(),
+                            shiftRpm  = prefs.edgeShiftRpm.toFloat(),
+                            enabled   = prefs.edgeShiftLight,
+                            colorMode = prefs.edgeShiftColor,
+                            intensity = when (prefs.edgeShiftIntensity) {
+                                "low" -> 0.3f; "med" -> 0.65f; else -> 1.0f
+                            }
+                        )
+
+                        // "Going live" sweep overlay
+                        if (sweepProgress.value in 0.01f..0.99f) {
+                            val sweepAccent = prefs.themeAccent
+                            Box(
+                                Modifier.fillMaxSize().drawBehind {
+                                    val y = sweepProgress.value * size.height
+                                    val band = 40.dp.toPx()
+                                    drawRect(
+                                        brush = Brush.verticalGradient(
+                                            listOf(
+                                                Color.Transparent,
+                                                sweepAccent.copy(alpha = 0.12f),
+                                                sweepAccent.copy(alpha = 0.06f),
+                                                Color.Transparent
+                                            ),
+                                            startY = y - band,
+                                            endY = y + band
+                                        )
+                                    )
+                                }
                             )
                         }
                     }
@@ -279,7 +332,8 @@ class MainActivity : ComponentActivity() {
                     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(5.dp)) {
                         Box(contentAlignment = Alignment.Center) {
                             Box(Modifier.size(14.dp).clip(CircleShape)
-                                .background(connColor.copy(alpha = 0.25f * dotAlpha)))
+                                .background(connColor.copy(alpha = 0.25f * dotAlpha))
+                                .then(if (vs.isConnected) Modifier.bloomGlow(connColor, 10.dp, 0.3f * dotAlpha) else Modifier))
                             Box(Modifier.size(6.dp).clip(CircleShape)
                                 .background(connColor.copy(alpha = dotAlpha)))
                         }
@@ -368,41 +422,54 @@ class MainActivity : ComponentActivity() {
         "≡" to "DIAG",
         "☰" to "MORE"
     )
-    Row(
+    val tabCount = tabs.size
+    BoxWithConstraints(
         Modifier.fillMaxWidth()
             .background(Surf)
             .border(width = 1.dp, color = Brd, shape = RoundedCornerShape(0.dp))
             .height(52.dp)
     ) {
-        tabs.forEachIndexed { i, (icon, label) ->
-            val isActive = i == selected
-            Box(
-                Modifier.weight(1f).fillMaxHeight()
-                    .clickable { haptic.performHapticFeedback(HapticFeedbackType.Confirm); onSelect(i) }
-                    .background(if (isActive) accent.copy(alpha = 0.05f) else androidx.compose.ui.graphics.Color.Transparent),
-                contentAlignment = Alignment.Center
-            ) {
-                Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
-                    MonoLabel(icon, 13.sp, if (isActive) accent else Dim)
-                    Spacer(Modifier.height(2.dp))
-                    MonoLabel(label, 8.sp, if (isActive) accent else Dim, letterSpacing = 0.12.sp)
-                }
-                if (isActive) {
-                    Box(
-                        Modifier.align(Alignment.BottomCenter)
-                            .fillMaxWidth(0.6f).height(2.dp)
-                            .background(accent, RoundedCornerShape(topStart = 2.dp, topEnd = 2.dp))
-                    )
-                    Box(
-                        Modifier.align(Alignment.BottomCenter)
-                            .fillMaxWidth(0.7f).height(6.dp)
-                            .background(
-                                Brush.verticalGradient(listOf(accent.copy(alpha = 0.12f), Color.Transparent)),
-                                RoundedCornerShape(topStart = 4.dp, topEnd = 4.dp)
-                            )
-                    )
+        val tabWidth = maxWidth / tabCount
+        // Sliding neon indicator
+        val indicatorOffset by animateDpAsState(
+            targetValue = tabWidth * selected,
+            animationSpec = spring(stiffness = Spring.StiffnessMediumLow),
+            label = "tabSlide"
+        )
+        Row(Modifier.fillMaxSize()) {
+            tabs.forEachIndexed { i, (icon, label) ->
+                val isActive = i == selected
+                Box(
+                    Modifier.weight(1f).fillMaxHeight()
+                        .clickable { haptic.performHapticFeedback(HapticFeedbackType.Confirm); onSelect(i) },
+                    contentAlignment = Alignment.Center
+                ) {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
+                        MonoLabel(icon, 13.sp, if (isActive) accent else Dim)
+                        Spacer(Modifier.height(2.dp))
+                        MonoLabel(label, 8.sp, if (isActive) accent else Dim, letterSpacing = 0.12.sp)
+                    }
                 }
             }
+        }
+        // Sliding accent bar + glow
+        Box(
+            Modifier.offset(x = indicatorOffset)
+                .width(tabWidth).align(Alignment.BottomStart)
+        ) {
+            Box(
+                Modifier.align(Alignment.BottomCenter)
+                    .fillMaxWidth(0.6f).height(2.dp)
+                    .background(accent, RoundedCornerShape(topStart = 2.dp, topEnd = 2.dp))
+            )
+            Box(
+                Modifier.align(Alignment.BottomCenter)
+                    .fillMaxWidth(0.7f).height(6.dp)
+                    .background(
+                        Brush.verticalGradient(listOf(accent.copy(alpha = 0.12f), Color.Transparent)),
+                        RoundedCornerShape(topStart = 4.dp, topEnd = 4.dp)
+                    )
+            )
         }
     }
 }

@@ -1,6 +1,10 @@
 package com.openrs.dash.ui
 
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -18,7 +22,6 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -40,6 +43,7 @@ import com.openrs.dash.data.DtcStatus
 import com.openrs.dash.data.VehicleState
 import com.openrs.dash.diagnostics.DiagnosticExporter
 import com.openrs.dash.diagnostics.DiagnosticLogger
+import com.openrs.dash.ui.anim.pressClick
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -72,7 +76,28 @@ import kotlin.math.roundToInt
     // P-4: snapshot once so the size/values are consistent within one composition
     val inv = remember(vs.framesPerSecond) { DiagnosticLogger.frameInventorySnapshot }
 
-    Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(12.dp)) {
+    // Collapsible section states
+    var crashExpanded       by remember { mutableStateOf(false) }
+    var didProberExpanded   by remember { mutableStateOf(false) }
+    var canOutputExpanded   by remember { mutableStateOf(false) }
+    var frameInvExpanded    by remember { mutableStateOf(false) }
+    var pidBrowserExpanded  by remember { mutableStateOf(false) }
+    var showAllFrames       by remember { mutableStateOf(false) }
+
+    Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(Tokens.PagePad)) {
+
+        // ── Summary Strip ─────────────────────────────────────────────────────
+        val frameCount = inv.values.sumOf { it.totalReceived }
+        val dtcCount = dtcResults?.size ?: 0
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            DataCell("STATUS", if (vs.isConnected) "LIVE" else "OFF",
+                valueColor = if (vs.isConnected) Ok else Orange, modifier = Modifier.weight(1f))
+            DataCell("FPS", "${vs.framesPerSecond.roundToInt()}", modifier = Modifier.weight(1f))
+            DataCell("DTCs", if (dtcResults != null) "$dtcCount" else "—",
+                valueColor = if (dtcCount > 0) Orange else if (dtcResults != null) Ok else Dim,
+                modifier = Modifier.weight(1f))
+        }
+        Spacer(Modifier.height(Tokens.SectionGap))
 
         // ── DTC Scanner ───────────────────────────────────────────────────────
         SectionLabel("DTC SCANNER")
@@ -94,7 +119,7 @@ import kotlin.math.roundToInt
                         if (!dtcBusy && vs.isConnected && onScanDtcs != null) accent.copy(0.35f) else Dim.copy(0.2f),
                         RoundedCornerShape(10.dp)
                     )
-                    .clickable(enabled = !dtcBusy && vs.isConnected && onScanDtcs != null) {
+                    .pressClick(enabled = !dtcBusy && vs.isConnected && onScanDtcs != null) {
                         dtcScanning = true
                         dtcError = null
                         dtcClearStatus = null
@@ -312,15 +337,13 @@ import kotlin.math.roundToInt
             }
         }
 
-        HorizontalDivider(color = Brd)
-        Spacer(Modifier.height(10.dp))
+        Spacer(Modifier.height(Tokens.SectionGap))
 
         // ── Session stats + export ────────────────────────────────────────────
         SectionLabel("DIAGNOSTICS")
         Spacer(Modifier.height(4.dp))
 
         val sessionMs  = remember(vs.framesPerSecond) { DiagnosticLogger.sessionDurationMs }
-        val frameCount = inv.values.sumOf { it.totalReceived }
         val issueCount = inv.values.sumOf { it.validationIssues.size }
 
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -438,40 +461,67 @@ import kotlin.math.roundToInt
             }
         }
 
-        HorizontalDivider(color = Brd)
-        Spacer(Modifier.height(10.dp))
-        CrashHistorySection()
-        Spacer(Modifier.height(14.dp))
-        HorizontalDivider(color = Brd)
-        Spacer(Modifier.height(10.dp))
-        DidProberSection(vs, onSendRawQuery)
-        Spacer(Modifier.height(14.dp))
-        HorizontalDivider(color = Brd)
-        Spacer(Modifier.height(10.dp))
-        SectionLabel("LIVE CAN OUTPUT")
-        Spacer(Modifier.height(4.dp))
+        Spacer(Modifier.height(Tokens.SectionGap))
 
-        Column(
-            Modifier.fillMaxWidth()
-                .background(androidx.compose.ui.graphics.Color(0xFF060810), RoundedCornerShape(10.dp))
-                .border(1.dp, Brd, RoundedCornerShape(10.dp))
-                .padding(10.dp)
+        // ── Crash History (collapsed by default) ─────────────────────────────
+        SectionLabel("CRASH HISTORY", collapsible = true, expanded = crashExpanded,
+            onToggle = { crashExpanded = !crashExpanded })
+        AnimatedVisibility(
+            visible = crashExpanded,
+            enter = expandVertically() + fadeIn(),
+            exit = shrinkVertically() + fadeOut()
         ) {
-            val displayLines = lines.takeLast(20)
-            if (displayLines.isEmpty() && vs.isConnected) {
-                MonoLabel("Connected — waiting for first CAN frame...", 10.sp, Warn)
-            } else if (displayLines.isEmpty()) {
-                MonoLabel("Connect to WiCAN to see raw output.", 10.sp, Dim)
-            } else {
-                displayLines.forEach { line ->
-                    val parts = line.trim().split(" ", limit = 2)
-                    Row(Modifier.padding(vertical = 1.dp)) {
-                        if (parts.size >= 2) {
-                            MonoLabel(parts[0], 10.sp, Warn, letterSpacing = 0.05.sp)
-                            Spacer(Modifier.width(12.dp))
-                            MonoText(parts[1], 10.sp, Mid)
-                        } else {
-                            MonoText(line, 10.sp, Mid)
+            Column { CrashHistorySection() }
+        }
+
+        Spacer(Modifier.height(Tokens.SectionGap))
+
+        // ── DID Prober (collapsed by default) ────────────────────────────────
+        SectionLabel("DID PROBER", collapsible = true, expanded = didProberExpanded,
+            onToggle = { didProberExpanded = !didProberExpanded })
+        AnimatedVisibility(
+            visible = didProberExpanded,
+            enter = expandVertically() + fadeIn(),
+            exit = shrinkVertically() + fadeOut()
+        ) {
+            Column { DidProberSection(vs, onSendRawQuery) }
+        }
+
+        Spacer(Modifier.height(Tokens.SectionGap))
+
+        // ── Live CAN Output (collapsed by default) ───────────────────────────
+        SectionLabel("LIVE CAN OUTPUT", collapsible = true, expanded = canOutputExpanded,
+            onToggle = { canOutputExpanded = !canOutputExpanded })
+        AnimatedVisibility(
+            visible = canOutputExpanded,
+            enter = expandVertically() + fadeIn(),
+            exit = shrinkVertically() + fadeOut()
+        ) {
+            Column {
+                Spacer(Modifier.height(4.dp))
+                Column(
+                    Modifier.fillMaxWidth()
+                        .background(Color(0xFF060810), Tokens.CardShape)
+                        .border(Tokens.CardBorder, Brd, Tokens.CardShape)
+                        .padding(Tokens.InnerV)
+                ) {
+                    val displayLines = lines.takeLast(20)
+                    if (displayLines.isEmpty() && vs.isConnected) {
+                        MonoLabel("Connected — waiting for first CAN frame...", 10.sp, Warn)
+                    } else if (displayLines.isEmpty()) {
+                        MonoLabel("Connect to WiCAN to see raw output.", 10.sp, Dim)
+                    } else {
+                        displayLines.forEach { line ->
+                            val parts = line.trim().split(" ", limit = 2)
+                            Row(Modifier.padding(vertical = 1.dp)) {
+                                if (parts.size >= 2) {
+                                    MonoLabel(parts[0], 10.sp, Warn, letterSpacing = 0.05.sp)
+                                    Spacer(Modifier.width(12.dp))
+                                    MonoText(parts[1], 10.sp, Mid)
+                                } else {
+                                    MonoText(line, 10.sp, Mid)
+                                }
+                            }
                         }
                     }
                 }
@@ -479,35 +529,64 @@ import kotlin.math.roundToInt
         }
 
         if (inv.isNotEmpty()) {
-            Spacer(Modifier.height(14.dp))
-            SectionLabel("FRAME INVENTORY (${inv.size} IDs)")
-            Spacer(Modifier.height(4.dp))
-            Column(
-                Modifier.fillMaxWidth()
-                    .background(Surf2, RoundedCornerShape(10.dp))
-                    .border(1.dp, Brd, RoundedCornerShape(10.dp))
-                    .padding(10.dp),
-                verticalArrangement = Arrangement.spacedBy(4.dp)
+            Spacer(Modifier.height(Tokens.SectionGap))
+
+            // ── Frame Inventory (collapsed by default) ───────────────────────
+            SectionLabel("FRAME INVENTORY (${inv.size} IDs)", collapsible = true,
+                expanded = frameInvExpanded, onToggle = { frameInvExpanded = !frameInvExpanded })
+            AnimatedVisibility(
+                visible = frameInvExpanded,
+                enter = expandVertically() + fadeIn(),
+                exit = shrinkVertically() + fadeOut()
             ) {
-                inv.entries.sortedBy { it.key }.forEach { (id, info) ->
-                    val decoded  = if (info.lastDecoded.isEmpty()) "(no decoder)" else info.lastDecoded
-                    val issColor = if (info.validationIssues.isNotEmpty()) Warn else Mid
-                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                        MonoText("0x%03X".format(id), 9.sp, accent)
-                        MonoText("×${info.totalReceived}", 9.sp, Dim)
-                        MonoText(decoded.take(32), 9.sp, issColor, modifier = Modifier.weight(1f).padding(start = 8.dp))
-                    }
-                    info.validationIssues.forEach { issue ->
-                        MonoLabel("  ⚠ $issue", 8.sp, Warn)
+                Column {
+                    Spacer(Modifier.height(4.dp))
+                    val sortedEntries = inv.entries.sortedBy { it.key }
+                    val visibleEntries = if (showAllFrames) sortedEntries else sortedEntries.take(15)
+                    Column(
+                        Modifier.fillMaxWidth()
+                            .background(Surf2, Tokens.CardShape)
+                            .border(Tokens.CardBorder, Brd, Tokens.CardShape)
+                            .padding(Tokens.InnerV),
+                        verticalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        visibleEntries.forEach { (id, info) ->
+                            val decoded  = if (info.lastDecoded.isEmpty()) "(no decoder)" else info.lastDecoded
+                            val issColor = if (info.validationIssues.isNotEmpty()) Warn else Mid
+                            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                                MonoText("0x%03X".format(id), 9.sp, accent)
+                                MonoText("×${info.totalReceived}", 9.sp, Dim)
+                                MonoText(decoded.take(32), 9.sp, issColor, modifier = Modifier.weight(1f).padding(start = 8.dp))
+                            }
+                            info.validationIssues.forEach { issue ->
+                                MonoLabel("  ⚠ $issue", 8.sp, Warn)
+                            }
+                        }
+                        if (!showAllFrames && sortedEntries.size > 15) {
+                            Spacer(Modifier.height(4.dp))
+                            MonoLabel(
+                                "Show all ${sortedEntries.size} IDs ▸",
+                                10.sp, accent,
+                                modifier = Modifier.clickable { showAllFrames = true }.padding(vertical = 4.dp)
+                            )
+                        }
                     }
                 }
             }
         }
 
-        Spacer(Modifier.height(14.dp))
-        HorizontalDivider(color = Brd)
-        Spacer(Modifier.height(10.dp))
-        PidBrowserSection()
+        Spacer(Modifier.height(Tokens.SectionGap))
+
+        // ── PID Browser (collapsed by default) ───────────────────────────────
+        SectionLabel("PID BROWSER", collapsible = true, expanded = pidBrowserExpanded,
+            onToggle = { pidBrowserExpanded = !pidBrowserExpanded })
+        AnimatedVisibility(
+            visible = pidBrowserExpanded,
+            enter = expandVertically() + fadeIn(),
+            exit = shrinkVertically() + fadeOut()
+        ) {
+            Column { PidBrowserSection() }
+        }
     }
 }
 
@@ -566,9 +645,6 @@ private fun CrashHistorySection() {
     val dateFmt = remember { java.text.SimpleDateFormat("MMM dd, HH:mm:ss", java.util.Locale.getDefault()) }
 
     var crashFiles by remember { mutableStateOf(DiagnosticExporter.crashFiles(ctx)) }
-
-    SectionLabel("CRASH HISTORY")
-    Spacer(Modifier.height(4.dp))
 
     if (crashFiles.isEmpty()) {
         Box(

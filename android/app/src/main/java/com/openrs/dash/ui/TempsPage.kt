@@ -9,6 +9,8 @@ import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.graphics.Color
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -36,15 +38,20 @@ import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.openrs.dash.ui.Tokens.PagePad
+import com.openrs.dash.ui.Tokens.CardGap
 import com.openrs.dash.data.VehicleState
+import com.openrs.dash.ui.anim.StaggeredColumn
+import com.openrs.dash.ui.anim.neonBorder
+import com.openrs.dash.ui.anim.neonGlowRect
 
 // ═══════════════════════════════════════════════════════════════════════════
 // TEMPS PAGE
 // ═══════════════════════════════════════════════════════════════════════════
 @Composable fun TempsPage(vs: VehicleState, p: UserPrefs) {
     Column(
-        Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(12.dp),
-        verticalArrangement = Arrangement.spacedBy(10.dp)
+        Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(PagePad),
+        verticalArrangement = Arrangement.spacedBy(CardGap)
     ) {
         RtrBanner(vs, p)
         TempPresetBadge(p)
@@ -103,10 +110,11 @@ import com.openrs.dash.data.VehicleState
                 vs.transOilTempC.takeIf { it > -90 } ?: 0.0, 100.0, 130.0, "AWD"),
         )
         val columns = if (isWideLayout()) 3 else 2
-        tempItems.chunked(columns).forEach { group ->
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                group.forEach { spec -> TempCard(spec, Modifier.weight(1f)) }
-                repeat(columns - group.size) { Spacer(Modifier.weight(1f)) }
+        val rows = tempItems.chunked(columns)
+        StaggeredColumn(itemCount = rows.size, modifier = Modifier.fillMaxWidth()) { index, entranceModifier ->
+            Row(entranceModifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                rows[index].forEach { spec -> TempCard(spec, Modifier.weight(1f)) }
+                repeat(columns - rows[index].size) { Spacer(Modifier.weight(1f)) }
             }
         }
     }
@@ -206,11 +214,26 @@ data class TempSpec(
         else                    -> Orange
     }
     val isPlaceholder = spec.value == "— —"
+    val isWarn = !isPlaceholder && spec.tempC >= spec.warnC
+    val borderGlow = when {
+        isPlaceholder           -> Brd.copy(alpha = 0.3f)
+        spec.tempC >= spec.critC -> Orange.copy(alpha = 0.4f)
+        spec.tempC >= spec.warnC -> Warn.copy(alpha = 0.3f)
+        else                    -> Ok.copy(alpha = 0.1f)
+    }
+
+    // Peak fraction for tick mark
+    val peakBarPct = if (spec.peakDisplay.isNotEmpty() && spec.critC > 0) {
+        // Extract peak temp from peakDisplay string (format "▲ 123°F")
+        val peakStr = spec.peakDisplay.removePrefix("▲ ").replace(Regex("[^0-9.-]"), "")
+        val peakVal = peakStr.toDoubleOrNull() ?: 0.0
+        (peakVal / spec.critC).toFloat().coerceIn(0f, 1f)
+    } else 0f
 
     Box(
         modifier
             .background(Surf2, RoundedCornerShape(14.dp))
-            .border(1.dp, Brd, RoundedCornerShape(14.dp))
+            .neonBorder(borderGlow, 14.dp)
     ) {
         Column(Modifier.padding(12.dp)) {
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
@@ -225,7 +248,21 @@ data class TempSpec(
                 )
                 MonoText("— —", 24.sp, Dim.copy(alpha = phAlpha))
             } else {
-                HeroNum(spec.value, 24.sp, tempColor)
+                // Value with bloom glow when above warn threshold
+                Box(
+                    Modifier.fillMaxWidth()
+                        .then(if (isWarn) Modifier.drawBehind {
+                            drawCircle(
+                                brush = Brush.radialGradient(
+                                    listOf(tempColor.copy(alpha = 0.15f), Color.Transparent),
+                                    center = center,
+                                    radius = size.minDimension * 0.9f
+                                )
+                            )
+                        } else Modifier)
+                ) {
+                    HeroNum(spec.value, 24.sp, tempColor)
+                }
             }
             if (spec.peakDisplay.isNotEmpty()) {
                 val accent = LocalThemeAccent.current
@@ -237,7 +274,20 @@ data class TempSpec(
             Spacer(Modifier.height(8.dp))
             Box(Modifier.fillMaxWidth().height(3.dp).background(Surf3, RoundedCornerShape(2.dp))) {
                 if (!isPlaceholder && barPct > 0) {
-                    Box(Modifier.fillMaxWidth(barPct).height(3.dp).background(barColor, RoundedCornerShape(2.dp)))
+                    Box(Modifier.fillMaxWidth(barPct).height(3.dp)
+                        .background(barColor, RoundedCornerShape(2.dp))
+                        .then(if (isWarn) Modifier.neonGlowRect(barColor) else Modifier))
+                }
+                // Peak tick mark
+                if (peakBarPct > 0.05f) {
+                    val accent = LocalThemeAccent.current
+                    Box(
+                        Modifier.fillMaxWidth(peakBarPct)
+                            .height(3.dp),
+                        contentAlignment = Alignment.CenterEnd
+                    ) {
+                        Box(Modifier.width(1.5.dp).height(5.dp).background(accent.copy(alpha = 0.6f)))
+                    }
                 }
             }
         }

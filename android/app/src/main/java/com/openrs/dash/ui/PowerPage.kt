@@ -23,7 +23,10 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import androidx.compose.foundation.layout.Column
+import com.openrs.dash.ui.Tokens.PagePad
+import com.openrs.dash.ui.Tokens.CardGap
 import com.openrs.dash.data.VehicleState
+import com.openrs.dash.ui.anim.StaggeredColumn
 import kotlin.math.roundToInt
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -37,9 +40,9 @@ import kotlin.math.roundToInt
     val expandedSections = remember { mutableStateMapOf<String, Boolean>() }
     fun isExpanded(key: String) = expandedSections.getOrDefault(key, true)
 
-    androidx.compose.foundation.layout.Column(
-        Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(12.dp),
-        verticalArrangement = Arrangement.spacedBy(10.dp)
+    Column(
+        Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(PagePad),
+        verticalArrangement = Arrangement.spacedBy(CardGap)
     ) {
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             AfrCard("AFR ACT",  if (hasAfr) "%.2f".format(vs.afrActual)    else ph, ":1",
@@ -52,7 +55,7 @@ import kotlin.math.roundToInt
 
         SectionLabel("THROTTLE & BOOST", collapsible = true, expanded = isExpanded("THROTTLE"), onToggle = { expandedSections["THROTTLE"] = !isExpanded("THROTTLE") })
         AnimatedVisibility(visible = isExpanded("THROTTLE"), enter = expandVertically(), exit = shrinkVertically()) {
-            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Column(verticalArrangement = Arrangement.spacedBy(CardGap)) {
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     DataCell("ETC ACT", if (vs.etcAngleActual > 0) "${"%.1f".format(vs.etcAngleActual)}°" else ph, modifier = Modifier.weight(1f))
                     DataCell("ETC DES", if (vs.etcAngleDesired > 0) "${"%.1f".format(vs.etcAngleDesired)}°" else ph, modifier = Modifier.weight(1f))
@@ -71,7 +74,7 @@ import kotlin.math.roundToInt
 
         SectionLabel("ENGINE MANAGEMENT", collapsible = true, expanded = isExpanded("ENGINE"), onToggle = { expandedSections["ENGINE"] = !isExpanded("ENGINE") })
         AnimatedVisibility(visible = isExpanded("ENGINE"), enter = expandVertically(), exit = shrinkVertically()) {
-            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Column(verticalArrangement = Arrangement.spacedBy(CardGap)) {
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     DataCell("TIMING", if (vs.calcLoad > 0) "${"%.1f".format(vs.timingAdvance)}°" else ph, modifier = Modifier.weight(1f))
                     DataCell("LOAD",   if (vs.calcLoad > 0) "${"%.0f".format(vs.calcLoad)}%" else ph,              modifier = Modifier.weight(1f))
@@ -101,7 +104,7 @@ import kotlin.math.roundToInt
 
         SectionLabel("FUEL TRIMS & AFR", collapsible = true, expanded = isExpanded("FUEL"), onToggle = { expandedSections["FUEL"] = !isExpanded("FUEL") })
         AnimatedVisibility(visible = isExpanded("FUEL"), enter = expandVertically(), exit = shrinkVertically()) {
-            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Column(verticalArrangement = Arrangement.spacedBy(CardGap)) {
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     val stftColor = fuelTrimColor(vs.shortFuelTrim)
                     val ltftColor = fuelTrimColor(vs.longFuelTrim)

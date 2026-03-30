@@ -225,16 +225,18 @@ data class VehicleState(
     /**
      * Gear estimated from RPM ÷ vehicle speed.
      * The Focus RS does not broadcast gear position on passive HS-CAN (0x230 is absent
-     * from every observed log). This calculation uses empirically calibrated thresholds
-     * derived from a live 16-minute log, with known gear ratios confirmed via the
-     * RPM/speed/ratio triangle at multiple speed points.
+     * from every observed log).
      *
      * Formula:  ratio = rpm × GEAR_FACTOR / speedKph
      *   where GEAR_FACTOR = tireCircumferenceM(235/35R19=2.033) × 3.6 / (60 × finalDrive(3.82))
      *                      = 0.03194
      *
-     * Measured ratios from live log: 1st≈3.79  2nd≈2.18  3rd≈1.89  4th≈1.30  5th≈0.85
-     * Thresholds sit at midpoints between adjacent measured values.
+     * Official MMT6 ratios (2016 Ford Focus RS Owner's Manual, p242):
+     *   1st=3.23  2nd=1.95  3rd=1.32  4th=1.03  5th=1.13  6th=0.94
+     *   Dual final drive: 4.063 (gears 1-4), 2.955 (gears 5-6)
+     *   Overall: 1st=13.12  2nd=7.92  3rd=5.36  4th=4.18  5th=3.34  6th=2.78
+     *   Code-equivalent ratios (÷3.82): 1st=3.43  2nd=2.07  3rd=1.40  4th=1.09  5th=0.87  6th=0.73
+     * Thresholds sit at midpoints between adjacent code-equivalent values.
      * Returns 0 (N) when speed < 3 kph or RPM < 400. Returns 7 for reverse.
      */
     val derivedGear: Int get() {
@@ -242,11 +244,11 @@ data class VehicleState(
         if (speedKph < 3.0 || rpm < 400) return 0
         val ratio = rpm * 0.03194 / speedKph
         return when {
-            ratio >= 2.99 -> 1
-            ratio >= 2.03 -> 2
-            ratio >= 1.60 -> 3
-            ratio >= 1.00 -> 4
-            ratio >= 0.74 -> 5
+            ratio >= 2.75 -> 1
+            ratio >= 1.74 -> 2
+            ratio >= 1.25 -> 3
+            ratio >= 0.98 -> 4
+            ratio >= 0.80 -> 5
             else          -> 6
         }
     }

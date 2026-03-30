@@ -9,11 +9,19 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
-import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.drawText
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.rememberTextMeasurer
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.openrs.dash.ui.Accent
 import com.openrs.dash.ui.Dim
+import com.openrs.dash.ui.Frost
+import com.openrs.dash.ui.JetBrainsMonoFamily
+import com.openrs.dash.ui.LocalThemeAccent
 import kotlin.math.min
 
 /**
@@ -29,20 +37,25 @@ fun GForcePlot(
     maxG: Float = 1.5f,
     dotColor: Color = Accent
 ) {
+    val accent = LocalThemeAccent.current
     val density = LocalDensity.current
-    val textPaint = remember(density) {
-        android.graphics.Paint().apply {
-            color = android.graphics.Color.argb(100, 61, 90, 114)
-            textSize = with(density) { 9.dp.toPx() }
-            isAntiAlias = true
-        }
+    val textMeasurer = rememberTextMeasurer()
+    val ringLabelStyle = remember(density) {
+        TextStyle(
+            fontFamily = JetBrainsMonoFamily,
+            fontSize = 9.sp,
+            color = Dim.copy(alpha = 0.6f),
+            fontWeight = FontWeight.Normal
+        )
     }
-    val axisPaint = remember(density) {
-        android.graphics.Paint().apply {
-            color = android.graphics.Color.argb(90, 61, 90, 114)
-            textSize = with(density) { 10.dp.toPx() }
-            isAntiAlias = true
-        }
+    val axisLabelStyle = remember(density) {
+        TextStyle(
+            fontFamily = JetBrainsMonoFamily,
+            fontSize = 10.sp,
+            color = Dim.copy(alpha = 0.55f),
+            fontWeight = FontWeight.Normal,
+            textAlign = TextAlign.Center
+        )
     }
 
     val ringSteps = remember { listOf(0.5f, 1.0f, 1.5f) }
@@ -63,34 +76,52 @@ fun GForcePlot(
             )
         }
 
-        // Crosshairs
-        drawLine(Dim.copy(alpha = 0.12f), Offset(cx, cy - radius), Offset(cx, cy + radius), 1.dp.toPx())
-        drawLine(Dim.copy(alpha = 0.12f), Offset(cx - radius, cy), Offset(cx + radius, cy), 1.dp.toPx())
+        // Crosshairs — accent-tinted
+        drawLine(accent.copy(alpha = 0.10f), Offset(cx, cy - radius), Offset(cx, cy + radius), 1.dp.toPx())
+        drawLine(accent.copy(alpha = 0.10f), Offset(cx - radius, cy), Offset(cx + radius, cy), 1.dp.toPx())
 
-        // Ring labels
+        // Ring labels (Compose drawText)
         for (g in ringSteps) {
             val r = g * scale
+            val label = "%.1f".format(g)
+            val measured = textMeasurer.measure(label, ringLabelStyle)
             val labelX = cx + r * 0.71f + 4.dp.toPx()
-            val labelY = cy - r * 0.71f - 2.dp.toPx()
-            drawContext.canvas.nativeCanvas.drawText("%.1f".format(g), labelX, labelY, textPaint)
+            val labelY = cy - r * 0.71f - measured.size.height.toFloat()
+            drawText(measured, topLeft = Offset(labelX, labelY))
         }
 
-        // Axis labels
-        axisPaint.textAlign = android.graphics.Paint.Align.CENTER
-        drawContext.canvas.nativeCanvas.drawText("ACCEL", cx, cy - radius - 6.dp.toPx(), axisPaint)
-        drawContext.canvas.nativeCanvas.drawText("BRAKE", cx, cy + radius + 14.dp.toPx(), axisPaint)
-        axisPaint.textAlign = android.graphics.Paint.Align.LEFT
-        drawContext.canvas.nativeCanvas.drawText("L", cx - radius - 12.dp.toPx(), cy + 4.dp.toPx(), axisPaint)
-        axisPaint.textAlign = android.graphics.Paint.Align.RIGHT
-        drawContext.canvas.nativeCanvas.drawText("R", cx + radius + 12.dp.toPx(), cy + 4.dp.toPx(), axisPaint)
+        // Axis labels (Compose drawText)
+        val accelM = textMeasurer.measure("ACCEL", axisLabelStyle)
+        drawText(accelM, topLeft = Offset(cx - accelM.size.width / 2f, cy - radius - 6.dp.toPx() - accelM.size.height))
+        val brakeM = textMeasurer.measure("BRAKE", axisLabelStyle)
+        drawText(brakeM, topLeft = Offset(cx - brakeM.size.width / 2f, cy + radius + 6.dp.toPx()))
+        val leftM = textMeasurer.measure("L", axisLabelStyle)
+        drawText(leftM, topLeft = Offset(cx - radius - 12.dp.toPx() - leftM.size.width, cy - leftM.size.height / 2f))
+        val rightM = textMeasurer.measure("R", axisLabelStyle)
+        drawText(rightM, topLeft = Offset(cx + radius + 12.dp.toPx(), cy - rightM.size.height / 2f))
 
-        // Comet trail
+        // Comet trail with radial gradient halos
         if (trail.size >= 2) {
             for (i in trail.indices) {
                 val (tLat, tLon) = trail[i]
-                val alpha = 0.05f + (i.toFloat() / trail.size) * 0.45f
+                val ageFraction = i.toFloat() / trail.size
+                val alpha = 0.05f + ageFraction * 0.45f
                 val tx = cx + tLat * scale
                 val ty = cy - tLon * scale
+
+                // Radial gradient halo (fading with age)
+                val haloRadius = (2.5.dp.toPx() + ageFraction * 4.dp.toPx())
+                drawCircle(
+                    brush = Brush.radialGradient(
+                        listOf(dotColor.copy(alpha = alpha * 0.4f), Color.Transparent),
+                        center = Offset(tx, ty),
+                        radius = haloRadius
+                    ),
+                    radius = haloRadius,
+                    center = Offset(tx, ty)
+                )
+
+                // Trail dot
                 drawCircle(dotColor.copy(alpha = alpha), radius = 2.5.dp.toPx(), center = Offset(tx, ty))
                 if (i > 0) {
                     val (pLat, pLon) = trail[i - 1]

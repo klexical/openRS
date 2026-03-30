@@ -83,6 +83,19 @@ object AppSettings {
     const val KEY_MEATPI_MICROSD     = "meatpi_microsd"
     const val DEFAULT_MEATPI_MICROSD = false
 
+    // ── Peripheral shift light ──────────────────────────────────────────
+    const val KEY_EDGE_SHIFT_LIGHT     = "edge_shift_light"
+    const val DEFAULT_EDGE_SHIFT_LIGHT = false
+
+    const val KEY_EDGE_SHIFT_COLOR     = "edge_shift_color"
+    const val DEFAULT_EDGE_SHIFT_COLOR = "accent"    // "accent" | "white" | "progressive"
+
+    const val KEY_EDGE_SHIFT_INTENSITY     = "edge_shift_intensity"
+    const val DEFAULT_EDGE_SHIFT_INTENSITY = "high"  // "low" | "med" | "high"
+
+    const val KEY_EDGE_SHIFT_RPM     = "edge_shift_rpm"
+    const val DEFAULT_EDGE_SHIFT_RPM = 6800
+
     // ── Odometer display ──────────────────────────────────────────────────
     const val KEY_ODOM_IN_MILES = "odom_in_miles"
 
@@ -159,6 +172,18 @@ object AppSettings {
         prefs(ctx).edit { putString(KEY_LAST_SEEN_VERSION, version) }
     }
 
+    fun getEdgeShiftLight(ctx: Context): Boolean =
+        prefs(ctx).getBoolean(KEY_EDGE_SHIFT_LIGHT, DEFAULT_EDGE_SHIFT_LIGHT)
+
+    fun getEdgeShiftColor(ctx: Context): String =
+        prefs(ctx).getString(KEY_EDGE_SHIFT_COLOR, DEFAULT_EDGE_SHIFT_COLOR) ?: DEFAULT_EDGE_SHIFT_COLOR
+
+    fun getEdgeShiftIntensity(ctx: Context): String =
+        prefs(ctx).getString(KEY_EDGE_SHIFT_INTENSITY, DEFAULT_EDGE_SHIFT_INTENSITY) ?: DEFAULT_EDGE_SHIFT_INTENSITY
+
+    fun getEdgeShiftRpm(ctx: Context): Int =
+        prefs(ctx).getInt(KEY_EDGE_SHIFT_RPM, DEFAULT_EDGE_SHIFT_RPM)
+
     fun getOdomInMiles(ctx: Context): Boolean {
         val p = prefs(ctx)
         // Backward compat: if key absent, derive from speed unit.
@@ -207,6 +232,10 @@ object AppSettings {
             putString(KEY_ADAPTER_TYPE, p.adapterType)
             putBoolean(KEY_MEATPI_MICROSD, p.meatPiMicroSdLog)
             putBoolean(KEY_ODOM_IN_MILES, p.odomInMiles)
+            putBoolean(KEY_EDGE_SHIFT_LIGHT, p.edgeShiftLight)
+            putString (KEY_EDGE_SHIFT_COLOR, p.edgeShiftColor)
+            putString (KEY_EDGE_SHIFT_INTENSITY, p.edgeShiftIntensity)
+            putInt    (KEY_EDGE_SHIFT_RPM, p.edgeShiftRpm)
         }
     }
 
@@ -226,7 +255,11 @@ object AppSettings {
         tempPreset           = getTempPreset(ctx),
         adapterType          = getAdapterType(ctx),
         meatPiMicroSdLog     = getMeatPiMicroSd(ctx),
-        odomInMiles          = getOdomInMiles(ctx)
+        odomInMiles          = getOdomInMiles(ctx),
+        edgeShiftLight       = getEdgeShiftLight(ctx),
+        edgeShiftColor       = getEdgeShiftColor(ctx),
+        edgeShiftIntensity   = getEdgeShiftIntensity(ctx),
+        edgeShiftRpm         = getEdgeShiftRpm(ctx)
     )
 
     // ── Custom dashboard persistence ────────────────────────────────────

@@ -35,7 +35,11 @@ data class UserPrefs(
     val tempPreset: String          = AppSettings.DEFAULT_TEMP_PRESET,   // "street"|"track"|"race"
     val adapterType: String         = AppSettings.DEFAULT_ADAPTER_TYPE,  // "WICAN" | "MEATPI"
     val meatPiMicroSdLog: Boolean   = false,                              // MeatPi Pro microSD logging
-    val odomInMiles: Boolean        = speedUnit == "MPH"                  // Odometer display: true=mi, false=km
+    val odomInMiles: Boolean        = speedUnit == "MPH",                 // Odometer display: true=mi, false=km
+    val edgeShiftLight: Boolean     = AppSettings.DEFAULT_EDGE_SHIFT_LIGHT,  // peripheral edge glow
+    val edgeShiftColor: String      = AppSettings.DEFAULT_EDGE_SHIFT_COLOR,  // "accent"|"white"|"progressive"
+    val edgeShiftIntensity: String  = AppSettings.DEFAULT_EDGE_SHIFT_INTENSITY, // "low"|"med"|"high"
+    val edgeShiftRpm: Int           = AppSettings.DEFAULT_EDGE_SHIFT_RPM     // shift point RPM
 ) {
     // ── Unit-conversion helpers used by UI ─────────────────────────────────
 

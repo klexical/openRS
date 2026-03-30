@@ -26,10 +26,17 @@ import androidx.compose.animation.shrinkVertically
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.animation.togetherWith
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
+import androidx.compose.foundation.Canvas
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.getValue
@@ -45,8 +52,13 @@ import androidx.compose.runtime.collectAsState
 import com.openrs.dash.data.FuelEconomy
 import com.openrs.dash.data.PerformanceTimer
 import com.openrs.dash.data.VehicleState
+import com.openrs.dash.ui.anim.pressClick
 import com.openrs.dash.ui.anim.ShiftLightBar
 import com.openrs.dash.ui.anim.SparklineData
+import com.openrs.dash.ui.anim.StaggeredColumn
+import com.openrs.dash.ui.anim.scanLine
+import com.openrs.dash.ui.Tokens.PagePad
+import com.openrs.dash.ui.Tokens.CardGap
 import kotlin.math.roundToInt
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -94,10 +106,12 @@ import kotlin.math.roundToInt
 
     val scrollState = rememberScrollState()
 
-    Box(Modifier.fillMaxSize()) {
+    Box(Modifier.fillMaxSize()
+        .then(if (vs.isConnected) Modifier.scanLine(accent, speedMs = 4000, alpha = 0.06f) else Modifier)
+    ) {
     Column(
-        Modifier.fillMaxSize().verticalScroll(scrollState).padding(12.dp),
-        verticalArrangement = Arrangement.spacedBy(10.dp)
+        Modifier.fillMaxSize().verticalScroll(scrollState).padding(PagePad),
+        verticalArrangement = Arrangement.spacedBy(CardGap)
     ) {
         // ── Hero Row: BOOST | RPM | SPEED (with ▲ session peaks) ─────────
         Row(Modifier.fillMaxWidth().height(IntrinsicSize.Max), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -107,7 +121,8 @@ import kotlin.math.roundToInt
                 borderAccent = Warn.copy(alpha = 0.25f),
                 peak = "▲ ${"%.1f".format(vs.peakBoostPsi)}",
                 modifier = Modifier.weight(1f).fillMaxHeight(),
-                sparklineData = boostSpark.snapshot()
+                sparklineData = boostSpark.snapshot(),
+                valueFraction = (vs.boostKpa.toFloat() / 180f).coerceIn(0f, 1f)
             )
             HeroCard(
                 unit = "RPM", value = animRpmStr, label = "ENGINE",
@@ -115,7 +130,8 @@ import kotlin.math.roundToInt
                 borderAccent = Orange.copy(alpha = 0.2f),
                 peak = "▲ ${vs.peakRpm.toInt()}",
                 modifier = Modifier.weight(1f).fillMaxHeight(),
-                sparklineData = rpmSpark.snapshot()
+                sparklineData = rpmSpark.snapshot(),
+                valueFraction = (vs.rpm.toFloat() / 6800f).coerceIn(0f, 1f)
             )
             HeroCard(
                 unit = p.speedLabel, value = animSpeedStr, label = "SPEED",
@@ -123,7 +139,8 @@ import kotlin.math.roundToInt
                 borderAccent = accent.copy(alpha = 0.25f),
                 peak = "▲ ${p.displaySpeed(vs.peakSpeedKph)}",
                 modifier = Modifier.weight(1f).fillMaxHeight(),
-                sparklineData = speedSpark.snapshot()
+                sparklineData = speedSpark.snapshot(),
+                valueFraction = (vs.speedKph.toFloat() / 250f).coerceIn(0f, 1f)
             )
         }
 
@@ -335,8 +352,25 @@ import kotlin.math.roundToInt
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                MonoLabel(odomLabel, 9.sp, Dim, letterSpacing = 0.15.sp)
-                MonoText(odomValue, 16.sp, if (vs.odometerKm >= 0) Frost else Dim)
+                AnimatedContent(
+                    targetState = odomLabel,
+                    transitionSpec = {
+                        fadeIn(tween(300)) togetherWith fadeOut(tween(300))
+                    },
+                    label = "odomLbl"
+                ) { label ->
+                    MonoLabel(label, 9.sp, Dim, letterSpacing = 0.15.sp)
+                }
+                AnimatedContent(
+                    targetState = odomValue,
+                    transitionSpec = {
+                        (slideInVertically { -it } + fadeIn(tween(300))) togetherWith
+                        (slideOutVertically { it } + fadeOut(tween(300)))
+                    },
+                    label = "odom"
+                ) { value ->
+                    MonoText(value, 16.sp, if (vs.odometerKm >= 0) Frost else Dim)
+                }
             }
             if (vs.odometerKm >= 0) {
                 MonoLabel("tap to toggle", 8.sp, Dim,
@@ -420,6 +454,15 @@ import kotlin.math.roundToInt
     val frontPct = (100f - rearPct).coerceIn(0.01f, 99.99f)
     val rearF    = rearPct.coerceIn(0.01f, 99.99f)
 
+    // Flow dot animation — speed proportional to torque delta
+    val torqueDelta = kotlin.math.abs(vs.awdLeftTorque - vs.awdRightTorque).toFloat()
+    val flowSpeed = (2000 - (torqueDelta * 10).toInt().coerceIn(0, 1200)).coerceIn(800, 2000)
+    val flowProgress by rememberInfiniteTransition(label = "awdFlow").animateFloat(
+        initialValue = 0f, targetValue = 1f,
+        animationSpec = infiniteRepeatable(tween(flowSpeed, easing = LinearEasing), RepeatMode.Restart),
+        label = "awdFlowP"
+    )
+
     Column(
         Modifier.fillMaxWidth()
             .background(Surf2, RoundedCornerShape(12.dp))
@@ -429,22 +472,36 @@ import kotlin.math.roundToInt
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
             Column {
                 MonoLabel("FRONT", 8.sp, Dim, letterSpacing = 0.12.sp)
-                HeroNum("${(100 - rearPct).roundToInt()}%", 18.sp, accent)
+                AnimatedHeroNum("${(100 - rearPct).roundToInt()}%", 18.sp, accent)
             }
-            Row(
-                Modifier.weight(1f).padding(horizontal = 12.dp).height(10.dp)
-                    .background(Surf3, RoundedCornerShape(5.dp))
-            ) {
-                Box(Modifier.weight(frontPct).fillMaxHeight()
-                    .background(Brush.horizontalGradient(listOf(accent, accent.copy(0.5f))),
-                        RoundedCornerShape(topStart = 5.dp, bottomStart = 5.dp)))
-                Box(Modifier.weight(rearF).fillMaxHeight()
-                    .background(Brush.horizontalGradient(listOf(Ok.copy(0.5f), Ok)),
-                        RoundedCornerShape(topEnd = 5.dp, bottomEnd = 5.dp)))
+            Box(Modifier.weight(1f).padding(horizontal = 12.dp).height(10.dp)) {
+                Row(Modifier.matchParentSize().background(Surf3, RoundedCornerShape(5.dp))) {
+                    Box(Modifier.weight(frontPct).fillMaxHeight()
+                        .background(Brush.horizontalGradient(listOf(accent, accent.copy(0.5f))),
+                            RoundedCornerShape(topStart = 5.dp, bottomStart = 5.dp)))
+                    Box(Modifier.weight(rearF).fillMaxHeight()
+                        .background(Brush.horizontalGradient(listOf(Ok.copy(0.5f), Ok)),
+                            RoundedCornerShape(topEnd = 5.dp, bottomEnd = 5.dp)))
+                }
+                // Animated flow dots
+                if (vs.totalRearTorque > 5) {
+                    Canvas(Modifier.matchParentSize()) {
+                        val dotRadius = 2.dp.toPx()
+                        val dotCount = 3
+                        val rearDominant = rearPct > 55f
+                        for (i in 0 until dotCount) {
+                            val phase = (flowProgress + i.toFloat() / dotCount) % 1f
+                            val x = if (rearDominant) size.width * (1f - phase) else size.width * phase
+                            val dotAlpha = (0.4f * (1f - kotlin.math.abs(phase - 0.5f) * 2f)).coerceIn(0f, 0.4f)
+                            val dotColor = if (rearDominant) Ok else accent
+                            drawCircle(dotColor.copy(alpha = dotAlpha), dotRadius, Offset(x, size.height / 2f))
+                        }
+                    }
+                }
             }
             Column(horizontalAlignment = Alignment.End) {
                 MonoLabel("REAR", 8.sp, Dim, letterSpacing = 0.12.sp)
-                HeroNum("${rearPct.roundToInt()}%", 18.sp, Ok)
+                AnimatedHeroNum("${rearPct.roundToInt()}%", 18.sp, Ok)
             }
         }
         Spacer(Modifier.height(8.dp))
@@ -525,7 +582,7 @@ internal fun tempColorShade(c: Double, warnC: Double, critC: Double) = when {
             PerformanceTimer.State.ARMED    -> Warn
             else -> Frost
         }
-        HeroNum(timeStr, 42.sp, timeColor)
+        AnimatedHeroNum(timeStr, 42.sp, timeColor)
         MonoLabel("seconds", 8.sp, Dim)
 
         // Status / details row
@@ -535,7 +592,7 @@ internal fun tempColorShade(c: Double, warnC: Double, critC: Double) = when {
                     Modifier
                         .background(accent.copy(0.12f), RoundedCornerShape(6.dp))
                         .border(1.dp, accent.copy(0.3f), RoundedCornerShape(6.dp))
-                        .clickable { PerformanceTimer.arm(ts.target) }
+                        .pressClick { PerformanceTimer.arm(ts.target) }
                         .padding(horizontal = 16.dp, vertical = 8.dp)
                 ) {
                     MonoLabel("ARM TIMER", 10.sp, accent, androidx.compose.ui.text.font.FontWeight.Bold)
@@ -560,7 +617,7 @@ internal fun tempColorShade(c: Double, warnC: Double, critC: Double) = when {
                         Modifier
                             .background(accent.copy(0.12f), RoundedCornerShape(6.dp))
                             .border(1.dp, accent.copy(0.3f), RoundedCornerShape(6.dp))
-                            .clickable { PerformanceTimer.reset(); PerformanceTimer.arm(ts.target) }
+                            .pressClick { PerformanceTimer.reset(); PerformanceTimer.arm(ts.target) }
                             .padding(horizontal = 12.dp, vertical = 6.dp)
                     ) {
                         MonoLabel("GO AGAIN", 10.sp, accent, androidx.compose.ui.text.font.FontWeight.Bold)
