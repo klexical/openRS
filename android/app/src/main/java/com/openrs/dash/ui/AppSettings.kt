@@ -1,6 +1,12 @@
 package com.openrs.dash.ui
 
 import android.content.Context
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.MutableState
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.ui.platform.LocalContext
 import androidx.core.content.edit
 import com.openrs.dash.data.DashCell
 import com.openrs.dash.data.DashLayout
@@ -63,6 +69,12 @@ object AppSettings {
     // ── Diagnostics ──────────────────────────────────────────────────────────
     const val KEY_MAX_DIAG_ZIPS     = "max_diag_zips"
     const val DEFAULT_MAX_DIAG_ZIPS = 5          // keep last N ZIP exports
+
+    // ── Drives ──────────────────────────────────────────────────────────────
+    const val KEY_AUTO_RECORD_DRIVES     = "auto_record_drives"
+    const val DEFAULT_AUTO_RECORD_DRIVES = false    // opt-in: auto-start on connect
+    const val KEY_MAX_SAVED_DRIVES       = "max_saved_drives"
+    const val DEFAULT_MAX_SAVED_DRIVES   = 50       // oldest pruned when exceeded
 
     // ── Theme ────────────────────────────────────────────────────────────────
     const val KEY_THEME_ID     = "theme_id"
@@ -153,6 +165,12 @@ object AppSettings {
     fun getMaxDiagZips(ctx: Context): Int =
         prefs(ctx).getInt(KEY_MAX_DIAG_ZIPS, DEFAULT_MAX_DIAG_ZIPS)
 
+    fun getAutoRecordDrives(ctx: Context): Boolean =
+        prefs(ctx).getBoolean(KEY_AUTO_RECORD_DRIVES, DEFAULT_AUTO_RECORD_DRIVES)
+
+    fun getMaxSavedDrives(ctx: Context): Int =
+        prefs(ctx).getInt(KEY_MAX_SAVED_DRIVES, DEFAULT_MAX_SAVED_DRIVES)
+
     fun getThemeId(ctx: Context): String =
         prefs(ctx).getString(KEY_THEME_ID, DEFAULT_THEME_ID) ?: DEFAULT_THEME_ID
 
@@ -236,6 +254,8 @@ object AppSettings {
             putString (KEY_EDGE_SHIFT_COLOR, p.edgeShiftColor)
             putString (KEY_EDGE_SHIFT_INTENSITY, p.edgeShiftIntensity)
             putInt    (KEY_EDGE_SHIFT_RPM, p.edgeShiftRpm)
+            putBoolean(KEY_AUTO_RECORD_DRIVES, p.autoRecordDrives)
+            putInt    (KEY_MAX_SAVED_DRIVES, p.maxSavedDrives)
         }
     }
 
@@ -259,7 +279,9 @@ object AppSettings {
         edgeShiftLight       = getEdgeShiftLight(ctx),
         edgeShiftColor       = getEdgeShiftColor(ctx),
         edgeShiftIntensity   = getEdgeShiftIntensity(ctx),
-        edgeShiftRpm         = getEdgeShiftRpm(ctx)
+        edgeShiftRpm         = getEdgeShiftRpm(ctx),
+        autoRecordDrives     = getAutoRecordDrives(ctx),
+        maxSavedDrives       = getMaxSavedDrives(ctx)
     )
 
     // ── Custom dashboard persistence ────────────────────────────────────
@@ -301,6 +323,24 @@ object AppSettings {
         }
     }
 
+    // ── Collapsible section persistence ───────────────────────────────────
+    fun isSectionExpanded(ctx: Context, key: String, default: Boolean = true): Boolean =
+        prefs(ctx).getBoolean("section_$key", default)
+
+    fun setSectionExpanded(ctx: Context, key: String, expanded: Boolean) =
+        prefs(ctx).edit { putBoolean("section_$key", expanded) }
+
     private fun prefs(ctx: Context) =
         ctx.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+}
+
+/** Returns a [MutableState] backed by SharedPreferences for collapsible section state. */
+@Composable
+fun rememberSectionExpanded(key: String, default: Boolean = true): MutableState<Boolean> {
+    val ctx = LocalContext.current
+    val state = remember { mutableStateOf(AppSettings.isSectionExpanded(ctx, key, default)) }
+    LaunchedEffect(state.value) {
+        AppSettings.setSectionExpanded(ctx, key, state.value)
+    }
+    return state
 }

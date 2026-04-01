@@ -40,6 +40,8 @@ android {
         val rc = project.findProperty("rcSuffix")?.toString()?.trim().orEmpty()
         buildConfigField("String", "RC_SUFFIX", "\"$rc\"")
 
+        // Google Maps API key — injected into AndroidManifest via manifestPlaceholders
+        manifestPlaceholders["MAPS_API_KEY"] = localProps["MAPS_API_KEY"] ?: ""
     }
 
     signingConfigs {
@@ -136,9 +138,10 @@ dependencies {
     implementation("androidx.room:room-ktx:$roomVersion")
     ksp("androidx.room:room-compiler:$roomVersion")
 
-    // ── Trip Map ────────────────────────────────────────────
-    implementation("org.osmdroid:osmdroid-android:6.1.18")
+    // ── Maps & Location ───────────────────────────────────────
+    implementation("com.google.android.gms:play-services-maps:19.0.0")
     implementation("com.google.android.gms:play-services-location:21.3.0")
+    implementation("com.google.maps.android:maps-compose:6.4.1")
     implementation("com.squareup.okhttp3:okhttp:4.12.0")
 
     // ── Testing ─────────────────────────────────────────────

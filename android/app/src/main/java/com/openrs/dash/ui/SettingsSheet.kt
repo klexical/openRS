@@ -52,6 +52,8 @@ fun SettingsDialog(onDismiss: () -> Unit) {
     var autoReconnect   by remember { mutableStateOf(current.autoReconnect) }
     var reconnectSec    by remember { mutableStateOf(current.reconnectIntervalSec.toString()) }
     var maxDiagZips     by remember { mutableStateOf(current.maxDiagZips.toString()) }
+    var autoRecordDrives by remember { mutableStateOf(current.autoRecordDrives) }
+    var maxSavedDrives  by remember { mutableStateOf(current.maxSavedDrives.toString()) }
     var adapterType     by remember { mutableStateOf(current.adapterType) }
     var meatPiMicroSd   by remember { mutableStateOf(current.meatPiMicroSdLog) }
     var edgeShiftLight  by remember { mutableStateOf(current.edgeShiftLight) }
@@ -430,6 +432,42 @@ fun SettingsDialog(onDismiss: () -> Unit) {
                     }
                 }
 
+                // ── Drives section ────────────────────────────────────────────
+                SettingsSection("DRIVES") {
+                    SettingsRow("Auto-record drives") {
+                        Switch(
+                            checked = autoRecordDrives,
+                            onCheckedChange = { autoRecordDrives = it; error = null },
+                            colors = SwitchDefaults.colors(
+                                checkedThumbColor = accent,
+                                checkedTrackColor = accent.copy(alpha = 0.3f)
+                            )
+                        )
+                    }
+                    Spacer(Modifier.height(2.dp))
+                    Text("Automatically start recording when connected to your car",
+                        fontSize = 10.sp, color = Dim, fontFamily = ShareTechMono)
+
+                    Spacer(Modifier.height(10.dp))
+                    SettingsRow("Max saved drives") {
+                        OutlinedTextField(
+                            value = maxSavedDrives,
+                            onValueChange = { maxSavedDrives = it; error = null },
+                            label = { Text("count", fontFamily = ShareTechMono, fontSize = 10.sp) },
+                            singleLine = true,
+                            modifier = Modifier.width(90.dp),
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                            colors = outlinedFieldColors(),
+                            textStyle = androidx.compose.ui.text.TextStyle(
+                                fontFamily = ShareTechMono, fontSize = 14.sp, color = Frost
+                            )
+                        )
+                    }
+                    Spacer(Modifier.height(4.dp))
+                    Text("Oldest drives are removed when this limit is exceeded. Default: ${AppSettings.DEFAULT_MAX_SAVED_DRIVES}",
+                        fontSize = 10.sp, color = Dim, fontFamily = ShareTechMono)
+                }
+
                 // ── Diagnostics section ───────────────────────────────────────
                 SettingsSection("DIAGNOSTICS") {
                     SettingsRow("Max saved ZIP exports") {
@@ -524,6 +562,8 @@ fun SettingsDialog(onDismiss: () -> Unit) {
                         autoReconnect = AppSettings.DEFAULT_AUTO_RECONNECT
                         reconnectSec  = AppSettings.DEFAULT_RECONNECT_INTERVAL.toString()
                         maxDiagZips   = AppSettings.DEFAULT_MAX_DIAG_ZIPS.toString()
+                        autoRecordDrives = AppSettings.DEFAULT_AUTO_RECORD_DRIVES
+                        maxSavedDrives = AppSettings.DEFAULT_MAX_SAVED_DRIVES.toString()
                         adapterType   = AppSettings.DEFAULT_ADAPTER_TYPE
                         meatPiMicroSd = AppSettings.DEFAULT_MEATPI_MICROSD
                         edgeShiftLight    = AppSettings.DEFAULT_EDGE_SHIFT_LIGHT
@@ -550,6 +590,7 @@ fun SettingsDialog(onDismiss: () -> Unit) {
                         val retryInt = if (autoReconnect) reconnectSec.toIntOrNull()
                                        else reconnectSec.toIntOrNull() ?: AppSettings.DEFAULT_RECONNECT_INTERVAL
                         val maxZips = maxDiagZips.toIntOrNull()
+                        val maxDrives = maxSavedDrives.toIntOrNull()
                         val shiftRpm = edgeShiftRpm.toIntOrNull()
                         when {
                             host.isBlank() -> error = "Host cannot be empty"
@@ -559,6 +600,7 @@ fun SettingsDialog(onDismiss: () -> Unit) {
                             highThr == null || highThr <= warnThr -> error = "High must be > Warn"
                             autoReconnect && (retryInt == null || retryInt < 1) -> error = "Retry interval must be ≥ 1 s"
                             maxZips == null || maxZips < 1 -> error = "Max ZIPs must be ≥ 1"
+                            maxDrives == null || maxDrives < 1 -> error = "Max drives must be ≥ 1"
                             edgeShiftLight && (shiftRpm == null || shiftRpm !in 1000..9000) -> error = "Shift RPM must be 1000–9000"
                             else -> {
                                 AppSettings.save(ctx, host, p)
@@ -579,7 +621,9 @@ fun SettingsDialog(onDismiss: () -> Unit) {
                                     edgeShiftLight       = edgeShiftLight,
                                     edgeShiftColor       = edgeShiftColor,
                                     edgeShiftIntensity   = edgeShiftIntensity,
-                                    edgeShiftRpm         = shiftRpm ?: AppSettings.DEFAULT_EDGE_SHIFT_RPM
+                                    edgeShiftRpm         = shiftRpm ?: AppSettings.DEFAULT_EDGE_SHIFT_RPM,
+                                    autoRecordDrives     = autoRecordDrives,
+                                    maxSavedDrives       = maxDrives ?: AppSettings.DEFAULT_MAX_SAVED_DRIVES
                                 )}
                                 onDismiss()
                             }

@@ -20,11 +20,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.SnackbarHostState
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.expandVertically
-import androidx.compose.animation.shrinkVertically
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -47,22 +43,14 @@ import com.openrs.dash.can.CanDecoder
 import com.openrs.dash.can.FirmwareApi
 import com.openrs.dash.data.DriveMode
 import com.openrs.dash.data.EscStatus
-import com.openrs.dash.data.SessionDatabase
-import com.openrs.dash.data.SessionEntity
-import com.openrs.dash.data.SnapshotEntity
 import com.openrs.dash.data.VehicleState
 import com.openrs.dash.diagnostics.DiagnosticLogger
 import android.content.Intent
 import android.net.Uri
 import com.openrs.dash.ui.Tokens.PagePad
 import com.openrs.dash.ui.anim.pressClick
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
-import java.text.SimpleDateFormat
-import java.util.Date
-import java.util.Locale
 
 private const val SAPPHIRE_URL = "https://klexical.github.io/openRS_/"
 
@@ -485,11 +473,6 @@ private const val SAPPHIRE_URL = "https://klexical.github.io/openRS_/"
             }
         }
 
-        HorizontalDivider(color = Brd)
-
-        // ── Session History ────────────────────────────────────────────────
-        SessionHistorySection()
-
         Spacer(Modifier.height(4.dp))
     }
 }
@@ -542,235 +525,3 @@ private const val SAPPHIRE_URL = "https://klexical.github.io/openRS_/"
     }
 }
 
-// ═══════════════════════════════════════════════════════════════════════════
-// SESSION HISTORY
-// ═══════════════════════════════════════════════════════════════════════════
-
-private val sessionDateFormat = SimpleDateFormat("MMM dd, HH:mm", Locale.getDefault())
-
-@Composable fun SessionHistorySection() {
-    val ctx = LocalContext.current
-    val accent = LocalThemeAccent.current
-    val prefs by UserPrefsStore.prefs.collectAsState()
-    var sessions by remember { mutableStateOf<List<SessionEntity>>(emptyList()) }
-    var expandedId by remember { mutableStateOf<Long?>(null) }
-    var snapshots by remember { mutableStateOf<List<SnapshotEntity>>(emptyList()) }
-    var sectionExpanded by remember { mutableStateOf(false) }
-    val scope = rememberCoroutineScope()
-
-    LaunchedEffect(Unit) {
-        withContext(Dispatchers.IO) {
-            sessions = SessionDatabase.getInstance(ctx).sessionDao().getRecentSessions(10)
-        }
-    }
-
-    Column {
-        SectionLabel(
-            "SESSION HISTORY",
-            collapsible = true,
-            expanded = sectionExpanded,
-            onToggle = { sectionExpanded = !sectionExpanded },
-            modifier = Modifier.padding(bottom = 10.dp)
-        )
-        AnimatedVisibility(
-            visible = sectionExpanded,
-            enter = expandVertically(),
-            exit = shrinkVertically()
-        ) {
-            Column {
-                if (sessions.isEmpty()) {
-                    Box(
-                        Modifier.fillMaxWidth()
-                            .background(Surf2, RoundedCornerShape(10.dp))
-                            .border(1.dp, Brd, RoundedCornerShape(10.dp))
-                            .padding(16.dp),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        MonoLabel("No sessions recorded yet", 10.sp, Dim)
-                    }
-                } else {
-                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        sessions.forEach { session ->
-                            val isExpanded = expandedId == session.id
-                            SessionCard(
-                                session = session,
-                                prefs = prefs,
-                                isExpanded = isExpanded,
-                                snapshots = if (isExpanded) snapshots else emptyList(),
-                                onToggle = {
-                                    if (isExpanded) {
-                                        expandedId = null
-                                        snapshots = emptyList()
-                                    } else {
-                                        expandedId = session.id
-                                        scope.launch(Dispatchers.IO) {
-                                            val loaded = SessionDatabase.getInstance(ctx)
-                                                .sessionDao().getSnapshots(session.id)
-                                            withContext(Dispatchers.Main) { snapshots = loaded }
-                                        }
-                                    }
-                                }
-                            )
-                        }
-                    }
-                }
-                Spacer(Modifier.height(6.dp))
-                MonoLabel("Last 10 sessions. Auto-pruned after 30 days.", 9.sp, Dim)
-            }
-        }
-    }
-}
-
-@Composable private fun SessionCard(
-    session: SessionEntity,
-    prefs: UserPrefs,
-    isExpanded: Boolean,
-    snapshots: List<SnapshotEntity>,
-    onToggle: () -> Unit
-) {
-    val accent = LocalThemeAccent.current
-    val dateStr = sessionDateFormat.format(Date(session.startTime))
-    val durationMs = if (session.endTime > 0) session.endTime - session.startTime else 0L
-    val durationStr = formatSessionDuration(durationMs)
-    val isActive = session.endTime == 0L
-
-    Column(
-        Modifier.fillMaxWidth()
-            .background(Surf2, RoundedCornerShape(10.dp))
-            .border(1.dp, if (isActive) accent.copy(0.4f) else Brd, RoundedCornerShape(10.dp))
-            .clickable { onToggle() }
-            .padding(12.dp)
-    ) {
-        // Header row: date + duration
-        Row(
-            Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Row(
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                MonoLabel(dateStr, 10.sp, Frost, FontWeight.SemiBold)
-                if (isActive) {
-                    MonoLabel("LIVE", 8.sp, Ok, FontWeight.Bold, letterSpacing = 0.1.sp)
-                }
-            }
-            MonoLabel(
-                if (isActive) "active" else durationStr,
-                9.sp,
-                if (isActive) accent else Dim
-            )
-        }
-        Spacer(Modifier.height(8.dp))
-
-        // Peak metrics row
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-            SessionMetric(
-                label = "RPM",
-                value = if (session.peakRpm > 0) "${session.peakRpm.toInt()}" else "--",
-                modifier = Modifier.weight(1f)
-            )
-            SessionMetric(
-                label = "BOOST",
-                value = if (session.peakBoostPsi > 0) String.format("%.1f", session.peakBoostPsi)
-                        else "--",
-                unit = "PSI",
-                modifier = Modifier.weight(1f)
-            )
-            SessionMetric(
-                label = "SPEED",
-                value = if (session.peakSpeedKph > 0) {
-                    val speed = if (prefs.speedUnit == "MPH")
-                        session.peakSpeedKph * 0.621371 else session.peakSpeedKph
-                    "${speed.toInt()}"
-                } else "--",
-                unit = prefs.speedLabel,
-                modifier = Modifier.weight(1f)
-            )
-            SessionMetric(
-                label = "OIL",
-                value = if (session.peakOilTempC > -90) {
-                    prefs.displayTemp(session.peakOilTempC)
-                } else "--",
-                unit = prefs.tempLabel,
-                modifier = Modifier.weight(1f)
-            )
-        }
-
-        // Expanded: snapshot summary
-        AnimatedVisibility(
-            visible = isExpanded,
-            enter = expandVertically(),
-            exit = shrinkVertically()
-        ) {
-            Column(Modifier.padding(top = 10.dp)) {
-                if (snapshots.isEmpty()) {
-                    MonoLabel("No snapshots in this session", 9.sp, Dim)
-                } else {
-                    Box(
-                        Modifier.fillMaxWidth().height(1.dp).background(Brd)
-                    )
-                    Spacer(Modifier.height(8.dp))
-
-                    // Summary stats from snapshots
-                    val avgRpm = snapshots.map { it.rpm }.average()
-                    val maxRpm = snapshots.maxOf { it.rpm }
-                    val avgSpeed = snapshots.map { it.speedKph }.average()
-                    val maxThrottle = snapshots.maxOf { it.throttlePct }
-
-                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                        SessionMetric("AVG RPM", "${avgRpm.toInt()}", modifier = Modifier.weight(1f))
-                        SessionMetric("MAX RPM", "${maxRpm.toInt()}", modifier = Modifier.weight(1f))
-                        SessionMetric(
-                            "AVG SPEED",
-                            if (prefs.speedUnit == "MPH") "${(avgSpeed * 0.621371).toInt()}"
-                            else "${avgSpeed.toInt()}",
-                            unit = prefs.speedLabel,
-                            modifier = Modifier.weight(1f)
-                        )
-                        SessionMetric("THROTTLE", "${maxThrottle.toInt()}%", modifier = Modifier.weight(1f))
-                    }
-
-                    Spacer(Modifier.height(6.dp))
-                    MonoLabel(
-                        "${snapshots.size} snapshots \u00B7 ${session.totalFrames} CAN frames",
-                        8.sp, Dim
-                    )
-                }
-            }
-        }
-    }
-}
-
-@Composable private fun SessionMetric(
-    label: String,
-    value: String,
-    unit: String = "",
-    modifier: Modifier = Modifier
-) {
-    Column(
-        modifier
-            .background(Surf, RoundedCornerShape(6.dp))
-            .border(1.dp, Brd, RoundedCornerShape(6.dp))
-            .padding(horizontal = 6.dp, vertical = 5.dp),
-        horizontalAlignment = Alignment.CenterHorizontally
-    ) {
-        MonoLabel(label, 7.sp, Dim, letterSpacing = 0.12.sp)
-        Spacer(Modifier.height(2.dp))
-        MonoText(value, 12.sp, Frost)
-        if (unit.isNotEmpty()) {
-            MonoLabel(unit, 7.sp, Dim)
-        }
-    }
-}
-
-private fun formatSessionDuration(ms: Long): String {
-    if (ms <= 0) return "--"
-    val totalSec = ms / 1000
-    val h = totalSec / 3600
-    val m = (totalSec % 3600) / 60
-    val s = totalSec % 60
-    return if (h > 0) String.format("%dh %02dm", h, m)
-           else String.format("%dm %02ds", m, s)
-}

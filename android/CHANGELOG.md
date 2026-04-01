@@ -3,7 +3,7 @@
 All notable changes to the openRS_ Android app are documented here.
 Firmware changes are tracked separately in [firmware releases](https://github.com/klexical/openRS_/releases).
 
-> **Note on tab names:** The app's tab structure has evolved over time. v1.0–v1.1 used DASH/PERF/TEMPS/TUNE/TPMS/CTRL/DIAG. v1.2.0 redesigned to DASH/POWER/CHASSIS/TEMPS/DIAG + System Drawer. v2.0.0 replaced the drawer with a MORE tab, giving the current 6-tab layout: DASH/POWER/CHASSIS/TEMPS/DIAG/MORE. Historical entries below use the tab names that were current at the time of each release.
+> **Note on tab names:** The app's tab structure has evolved over time. v1.0–v1.1 used DASH/PERF/TEMPS/TUNE/TPMS/CTRL/DIAG. v1.2.0 redesigned to DASH/POWER/CHASSIS/TEMPS/DIAG + System Drawer. v2.0.0 replaced the drawer with a MORE tab (6-tab layout). v2.2.6-rc.5 added a MAP tab for drive tracking (7-tab layout: DASH/POWER/CHASSIS/TEMPS/MAP/DIAG/MORE). Historical entries below use the tab names that were current at the time of each release.
 
 ---
 
@@ -75,6 +75,29 @@ Firmware changes are tracked separately in [firmware releases](https://github.co
 
 ### Fixed (rc.4 — visual polish)
 - **Gear detection thresholds recalibrated for dual final drive** — previous thresholds were derived from a single log with a 3.82 average final drive. Updated to use midpoints between official MMT6 overall ratios (dual final drive 4.063 gears 1-4, 2.955 gears 5-6 per 2016 Owner's Manual p242). (`VehicleState.kt`)
+
+### Added (rc.5 — drive system overhaul)
+- **MAP tab with Google Maps** — new first-class tab (DASH/POWER/CHASSIS/TEMPS/MAP/DIAG/MORE) replacing the old TripPage overlay. Live mode shows Google Maps with dark styling, color-segmented route polylines, and peak markers. History mode lists saved drives with tap-to-view on map. Swapped OSMDroid for `play-services-maps:19.0.0` + `maps-compose:6.4.1`. (`DrivePage.kt`, `DriveMap.kt`, `google_map_style_dark.json`)
+- **Room-backed DriveRecorder** — replaces the in-memory TripRecorder with persistent drive tracking. Start/stop/pause/resume controls with 1 Hz GPS + telemetry capture. Batch writes (30 points/flush), peak tracking with GPS coordinates, weather refresh every 15 min. Room migration v1→v2 preserves existing sessions as drives with `hasGps=false`. (`DriveRecorder.kt`, `DriveDatabase.kt`, `DriveState.kt`)
+- **Unified drive+diagnostic export** — single ZIP from both MAP tab history and DIAG tab containing GPX, CSV, drive summary, and diagnostic data. GPX uses `<trkseg>` breaks for pause gaps. `DriveEntity.sessionId` links drives to diagnostic sessions. (`DiagnosticExporter.kt`)
+- **Auto-record drives setting** — opt-in toggle in Settings (OFF by default) that starts/stops drive recording on adapter connect/disconnect. Max saved drives configurable (default 50), oldest pruned automatically. (`SettingsSheet.kt`, `AppSettings.kt`, `CanDataService.kt`)
+- **REC indicator in AppHeader** — pulsing orange dot with "REC" label next to the connection pill when actively recording. (`MainActivity.kt`)
+- **Persistent collapsible section states** — section expanded/collapsed preferences saved to SharedPreferences via `rememberSectionExpanded()` composable. Survives tab switches, app kills, and updates. Applied to all 10 collapsible sections across POWER and DIAG tabs. (`AppSettings.kt`, `PowerPage.kt`, `DiagPage.kt`)
+- **37 DriveState unit tests** — fuel economy calculations, averages, haversine distance, peak tracking, sentinel defaults, entity immutability. Total suite now 243 tests across 8 files. (`DriveStateTest.kt`)
+
+### Fixed (rc.5 — drive system overhaul)
+- **Temps tab completely blank** — `StaggeredColumn` used `visibleState.currentState` to drive animation targets, which lags behind on first composition and left all children at alpha 0. Changed to `visibleState.targetState` which is `true` immediately. DASH and POWER tabs may have been intermittently affected. (`StaggeredEntrance.kt`)
+
+### Changed (rc.5 — drive system overhaul)
+- **DiagPage reorganized** — removed duplicate STATUS/FPS summary strip from top. DIAGNOSTICS section moved to top position with DTC count merged in. DTC SCANNER moved below DIAGNOSTICS. Both sections now collapsible. Section order: DIAGNOSTICS → DTC SCANNER → CRASH HISTORY → DID PROBER → LIVE CAN OUTPUT → FRAME INVENTORY → PID BROWSER. (`DiagPage.kt`)
+- **MAP pill removed from AppHeader** — redundant with the MAP tab in the tab bar. Connection pill, REC indicator, and settings gear shift to fill the gap. (`MainActivity.kt`)
+- **Location permission at startup** — `ACCESS_FINE_LOCATION` requested in `MainActivity.onCreate()` alongside notification permission. Foreground service type updated to `connectedDevice|location`. (`MainActivity.kt`, `AndroidManifest.xml`)
+
+### Removed (rc.5 — drive system overhaul)
+- **TripRecorder, TripPage, TripPoint** — old in-memory trip system fully replaced by DriveRecorder/DrivePage. (`TripRecorder.kt`, `TripPage.kt`, `TripPoint.kt`)
+- **TripState gutted** — reduced to `PeakType` enum + `PeakEvent` data class only (still used by DriveRecorder/DriveMap). (`TripState.kt`)
+- **OSMDroid dependency** — removed from `build.gradle.kts`. (`build.gradle.kts`)
+- **Session history from MorePage** — drive history now lives in the MAP tab. (`MorePage.kt`)
 
 ---
 

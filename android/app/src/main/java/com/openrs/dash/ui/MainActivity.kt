@@ -46,7 +46,7 @@ import com.openrs.dash.data.VehicleState
 import com.openrs.dash.service.CanDataService
 import com.openrs.dash.ui.anim.EdgeShiftLight
 import com.openrs.dash.ui.anim.bloomGlow
-import com.openrs.dash.ui.trip.TripPage
+import com.openrs.dash.ui.trip.DrivePage
 import androidx.compose.ui.platform.LocalContext
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -73,17 +73,18 @@ class MainActivity : ComponentActivity() {
         val perms = mutableListOf<String>()
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU)
             perms.add(Manifest.permission.POST_NOTIFICATIONS)
-        if (perms.isNotEmpty()) permLauncher.launch(perms.toTypedArray()) else startSvc()
+        // Request location at startup for drive recording
+        perms.add(Manifest.permission.ACCESS_FINE_LOCATION)
+        permLauncher.launch(perms.toTypedArray())
 
         setContent {
             val vs          by OpenRSDashApp.instance.vehicleState.collectAsState()
             val prefs       by UserPrefsStore.prefs.collectAsState()
             val debugLines  by OpenRSDashApp.instance.debugLines.collectAsState()
-            val tripState   by OpenRSDashApp.instance.tripState.collectAsState()
-            val pagerState  = rememberPagerState(pageCount = { 6 })
+            val driveState  by OpenRSDashApp.instance.driveState.collectAsState()
+            val pagerState  = rememberPagerState(pageCount = { 7 })
             val pagerScope  = rememberCoroutineScope()
             var settingsOpen    by remember { mutableStateOf(false) }
-            var showTripOverlay by remember { mutableStateOf(false) }
             var showCustomDash  by remember { mutableStateOf(false) }
             val snackbarHostState = remember { SnackbarHostState() }
 
@@ -136,7 +137,7 @@ class MainActivity : ComponentActivity() {
                                         onConnect    = { service?.startConnection() },
                                         onDisconnect = { service?.stopConnection() },
                                         onReconnect  = { service?.reconnect() },
-                                        onTrip       = { showTripOverlay = true }
+                                        driveState   = driveState
                                     )
                                     TabBar(pagerState.currentPage, onSelect = { page ->
                                         pagerScope.launch { pagerState.animateScrollToPage(page) }
@@ -157,7 +158,8 @@ class MainActivity : ComponentActivity() {
                                             1 -> PowerPage(vs, prefs)
                                             2 -> ChassisPage(vs, prefs, onReset = { service?.resetPeaks() })
                                             3 -> TempsPage(vs, prefs)
-                                            4 -> DiagPage(
+                                            4 -> DrivePage(driveState, vs, prefs)
+                                            5 -> DiagPage(
                                                 debugLines,
                                                 vs,
                                                 onScanDtcs  = service?.let { svc -> { svc.scanDtcs() } },
@@ -169,7 +171,7 @@ class MainActivity : ComponentActivity() {
                                                 },
                                                 onResetSession = { service?.resetSession() }
                                             )
-                                            5 -> MorePage(vs, prefs, snackbarHostState, onSettings = { settingsOpen = true }, onCustomDash = { showCustomDash = true })
+                                            6 -> MorePage(vs, prefs, snackbarHostState, onSettings = { settingsOpen = true }, onCustomDash = { showCustomDash = true })
                                         }
                                         }
                                     }
@@ -186,21 +188,6 @@ class MainActivity : ComponentActivity() {
                                     })
                                 }
                             }
-                        }
-
-                        AnimatedVisibility(
-                            visible = showTripOverlay,
-                            enter   = slideInVertically(initialOffsetY = { it }),
-                            exit    = slideOutVertically(targetOffsetY = { it })
-                        ) {
-                            TripPage(
-                                tripState    = tripState,
-                                vehicleState = vs,
-                                prefs        = prefs,
-                                onStartTrip  = { OpenRSDashApp.instance.tripRecorder.startTrip() },
-                                onEndTrip    = { OpenRSDashApp.instance.tripRecorder.stopTrip() },
-                                onDismiss    = { showTripOverlay = false }
-                            )
                         }
 
                         AnimatedVisibility(
@@ -275,7 +262,7 @@ class MainActivity : ComponentActivity() {
     onConnect: () -> Unit,
     onDisconnect: () -> Unit,
     onReconnect: () -> Unit,
-    onTrip: () -> Unit = {}
+    driveState: com.openrs.dash.data.DriveState = com.openrs.dash.data.DriveState()
 ) {
     val accent = LocalThemeAccent.current
 
@@ -341,15 +328,24 @@ class MainActivity : ComponentActivity() {
                     }
                 }
 
-                Box(
-                    Modifier.height(28.dp)
-                        .background(accent.copy(alpha = 0.10f), RoundedCornerShape(6.dp))
-                        .border(1.dp, accent.copy(alpha = 0.28f), RoundedCornerShape(6.dp))
-                        .clickable { onTrip() }
-                        .padding(horizontal = 8.dp),
-                    contentAlignment = Alignment.Center
-                ) {
-                    MonoLabel("TRIP", 9.sp, accent, FontWeight.Bold, 0.15.sp)
+                // REC indicator (visible when drive is recording, not paused)
+                if (driveState.isRecording && !driveState.isPaused) {
+                    val recAlpha by rememberInfiniteTransition(label = "headerRec").animateFloat(
+                        initialValue = 1f, targetValue = 0.2f,
+                        animationSpec = infiniteRepeatable(tween(700), RepeatMode.Reverse),
+                        label = "headerRecAlpha"
+                    )
+                    Row(
+                        Modifier.height(28.dp)
+                            .background(Orange.copy(alpha = 0.12f), RoundedCornerShape(6.dp))
+                            .border(1.dp, Orange.copy(alpha = 0.3f), RoundedCornerShape(6.dp))
+                            .padding(horizontal = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        Box(Modifier.size(6.dp).clip(CircleShape).background(Orange.copy(alpha = recAlpha)))
+                        MonoLabel("REC", 8.sp, Orange, FontWeight.Bold, 0.1.sp)
+                    }
                 }
 
                 Box(
@@ -419,6 +415,7 @@ class MainActivity : ComponentActivity() {
         "◈" to "POWER",
         "◎" to "CHASSIS",
         "△" to "TEMPS",
+        "◉" to "MAP",
         "≡" to "DIAG",
         "☰" to "MORE"
     )

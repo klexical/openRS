@@ -8,8 +8,9 @@ import android.os.Looper
 import androidx.core.content.FileProvider
 import com.openrs.dash.BuildConfig
 import com.openrs.dash.can.CanDecoder
+import com.openrs.dash.data.DriveEntity
+import com.openrs.dash.data.DrivePointEntity
 import com.openrs.dash.data.DtcResult
-import com.openrs.dash.data.TripState
 import com.openrs.dash.data.VehicleState
 import java.io.File
 import java.text.SimpleDateFormat
@@ -110,82 +111,135 @@ object DiagnosticExporter {
         }
     }
 
+    // ═══════════════════════════════════════════════════════════════════════════
+    // Unified Drive Export (Room-backed DriveEntity + DrivePointEntity)
+    // ═══════════════════════════════════════════════════════════════════════════
+
     /**
-     * Exports the completed trip as a GPX file (with embedded OBD telemetry extensions),
-     * a CSV spreadsheet, and a plain-text summary — packaged in a ZIP, then shared.
-     *
-     * @param dtcResults Optional DTC scan results to include as dtc_scan_<ts>.txt.
+     * Exports a drive from Room as a unified ZIP containing drive data + diagnostics.
+     * Called from MAP tab history or DIAG tab.
      */
-    fun shareTrip(ctx: Context, tripState: TripState, dtcResults: List<DtcResult>? = null) {
-        if (tripState.points.isEmpty()) return
+    fun shareDrive(
+        ctx: Context,
+        drive: DriveEntity,
+        points: List<DrivePointEntity>,
+        dtcResults: List<DtcResult>? = null,
+        includeDiagnostics: Boolean = true
+    ) {
         try {
             val dir = File(ctx.filesDir, "diagnostics").also { it.mkdirs() }
-            val ts  = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.US).format(Date())
+            val ts = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.US).format(Date())
 
-            // Prune old trip ZIPs (keep at most maxDiagZips files, matching diagnostic pruning)
+            // Prune old export ZIPs
             val maxKeep = com.openrs.dash.ui.UserPrefsStore.prefs.value.maxDiagZips
-            val oldTrips = dir.listFiles { f -> f.name.startsWith("openrs_trip_") && f.name.endsWith(".zip") }
-            if (oldTrips != null && oldTrips.size >= maxKeep) {
-                oldTrips.sortedBy { it.lastModified() }
-                    .take((oldTrips.size - maxKeep + 1).coerceAtLeast(0))
+            val oldExports = dir.listFiles { f -> f.name.startsWith("openrs_export_") && f.name.endsWith(".zip") }
+            if (oldExports != null && oldExports.size >= maxKeep) {
+                oldExports.sortedBy { it.lastModified() }
+                    .take((oldExports.size - maxKeep + 1).coerceAtLeast(0))
                     .forEach { it.delete() }
             }
 
-            val zipFile = File(dir, "openrs_trip_$ts.zip")
+            val zipFile = File(dir, "openrs_export_$ts.zip")
 
             ZipOutputStream(zipFile.outputStream().buffered()).use { zip ->
-                // GPX track
-                zip.putNextEntry(ZipEntry("trip_$ts.gpx"))
-                zip.write(buildGpx(tripState, ts).toByteArray(Charsets.UTF_8))
+                // Drive GPX (if GPS data available)
+                if (drive.hasGps && points.isNotEmpty()) {
+                    zip.putNextEntry(ZipEntry("drive_$ts.gpx"))
+                    zip.write(buildDriveGpx(drive, points, ts).toByteArray(Charsets.UTF_8))
+                    zip.closeEntry()
+
+                    zip.putNextEntry(ZipEntry("drive_$ts.csv"))
+                    zip.write(buildDriveCsv(points).toByteArray(Charsets.UTF_8))
+                    zip.closeEntry()
+                }
+
+                // Drive summary (always included)
+                zip.putNextEntry(ZipEntry("drive_summary_$ts.txt"))
+                zip.write(buildDriveSummary(drive, points).toByteArray(Charsets.UTF_8))
                 zip.closeEntry()
 
-                // CSV telemetry log
-                zip.putNextEntry(ZipEntry("trip_$ts.csv"))
-                zip.write(buildTripCsv(tripState).toByteArray(Charsets.UTF_8))
-                zip.closeEntry()
+                // Diagnostic data (if requested and available)
+                if (includeDiagnostics) {
+                    DiagnosticLogger.flushSlcan()
 
-                // Plain-text summary
-                zip.putNextEntry(ZipEntry("trip_summary_$ts.txt"))
-                zip.write(buildTripSummaryText(tripState).toByteArray(Charsets.UTF_8))
-                zip.closeEntry()
+                    val summary = buildSummary(ts)
+                    if (summary.isNotEmpty()) {
+                        zip.putNextEntry(ZipEntry("diagnostic_summary_$ts.txt"))
+                        zip.write(summary.toByteArray(Charsets.UTF_8))
+                        zip.closeEntry()
+                    }
 
-                // DTC scan results (optional)
+                    val detail = buildJson(ts)
+                    if (detail.isNotEmpty()) {
+                        zip.putNextEntry(ZipEntry("diagnostic_detail_$ts.json"))
+                        zip.write(detail.toByteArray(Charsets.UTF_8))
+                        zip.closeEntry()
+                    }
+
+                    val slcanFile = DiagnosticLogger.slcanLogFile
+                    if (slcanFile?.exists() == true && slcanFile.length() > 0) {
+                        zip.putNextEntry(ZipEntry("slcan_log_$ts.log"))
+                        slcanFile.inputStream().buffered().use { it.copyTo(zip) }
+                        zip.closeEntry()
+                    }
+
+                    val crashDir = File(ctx.filesDir, "diagnostics")
+                    if (crashDir.isDirectory) {
+                        crashDir.listFiles { f -> f.name.startsWith("crash_telemetry_") && f.name.endsWith(".json") }
+                            ?.forEach { crash ->
+                                zip.putNextEntry(ZipEntry(crash.name))
+                                crash.inputStream().buffered().use { it.copyTo(zip) }
+                                zip.closeEntry()
+                            }
+                    }
+
+                    val probes = DiagnosticLogger.probeSessions
+                    if (probes.isNotEmpty()) {
+                        probes.forEachIndexed { idx, session ->
+                            val name = "did_probe_${session.module.lowercase()}_${idx + 1}.csv"
+                            zip.putNextEntry(ZipEntry(name))
+                            val csv = buildString {
+                                appendLine("DID,Status,ResponseHex")
+                                session.results.forEach { r ->
+                                    appendLine("0x${"%04X".format(r.did)},${r.status},${r.responseHex}")
+                                }
+                            }
+                            zip.write(csv.toByteArray(Charsets.UTF_8))
+                            zip.closeEntry()
+                        }
+                    }
+                }
+
+                // DTC results (optional)
                 if (!dtcResults.isNullOrEmpty()) {
                     zip.putNextEntry(ZipEntry("dtc_scan_$ts.txt"))
                     zip.write(buildDtcText(dtcResults).toByteArray(Charsets.UTF_8))
                     zip.closeEntry()
                 }
-
             }
 
             val uri = FileProvider.getUriForFile(ctx, AUTHORITY, zipFile)
-            val ptCount = tripState.points.size
-            val dtcNote = if (!dtcResults.isNullOrEmpty())
-                "\n• dtc_scan_$ts.txt       — ${dtcResults.size} fault code(s)" else ""
             val intent = Intent(Intent.ACTION_SEND).apply {
                 type = "application/zip"
                 putExtra(Intent.EXTRA_STREAM, uri)
-                putExtra(Intent.EXTRA_SUBJECT, "openRS_ Trip Export")
+                putExtra(Intent.EXTRA_SUBJECT, "openRS_ Drive Export")
                 putExtra(
                     Intent.EXTRA_TEXT,
-                    "openRS_ v${BuildConfig.VERSION_NAME} trip export.\n" +
-                    "• trip_$ts.gpx            — GPS track + telemetry (GPX 1.1)\n" +
-                    "• trip_$ts.csv            — telemetry spreadsheet (all TripPoint fields)\n" +
-                    "• trip_summary_$ts.txt     — human-readable trip report$dtcNote\n\n" +
-                    "$ptCount waypoints recorded.\n\n" +
+                    "openRS_ v${BuildConfig.VERSION_NAME} drive export.\n" +
+                    "${points.size} waypoints, ${"%.1f".format(drive.distanceKm)} km.\n\n" +
                     "View in Sapphire → https://klexical.github.io/openRS_/"
                 )
                 addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
             }
             Handler(Looper.getMainLooper()).post {
-                ctx.startActivity(Intent.createChooser(intent, "Share Trip Data"))
+                ctx.startActivity(Intent.createChooser(intent, "Share Drive Data"))
             }
         } catch (e: Exception) {
-            DiagnosticLogger.event("TRIP_EXPORT_ERROR", e.message ?: "unknown")
+            DiagnosticLogger.event("DRIVE_EXPORT_ERROR", e.message ?: "unknown")
         }
     }
 
-    private fun buildGpx(tripState: TripState, ts: String): String {
+    private fun buildDriveGpx(drive: DriveEntity, points: List<DrivePointEntity>, ts: String): String {
         val isoFmt = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'", Locale.US).apply {
             timeZone = TimeZone.getTimeZone("UTC")
         }
@@ -195,19 +249,27 @@ object DiagnosticExporter {
             appendLine("""    xmlns="http://www.topografix.com/GPX/1/1" """)
             appendLine("""    xmlns:openrs="https://github.com/klex/openRS_">""")
             appendLine("  <metadata>")
-            appendLine("    <name>openRS_ Trip $ts</name>")
-            appendLine("    <time>${isoFmt.format(Date(tripState.startTime))}</time>")
+            appendLine("    <name>openRS_ Drive $ts</name>")
+            appendLine("    <time>${isoFmt.format(Date(drive.startTime))}</time>")
             appendLine("  </metadata>")
             appendLine("  <trk>")
-            appendLine("    <name>Focus RS MK3 Trip</name>")
+            appendLine("    <name>Focus RS MK3 Drive</name>")
+
+            // Split into segments at pause gaps (>5s between consecutive points)
             appendLine("    <trkseg>")
-            tripState.points.forEach { pt ->
+            var prevTimestamp = 0L
+            points.forEach { pt ->
+                if (prevTimestamp > 0 && pt.timestamp - prevTimestamp > 5000) {
+                    // Pause gap — close segment and start new one
+                    appendLine("    </trkseg>")
+                    appendLine("    <trkseg>")
+                }
                 appendLine("""      <trkpt lat="${pt.lat}" lon="${pt.lng}">""")
                 appendLine("        <ele>0</ele>")
                 appendLine("        <time>${isoFmt.format(Date(pt.timestamp))}</time>")
                 appendLine("        <extensions>")
                 appendLine("          <openrs:speed>${"%.1f".format(pt.speedKph)}</openrs:speed>")
-                appendLine("          <openrs:rpm>${pt.rpm.toInt()}</openrs:rpm>")
+                appendLine("          <openrs:rpm>${pt.rpm}</openrs:rpm>")
                 appendLine("          <openrs:gear>${pt.gear}</openrs:gear>")
                 appendLine("          <openrs:boostPsi>${"%.2f".format(pt.boostPsi)}</openrs:boostPsi>")
                 appendLine("          <openrs:coolantC>${"%.1f".format(pt.coolantTempC)}</openrs:coolantC>")
@@ -217,9 +279,10 @@ object DiagnosticExporter {
                 appendLine("          <openrs:ptuC>${"%.1f".format(pt.ptuTempC)}</openrs:ptuC>")
                 appendLine("          <openrs:fuelPct>${"%.1f".format(pt.fuelLevelPct)}</openrs:fuelPct>")
                 appendLine("          <openrs:lateralG>${"%.3f".format(pt.lateralG)}</openrs:lateralG>")
-                appendLine("          <openrs:driveMode>${pt.driveMode.label}</openrs:driveMode>")
+                appendLine("          <openrs:driveMode>${pt.driveMode}</openrs:driveMode>")
                 appendLine("        </extensions>")
                 appendLine("      </trkpt>")
+                prevTimestamp = pt.timestamp
             }
             appendLine("    </trkseg>")
             appendLine("  </trk>")
@@ -227,64 +290,22 @@ object DiagnosticExporter {
         }
     }
 
-    private fun buildTripSummaryText(tripState: TripState): String = buildString {
-        val elapsedSec = tripState.elapsedMs / 1000L
-        appendLine("═══════════════════════════════════════════════════════════")
-        appendLine("  openRS_ Trip Summary")
-        appendLine("  App         : v${BuildConfig.VERSION_NAME} (build ${BuildConfig.VERSION_CODE})")
-        appendLine("  Points      : ${tripState.points.size}")
-        appendLine("═══════════════════════════════════════════════════════════")
-        appendLine()
-        appendLine("  Distance    : ${"%.2f".format(tripState.cumulativeDistanceKm)} km  (${"%.2f".format(tripState.cumulativeDistanceKm * 0.621371)} mi)")
-        appendLine("  Duration    : ${elapsedSec / 3600}h ${(elapsedSec % 3600) / 60}m ${elapsedSec % 60}s")
-        appendLine("  Avg Speed   : ${"%.1f".format(tripState.avgSpeedKph)} km/h")
-        appendLine("  Max Speed   : ${"%.1f".format(tripState.maxSpeedKph)} km/h")
-        appendLine()
-        appendLine("  Fuel Used   : ${"%.2f".format(tripState.fuelUsedL)} L  (start ${tripState.startFuelPct.toInt()}% → end ${tripState.latestFuelPct.toInt()}%)")
-        appendLine("  L/100km     : ${"%.1f".format(tripState.avgFuelL100km)}")
-        appendLine("  MPG         : ${"%.1f".format(tripState.avgFuelMpg)}")
-        appendLine()
-        appendLine("  Peak RPM    : ${"%.0f".format(tripState.peakRpm)}")
-        appendLine("  Avg RPM     : ${"%.0f".format(tripState.avgRpm)}")
-        appendLine("  Peak Boost  : ${"%.1f".format(tripState.peakBoostPsi)} PSI")
-        appendLine("  Peak Lat G  : ${"%.2f".format(tripState.peakLateralG)} g")
-        appendLine()
-        appendLine("  Drive mode breakdown:")
-        tripState.driveModeBreakdown.entries.sortedByDescending { it.value }.forEach { (mode, frac) ->
-            appendLine("    ${mode.label.padEnd(10)} : ${"%.0f".format(frac * 100)}%")
-        }
-        appendLine()
-        appendLine("═══════════════════════════════════════════════════════════")
-    }
-
-    /**
-     * Build a CSV spreadsheet of every [TripPoint] in [tripState].
-     *
-     * Columns (all in SI units where applicable):
-     *   timestamp_ms, lat, lng, speed_kph, rpm, gear, boost_psi,
-     *   coolant_c, oil_c, ambient_c, rdu_c, ptu_c, fuel_pct,
-     *   tire_press_lf_psi, tire_press_rf_psi, tire_press_lr_psi, tire_press_rr_psi,
-     *   tire_temp_lf_c, tire_temp_rf_c, tire_temp_lr_c, tire_temp_rr_c,
-     *   wheel_fl_kph, wheel_fr_kph, wheel_rl_kph, wheel_rr_kph,
-     *   lateral_g, drive_mode, race_ready
-     */
-    fun buildTripCsv(tripState: TripState): String = buildString {
-        // Header
+    private fun buildDriveCsv(points: List<DrivePointEntity>): String = buildString {
         appendLine(
             "timestamp_ms,lat,lng,speed_kph,rpm,gear,boost_psi," +
             "coolant_c,oil_c,ambient_c,rdu_c,ptu_c,fuel_pct," +
             "tire_press_lf_psi,tire_press_rf_psi,tire_press_lr_psi,tire_press_rr_psi," +
             "tire_temp_lf_c,tire_temp_rf_c,tire_temp_lr_c,tire_temp_rr_c," +
             "wheel_fl_kph,wheel_fr_kph,wheel_rl_kph,wheel_rr_kph," +
-            "lateral_g,drive_mode,race_ready"
+            "lateral_g,throttle_pct,drive_mode,race_ready"
         )
-        tripState.points.forEach { pt ->
+        points.forEach { pt ->
             appendLine(
                 "${pt.timestamp}," +
                 "${"%.6f".format(pt.lat)}," +
                 "${"%.6f".format(pt.lng)}," +
                 "${"%.2f".format(pt.speedKph)}," +
-                "${"%.0f".format(pt.rpm)}," +
+                "${pt.rpm}," +
                 "${csvEscape(pt.gear)}," +
                 "${"%.3f".format(pt.boostPsi)}," +
                 "${"%.1f".format(pt.coolantTempC)}," +
@@ -306,10 +327,44 @@ object DiagnosticExporter {
                 "${"%.2f".format(pt.wheelSpeedRL)}," +
                 "${"%.2f".format(pt.wheelSpeedRR)}," +
                 "${"%.4f".format(pt.lateralG)}," +
-                "${csvEscape(pt.driveMode.label)}," +
+                "${"%.1f".format(pt.throttlePct)}," +
+                "${csvEscape(pt.driveMode)}," +
                 "${pt.isRaceReady}"
             )
         }
+    }
+
+    private fun buildDriveSummary(drive: DriveEntity, points: List<DrivePointEntity>): String = buildString {
+        val durationMs = if (drive.endTime > 0) drive.endTime - drive.startTime else 0L
+        val elapsedSec = durationMs / 1000L
+        appendLine("═══════════════════════════════════════════════════════════")
+        appendLine("  openRS_ Drive Summary")
+        appendLine("  App         : v${BuildConfig.VERSION_NAME} (build ${BuildConfig.VERSION_CODE})")
+        appendLine("  Points      : ${points.size}")
+        appendLine("═══════════════════════════════════════════════════════════")
+        appendLine()
+        appendLine("  Distance    : ${"%.2f".format(drive.distanceKm)} km  (${"%.2f".format(drive.distanceKm * 0.621371)} mi)")
+        appendLine("  Duration    : ${elapsedSec / 3600}h ${(elapsedSec % 3600) / 60}m ${elapsedSec % 60}s")
+        appendLine("  Avg Speed   : ${"%.1f".format(drive.avgSpeedKph)} km/h")
+        appendLine("  Max Speed   : ${"%.1f".format(drive.maxSpeedKph)} km/h")
+        appendLine()
+        appendLine("  Fuel Used   : ${"%.2f".format(drive.fuelUsedL)} L")
+        appendLine("  Peak RPM    : ${drive.peakRpm}")
+        appendLine("  Peak Boost  : ${"%.1f".format(drive.peakBoostPsi)} PSI")
+        appendLine("  Peak Lat G  : ${"%.2f".format(drive.peakLateralG)} g")
+        appendLine()
+        if (drive.driveModeBreakdown != "{}") {
+            appendLine("  Drive mode breakdown:")
+            try {
+                val json = org.json.JSONObject(drive.driveModeBreakdown)
+                json.keys().forEach { key ->
+                    val pct = json.getDouble(key) * 100
+                    appendLine("    ${key.padEnd(10)} : ${"%.0f".format(pct)}%")
+                }
+            } catch (_: Exception) {}
+        }
+        appendLine()
+        appendLine("═══════════════════════════════════════════════════════════")
     }
 
     private fun csvEscape(value: String): String =

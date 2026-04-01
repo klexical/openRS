@@ -10,7 +10,7 @@ All source under `android/app/src/main/java/com/openrs/dash/`:
 
 ```
 OpenRSDashApp.kt          — App singleton: vehicleState: MutableStateFlow<VehicleState>,
-                            debugLines, isOpenRsFirmware, firmwareVersionLabel, tripRecorder
+                            debugLines, isOpenRsFirmware, firmwareVersionLabel, driveDb, driveRecorder, driveState
 can/
   CanDecoder.kt           — 22 passive HS-CAN decoders. decode(id,data,state)→VehicleState?
                             Call resetSessionState() on EVERY new connection (resets modeDetail420 + has420Arrived)
@@ -30,14 +30,15 @@ can/
 data/
   VehicleState.kt         — Immutable data class ~95 fields. See sentinel rules below.
   ForscanCatalog.kt       — Lazy loader for assets/pids/forscan_modules.json (1,149 PIDs)
-  TripState.kt            — GPS+OBD trip accumulator (distance, peaks, mode breakdown, fuel economy)
-  TripPoint.kt            — Single waypoint: lat/lng + 20 telemetry fields
+  TripState.kt            — PeakType enum + PeakEvent data class (used by DriveRecorder/DriveMap)
+  DriveDatabase.kt        — Room DB v2: DriveEntity, DrivePointEntity, DriveDao, migration v1→v2
+  DriveState.kt           — Live drive state flow: isRecording, isPaused, peaks, recentPoints, fuel
   DtcResult.kt            — module, code, description, status (ACTIVE/PENDING/PERMANENT/UNKNOWN)
   DtcModuleSpec.kt        — name, requestId, responseId for DTC scan targets
 diagnostics/
   DtcScanner.kt           — UDS 0x19/02 scan across PCM(7E0)/BCM(726)/ABS(760)/AWD(703)/PSCM(730)
   DiagnosticLogger.kt     — Thread-safe singleton: frame inventory (opt B), decode trace, SLCAN log (opt C)
-  DiagnosticExporter.kt   — ZIP builder (inventory+trace+JSON+SLCAN+DID probe CSVs); shareTrip()→GPX+CSV+summary
+  DiagnosticExporter.kt   — ZIP builder (inventory+trace+JSON+SLCAN+DID probe CSVs); shareDrive()→unified GPX+CSV+summary+diagnostics
                             Crash telemetry files retained after export (not deleted); crashFiles()/clearCrashHistory()
   DtcDatabase.kt          — 873-code bundled Ford DTC lookup (from res/raw/dtc_database.json)
   CrashReporter.kt        — Installs UncaughtExceptionHandler; persists CrashTelemetryBuffer to disk
@@ -45,12 +46,16 @@ diagnostics/
 service/
   CanDataService.kt       — Foreground service; WiFi-gated auto-reconnect; owns connection lifecycle
                             Adapter selection: AppSettings.getAdapterType() → "WICAN"|"MEATPI"
-  TripRecorder.kt         — FusedLocationProviderClient @ 1 Hz; fuses GPS with VehicleState snapshots
+                            Auto-record integration: starts/stops DriveRecorder on connect/disconnect (if setting enabled)
+  DriveRecorder.kt        — Room-backed drive recorder: start/stop/pause/resume, 1 Hz GPS + telemetry
+                            FusedLocationProviderClient @ 1 Hz; batch writes (30 points/flush); peak tracking
   WeatherRepository.kt    — OpenWeatherMap /data/2.5/weather (BuildConfig.OPENWEATHER_API_KEY)
 ui/
-  MainActivity.kt         — 6-tab Compose host (DASH/POWER/CHASSIS/TEMPS/DIAG/MORE)
+  MainActivity.kt         — 7-tab Compose host (DASH/POWER/CHASSIS/TEMPS/MAP/DIAG/MORE)
                             Binds CanDataService via LocalBinder; passes callbacks to child composables
+                            Location permission requested at startup; REC indicator in AppHeader
   AppSettings.kt          — SharedPreferences wrapper; prefs file: "openrs_settings"
+                            rememberSectionExpanded() composable for persistent collapsible sections
   UserPrefs.kt            — Observable prefs data class + unit-conversion helpers
                             UserPrefsStore object: MutableStateFlow<UserPrefs>
   Components.kt           — Shared composables: HeroCard (valueFraction glow), DataCell, BarCard,
@@ -61,7 +66,7 @@ ui/
                             CardShape(12dp), HeroShape(14dp), CardRadius, HeroRadius, CardBorder
   Theme.kt                — Color tokens (see below), typography (Orbitron/JetBrains/ShareTech/Barlow)
   SettingsSheet.kt        — Settings drawer: units, TPMS threshold, shift light, adapter, connection,
-                            reconnect, diag, theme picker (RS paint colours), floating HUD toggle
+                            reconnect, drives (auto-record, max saved), diag, theme picker (RS paint colours)
                             Accent left-bar titles, gradient section backgrounds, animated SegmentedPicker
   anim/
     EdgeShiftLight.kt     — Peripheral shift light: multi-zone edge glow overlay (breathing → fill → flash)
@@ -74,7 +79,9 @@ ui/
   PidBrowserSection.kt    — DIAG tab: expandable FORScan catalog per module with coverage bar
   DidProberSection.kt     — DIAG tab: interactive Mode 22 scanner for any ECU+DID
   WhatsNewDialog.kt       — Version changelog dialog; shown on first launch after update
-  trip/TripPage.kt        — Full-screen overlay: OSMDroid map + stats + export
+  trip/
+    DrivePage.kt          — MAP tab: live mode (Google Maps + HUD + controls) + history mode (drive list)
+    DriveMap.kt           — Google Maps Compose wrapper: dark styled, color-segmented polylines, peak markers
 ```
 
 ## ECU Addresses
@@ -179,6 +186,7 @@ WiCAN:   192.168.80.1:80     MeatPi: 192.168.0.10:35000
 ScreenOn: true  |  AutoReconnect: true  |  MaxDiagZips: 5
 AdapterType: "WICAN"  (alt: "MEATPI")
 EdgeShiftLight: false  |  EdgeShiftColor: "accent"  |  EdgeShiftIntensity: "high"  |  EdgeShiftRpm: 6800
+AutoRecordDrives: false  |  MaxSavedDrives: 50
 Prefs file: "openrs_settings"
 ```
 
@@ -188,7 +196,8 @@ Prefs file: "openrs_settings"
 android/app/src/main/assets/pids/combined_catalog.json   — 136 KB merged PID catalog
 android/app/src/main/assets/pids/forscan_modules.json    — 185 KB FORScan catalog (1,149 PIDs)
 android/app/src/main/res/raw/dtc_database.json           — 873-code Ford DTC descriptions
-android/app/src/main/res/raw/map_style_dark.json         — OSMDroid dark map style
+android/app/src/main/res/raw/google_map_style_dark.json  — Google Maps dark style (openRS_ palette)
+android/app/src/main/res/raw/map_style_dark.json         — Legacy OSMDroid dark map style (unused)
 ```
 
 Regenerate catalogs: `python3 android/scripts/gen_forscan_catalog.py`
@@ -200,7 +209,7 @@ cd android
 ./gradlew assembleDebug                    # → openRS_v{ver}-staging-debug.apk
 ./gradlew assembleRelease                  # → openRS_v{ver}.apk  (main release)
 ./gradlew assembleRelease -PrcSuffix=rc.5  # → openRS_v{ver}-rc.5.apk
-./gradlew test                             # 206 unit tests across 7 files
+./gradlew test                             # 243 unit tests across 8 files
 bash scripts/install-debug.sh              # quick build + ADB install + launch
 ```
 
@@ -219,6 +228,7 @@ android/app/src/test/java/com/openrs/dash/
   PidRegistryTest.kt          — 18 tests: catalog loading, DID lookup, fallback decoding
   IsoTpBufferTest.kt          — 12 tests: SF/FF/CF reassembly, edge cases
   RingBufferTest.kt           — 10 tests: capacity, overflow, iteration
+  DriveStateTest.kt           — 37 tests: fuel economy, averages, haversine, peaks, sentinels
 ```
 
 ## Branch / Release Workflow

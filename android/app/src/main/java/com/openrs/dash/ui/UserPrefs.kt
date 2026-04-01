@@ -39,7 +39,9 @@ data class UserPrefs(
     val edgeShiftLight: Boolean     = AppSettings.DEFAULT_EDGE_SHIFT_LIGHT,  // peripheral edge glow
     val edgeShiftColor: String      = AppSettings.DEFAULT_EDGE_SHIFT_COLOR,  // "accent"|"white"|"progressive"
     val edgeShiftIntensity: String  = AppSettings.DEFAULT_EDGE_SHIFT_INTENSITY, // "low"|"med"|"high"
-    val edgeShiftRpm: Int           = AppSettings.DEFAULT_EDGE_SHIFT_RPM     // shift point RPM
+    val edgeShiftRpm: Int           = AppSettings.DEFAULT_EDGE_SHIFT_RPM,    // shift point RPM
+    val autoRecordDrives: Boolean   = AppSettings.DEFAULT_AUTO_RECORD_DRIVES,  // auto-start on connect
+    val maxSavedDrives: Int         = AppSettings.DEFAULT_MAX_SAVED_DRIVES     // oldest pruned when exceeded
 ) {
     // ── Unit-conversion helpers used by UI ─────────────────────────────────
 

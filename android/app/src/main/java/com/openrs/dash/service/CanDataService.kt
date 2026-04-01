@@ -19,8 +19,8 @@ import com.openrs.dash.can.CanDecoder
 import com.openrs.dash.can.MeatPiConnection
 import com.openrs.dash.can.PidRegistry
 import com.openrs.dash.can.WiCanConnection
+import com.openrs.dash.data.DriveDatabase
 import com.openrs.dash.data.DtcResult
-import com.openrs.dash.data.SessionDatabase
 import com.openrs.dash.data.SessionEntity
 import com.openrs.dash.data.SnapshotEntity
 import com.openrs.dash.data.VehicleState
@@ -48,7 +48,7 @@ class CanDataService : Service() {
     private var wifiCallback: ConnectivityManager.NetworkCallback? = null
 
     // ── Session History ──────────────────────────────────────────────────────
-    private val sessionDb by lazy { SessionDatabase.getInstance(this) }
+    private val sessionDb by lazy { DriveDatabase.getInstance(this) }
     private var currentSessionId: Long = -1L
     private var snapshotJob: Job? = null
     private var sessionFrameCount: Long = 0L
@@ -238,15 +238,15 @@ class CanDataService : Service() {
             // Prune sessions older than 30 days
             val cutoff = System.currentTimeMillis() - 30L * 24 * 60 * 60 * 1000
             try {
-                sessionDb.sessionDao().deleteOldSnapshots(cutoff)
-                sessionDb.sessionDao().deleteOldSessions(cutoff)
+                sessionDb.driveDao().deleteOldSnapshots(cutoff)
+                sessionDb.driveDao().deleteOldSessions(cutoff)
             } catch (e: Exception) {
                 android.util.Log.w("CAN", "Session prune failed", e)
             }
 
             // Create a new session
             val session = SessionEntity(startTime = System.currentTimeMillis())
-            currentSessionId = sessionDb.sessionDao().insertSession(session)
+            currentSessionId = sessionDb.driveDao().insertSession(session)
             sessionFrameCount = 0L
             android.util.Log.d("CAN", "Session $currentSessionId started")
 
@@ -259,7 +259,7 @@ class CanDataService : Service() {
                     val vs = OpenRSDashApp.instance.vehicleState.value
                     if (!vs.isConnected) continue
                     try {
-                        sessionDb.sessionDao().insertSnapshot(
+                        sessionDb.driveDao().insertSnapshot(
                             SnapshotEntity(
                                 sessionId  = sid,
                                 timestamp  = System.currentTimeMillis(),
@@ -288,8 +288,8 @@ class CanDataService : Service() {
         scope.launch(Dispatchers.IO) {
             try {
                 val vs = OpenRSDashApp.instance.vehicleState.value
-                val existing = sessionDb.sessionDao().getSession(sid) ?: return@launch
-                sessionDb.sessionDao().updateSession(
+                val existing = sessionDb.driveDao().getSession(sid) ?: return@launch
+                sessionDb.driveDao().updateSession(
                     existing.copy(
                         endTime        = System.currentTimeMillis(),
                         peakRpm        = vs.peakRpm,
@@ -324,6 +324,11 @@ class CanDataService : Service() {
         )
         CanDecoder.resetSessionState()
         startSessionRecording()
+
+        // Auto-record drive if enabled
+        if (AppSettings.getAutoRecordDrives(this)) {
+            OpenRSDashApp.instance.driveRecorder.startDrive(sessionId = currentSessionId)
+        }
 
         if (isMeatPi) {
             meatpi = buildMeatPi()
@@ -493,6 +498,11 @@ class CanDataService : Service() {
     }
 
     @Synchronized fun stopConnection() {
+        // Auto-stop drive if recording
+        val recorder = OpenRSDashApp.instance.driveRecorder
+        if (recorder.driveState.value.isRecording && AppSettings.getAutoRecordDrives(this)) {
+            recorder.stopDrive()
+        }
         stopSessionRecording()
         DiagnosticLogger.sessionEnd()
         connectionJob?.cancel()

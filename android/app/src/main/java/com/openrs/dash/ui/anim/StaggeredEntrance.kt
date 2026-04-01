@@ -34,12 +34,12 @@ fun StaggeredColumn(
         repeat(itemCount) { index ->
             val delay = index * staggerDelayMs
             val alpha by animateFloatAsState(
-                targetValue = if (visibleState.currentState) 1f else 0f,
+                targetValue = if (visibleState.targetState) 1f else 0f,
                 animationSpec = tween(durationMillis = 300, delayMillis = delay, easing = EaseOut),
                 label = "stgA$index"
             )
             val offsetY by animateDpAsState(
-                targetValue = if (visibleState.currentState) 0.dp else 16.dp,
+                targetValue = if (visibleState.targetState) 0.dp else 16.dp,
                 animationSpec = tween(durationMillis = 300, delayMillis = delay, easing = EaseOut),
                 label = "stgY$index"
             )
