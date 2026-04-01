@@ -200,7 +200,7 @@ cd android
 ./gradlew assembleDebug                    # → openRS_v{ver}-staging-debug.apk
 ./gradlew assembleRelease                  # → openRS_v{ver}.apk  (main release)
 ./gradlew assembleRelease -PrcSuffix=rc.5  # → openRS_v{ver}-rc.5.apk
-./gradlew test                             # 150+ unit tests across 4 files
+./gradlew test                             # 206 unit tests across 7 files
 bash scripts/install-debug.sh              # quick build + ADB install + launch
 ```
 
@@ -212,10 +212,13 @@ RC builds MUST use `-PrcSuffix` so the APK filename reflects the RC version.
 
 ```
 android/app/src/test/java/com/openrs/dash/
-  can/CanDecoderTest.kt          — 50+ tests: all 22 CAN ID decoders
-  can/ObdResponseParserTest.kt   — 41 tests: PCM/BCM/AWD/PSCM/FENG/RSProt DIDs
-  can/SlcanParserTest.kt         — 28 tests: standard/extended frames, error cases
-  data/VehicleStateTest.kt       — 30 tests: conversions, AWD split, peaks, TPMS, RTR
+  CanDecoderTest.kt           — 69 tests: all 22 CAN ID decoders
+  ObdResponseParserTest.kt    — 46 tests: PCM/BCM/AWD/PSCM/FENG/RSProt DIDs
+  VehicleStateTest.kt         — 31 tests: conversions, AWD split, peaks, TPMS, RTR
+  SlcanParserTest.kt          — 20 tests: standard/extended frames, error cases
+  PidRegistryTest.kt          — 18 tests: catalog loading, DID lookup, fallback decoding
+  IsoTpBufferTest.kt          — 12 tests: SF/FF/CF reassembly, edge cases
+  RingBufferTest.kt           — 10 tests: capacity, overflow, iteration
 ```
 
 ## Branch / Release Workflow
