@@ -25,11 +25,11 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.openrs.dash.can.DriveCommandResult
+import com.openrs.dash.can.FirmwareCommandSender
 import com.openrs.dash.can.executeDriveModeChange
 import com.openrs.dash.data.DriveMode
 import com.openrs.dash.data.VehicleState
@@ -46,11 +46,10 @@ import kotlinx.coroutines.launch
 @Composable fun DriveModeDock(
     vs: VehicleState,
     canControl: Boolean,
-    host: String,
+    firmwareApi: FirmwareCommandSender?,
     snackbarHostState: SnackbarHostState,
     onDismiss: () -> Unit
 ) {
-    val ctx = LocalContext.current
     val haptic = LocalHapticFeedback.current
     val accent = LocalThemeAccent.current
     val scope = rememberCoroutineScope()
@@ -124,11 +123,11 @@ import kotlinx.coroutines.launch
                             },
                             RoundedCornerShape(10.dp)
                         )
-                        .pressClick(enabled = canControl && !isActive && pendingDriveMode == null) {
+                        .pressClick(enabled = canControl && firmwareApi != null && !isActive && pendingDriveMode == null) {
                             haptic.performHapticFeedback(HapticFeedbackType.Confirm)
                             pendingDriveMode = mode
                             scope.launch {
-                                when (val r = executeDriveModeChange(ctx, host, mode, vs.driveMode)) {
+                                when (val r = executeDriveModeChange(firmwareApi!!, mode, vs.driveMode)) {
                                     is DriveCommandResult.Success -> {
                                         pendingDriveMode = null
                                         delay(400)

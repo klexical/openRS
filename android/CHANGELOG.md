@@ -112,6 +112,43 @@ Firmware changes are tracked separately in [firmware releases](https://github.co
 - **DtcScanner refactored for testability** — `decodeDtcCode()`, `classifyStatus()`, `parsePayload()` moved from instance `private` to `companion object internal`, enabling unit tests without Android Context. (`DtcScanner.kt`)
 - **Drive mode command logic extracted from MorePage** — 60 lines of inline command/polling/auto-correct code replaced by a single `executeDriveModeChange()` call. (`MorePage.kt`, `DriveCommand.kt`)
 
+### Fixed (rc.7 — MAP tab overhaul)
+- **Foreground service crash on startup** — `goForeground()` was only called inside `startConnection()`, which is gated by `isOnWifi()`. When not on WiFi, `startForeground()` never fired within the 5-second Android deadline, causing `ForegroundServiceDidNotStartInTimeException`. Fixed by calling `goForeground()` unconditionally as the first call in `CanDataService.onCreate()`. Also fixes the missing notification bar. Regression introduced in rc.5 when `ACCESS_FINE_LOCATION` was added to always-requested permissions, removing the synchronous `else startSvc()` fallback. (`CanDataService.kt`)
+- **MAP tab doesn't show location without car connection** — `driveState.currentLocation` only populated by DriveRecorder during active recording. Enabled `isMyLocationEnabled` + `myLocationButtonEnabled` on GoogleMap for native blue dot. Added one-shot `FusedLocationProviderClient.lastLocation` to center camera on user's position when MAP tab opens idle. (`DriveMap.kt`, `DrivePage.kt`)
+
+### Added (rc.7 — MAP tab overhaul)
+- **4 new map color modes** — BOOST (boostPsi thresholds: vacuum/low/mid/full), THRTL (throttlePct: coasting/light/moderate/full-send), G-LAT (lateralG: straight/gentle/spirited/high-G), TEMP (oilTempC: cold/warming/operating/hot). Color mode toggle now cycles through all 6 modes (SPD → MODE → BOOST → THRTL → G-LAT → TEMP). (`DriveMap.kt`, `DrivePage.kt`)
+- **Color legend strip** — floating overlay at bottom-center of map showing what colors mean for the current mode. Updates when color mode changes. (`DrivePage.kt`, `DriveMap.kt`)
+- **Map type toggle** — floating button below color mode to cycle Normal → Satellite → Terrain. Dark style applied only on Normal. (`DrivePage.kt`, `DriveMap.kt`)
+- **Start / Finish markers** — green pin at first drive point, red pin at last point. Shows on both live recording and historic drive playback. (`DriveMap.kt`)
+- **Peak speed marker** — new `PeakType.SPEED` alongside existing RPM, BOOST, LATERAL_G. Tracks and displays peak speed with value label on map. (`TripState.kt`, `DriveRecorder.kt`, `DriveMap.kt`)
+- **Pause point markers** — small yellow markers with pause bars icon at locations where recording was paused. Detects 5-second timestamp gaps between consecutive points. (`DriveMap.kt`)
+- **Zoom to fit route** — when loading a historic drive, camera auto-zooms to fit the entire route using `LatLngBounds`. (`DriveMap.kt`)
+- **Route stats overlay** — floating HUD at bottom-left of map showing distance, duration, and average speed. Shows for both live recording and historic drive review. (`DrivePage.kt`)
+- **Drive history grouped by date** — section headers: "Today", "Yesterday", "Mar 29". Drives sorted newest first within each group. (`DrivePage.kt`)
+- **Status badges on drives** — color-coded: green "COMPLETE" (finished with GPS), orange "ACTIVE" (still recording), dim "NO GPS" (legacy migrated drive). (`DrivePage.kt`)
+- **Summary stats per drive** — distance, peak speed, peak RPM, peak boost, peak lateral G displayed on each drive card. (`DrivePage.kt`)
+- **Drive naming** — tap drive name to rename (e.g. "Tail of the Dragon"). Stored in `DriveEntity.name` column. Room migration v2→v3 adds the column. (`DriveDatabase.kt`, `DrivePage.kt`)
+- **Swipe to delete** — swipe drive history items end-to-start to delete. Red background with DELETE label. (`DrivePage.kt`)
+- **Export button per drive** — SHARE button wired to `DiagnosticExporter.shareDrive()` with GPX, CSV, and drive summary in a ZIP. (`DrivePage.kt`)
+- **GPS indicator on drive cards** — small green dot with "GPS" label for drives with location data. (`DrivePage.kt`)
+- **Empty state improvement** — "No drives recorded yet" replaced with hint: "Connect to your car and tap START to record your first drive". (`DrivePage.kt`)
+
+### Changed (rc.7 — MAP tab overhaul)
+- **Room database v3** — migration v2→v3 adds `name TEXT DEFAULT NULL` column to drives table for user-assigned drive names. (`DriveDatabase.kt`)
+
+### Added (rc.7 — BLE transport)
+- **BLE GATT transport** — connect to MeatPi adapters over Bluetooth Low Energy instead of WiFi, freeing cellular/WiFi for internet (weather, Google Maps, in-app updates). SLCAN over GATT service `0xFFE0` with write char `FFE1` and notify char `FFE2`. Auto-reconnect on subsequent connections (`autoConnect=true`), MTU 247 with 23-byte fallback. (`BleSlcanTransport.kt`, `BleDeviceScanner.kt`)
+- **BLE device picker** — scan dialog filtered to service UUID `0xFFE0` with RSSI signal strength bars. Saves device MAC + name for automatic reconnection across app restarts. (`BleDevicePickerDialog.kt`, `AppSettings.kt`)
+- **BT indicator in header** — "BT" label in connection pill when connected via Bluetooth. (`MainActivity.kt`)
+- **WiFi coexistence banner** — dismissible warning when using Bluetooth and phone's WiFi is active: "WiFi connected — internet may be blocked. Forget adapter WiFi for best BLE experience." (`MainActivity.kt`)
+- **Transport-aware diagnostic logging** — `sessionTransport` field in DiagnosticLogger. Transport label (e.g. "Bluetooth (WiCAN_ABC / AA:BB:CC:DD:EE:FF)" or "TCP SLCAN (192.168.0.10:35000)") included in text summary, JSON detail, SLCAN log header, and share intent. (`DiagnosticLogger.kt`, `DiagnosticReportBuilder.kt`, `DiagnosticExporter.kt`)
+
+### Changed (rc.7 — BLE transport)
+- **Transport interface extraction** — connection layer refactored to transport-agnostic architecture. `SlcanTransport` interface with `TcpSlcanTransport`, `WebSocketSlcanTransport`, and `BleSlcanTransport` implementations. `SlcanConnection` shared base class handles retry, SLCAN init, OBD pollers, DTC scan/clear, and ISO-TP reassembly. Deleted `MeatPiConnection.kt` (473 lines) and `WiCanConnection.kt` (629 lines). (`can/`)
+- **Adapter naming refactor** — adapters renamed from "WiCAN"/"MeatPi" to "MeatPi USB (C3)"/"MeatPi Pro (S3)". Bluetooth separated from adapter type into its own `connectionMethod` field (`"WIFI"`/`"BLUETOOTH"`). Settings UI: 2-way adapter picker + separate connection method toggle. Legacy migration handles old `"WICAN"`, `"MEATPI"`, `"BLUETOOTH"` values. (`AppSettings.kt`, `UserPrefs.kt`, `SettingsSheet.kt`)
+- **FirmwareApi abstracted for transport** — `FirmwareCommandSender` interface with `WiFiFirmwareApi` (REST `/api/frs`) and `BleFirmwareApi` (`AT+FRS=` over SLCAN transport). `DriveCommand`, `DriveModeDock`, and `MorePage` use the interface for transport-agnostic firmware commands. (`FirmwareApi.kt`, `DriveCommand.kt`)
+
 ---
 
 ## [v2.2.5] — 2026-03-27

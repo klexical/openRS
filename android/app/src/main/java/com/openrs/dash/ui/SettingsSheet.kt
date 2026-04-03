@@ -59,6 +59,7 @@ fun SettingsDialog(onDismiss: () -> Unit) {
     var autoRecordDrives by remember { mutableStateOf(current.autoRecordDrives) }
     var maxSavedDrives  by remember { mutableStateOf(current.maxSavedDrives.toString()) }
     var adapterType     by remember { mutableStateOf(current.adapterType) }
+    var connectionMethod by remember { mutableStateOf(current.connectionMethod) }
     var meatPiMicroSd   by remember { mutableStateOf(current.meatPiMicroSdLog) }
     var edgeShiftLight  by remember { mutableStateOf(current.edgeShiftLight) }
     var edgeShiftColor  by remember { mutableStateOf(current.edgeShiftColor) }
@@ -328,23 +329,23 @@ fun SettingsDialog(onDismiss: () -> Unit) {
                 }
 
                 // ── Adapter section ───────────────────────────────────────────
+                var showBlePicker by remember { mutableStateOf(false) }
                 SettingsSection("ADAPTER") {
                     SettingsRow("Hardware") {
                         SegmentedPicker(
-                            options  = listOf("WiCAN", "MeatPi Pro"),
-                            selected = if (adapterType == "MEATPI") "MeatPi Pro" else "WiCAN",
+                            options  = listOf("MeatPi USB (C3)", "MeatPi Pro (S3)"),
+                            selected = if (adapterType == "MEATPI_PRO") "MeatPi Pro (S3)" else "MeatPi USB (C3)",
                             onSelect = { selected ->
-                                val newType = if (selected == "MeatPi Pro") "MEATPI" else "WICAN"
+                                val newType = if (selected == "MeatPi Pro (S3)") "MEATPI_PRO" else "MEATPI_USB"
                                 if (newType != adapterType) {
                                     // Auto-populate connection fields with the correct defaults when
-                                    // switching adapters — but only if the current values still match
-                                    // the OTHER adapter's defaults (preserves any custom IP/port).
-                                    if (newType == "MEATPI" &&
+                                    // switching adapters (preserves any custom IP/port).
+                                    if (newType == "MEATPI_PRO" &&
                                         host == AppSettings.DEFAULT_HOST &&
                                         port == AppSettings.DEFAULT_PORT.toString()) {
                                         host = AppSettings.DEFAULT_HOST_MEATPI
                                         port = AppSettings.DEFAULT_PORT_MEATPI.toString()
-                                    } else if (newType == "WICAN" &&
+                                    } else if (newType == "MEATPI_USB" &&
                                         host == AppSettings.DEFAULT_HOST_MEATPI &&
                                         port == AppSettings.DEFAULT_PORT_MEATPI.toString()) {
                                         host = AppSettings.DEFAULT_HOST
@@ -355,7 +356,7 @@ fun SettingsDialog(onDismiss: () -> Unit) {
                             }
                         )
                     }
-                    if (adapterType == "MEATPI") {
+                    if (adapterType == "MEATPI_PRO") {
                         Spacer(Modifier.height(12.dp))
                         SettingsSwitchRow(
                             label          = "MicroSD logging reminder",
@@ -371,41 +372,149 @@ fun SettingsDialog(onDismiss: () -> Unit) {
                     }
                 }
 
-                // ── Connection section ────────────────────────────────────────
-                val isMeatPi = adapterType == "MEATPI"
-                val defaultHost = if (isMeatPi) AppSettings.DEFAULT_HOST_MEATPI else AppSettings.DEFAULT_HOST
-                val defaultPort = if (isMeatPi) AppSettings.DEFAULT_PORT_MEATPI else AppSettings.DEFAULT_PORT
-                SettingsSection(if (isMeatPi) "MEATPI PRO CONNECTION" else "WICAN CONNECTION") {
-                    OutlinedTextField(
-                        value = host,
-                        onValueChange = { host = it; error = null },
-                        label = { Text("Host / IP Address", fontFamily = ShareTechMono, fontSize = 11.sp) },
-                        placeholder = { Text(defaultHost, fontFamily = ShareTechMono, fontSize = 12.sp, color = Dim) },
-                        singleLine = true,
-                        modifier = Modifier.fillMaxWidth(),
-                        colors = outlinedFieldColors(),
-                        textStyle = androidx.compose.ui.text.TextStyle(fontFamily = ShareTechMono, fontSize = 14.sp, color = Frost)
-                    )
-                    Spacer(Modifier.height(10.dp))
-                    OutlinedTextField(
-                        value = port,
-                        onValueChange = { port = it; error = null },
-                        label = { Text("Port", fontFamily = ShareTechMono, fontSize = 11.sp) },
-                        placeholder = { Text(defaultPort.toString(), fontFamily = ShareTechMono, fontSize = 12.sp, color = Dim) },
-                        singleLine = true,
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                        modifier = Modifier.fillMaxWidth(),
-                        colors = outlinedFieldColors(),
-                        textStyle = androidx.compose.ui.text.TextStyle(fontFamily = ShareTechMono, fontSize = 14.sp, color = Frost)
-                    )
-                    Spacer(Modifier.height(4.dp))
-                    Text(
-                        if (isMeatPi)
-                            "Default: $defaultHost:$defaultPort  (TCP SLCAN — configure port in WiCAN Pro web UI)"
-                        else
-                            "Default: $defaultHost:$defaultPort",
-                        fontSize = 10.sp, color = Dim, fontFamily = ShareTechMono
-                    )
+                // ── Connection method section ────────────────────────────────────
+                SettingsSection("CONNECTION") {
+                    SettingsRow("Method") {
+                        SegmentedPicker(
+                            options  = listOf("WiFi", "Bluetooth"),
+                            selected = if (connectionMethod == "BLUETOOTH") "Bluetooth" else "WiFi",
+                            onSelect = { selected ->
+                                connectionMethod = if (selected == "Bluetooth") "BLUETOOTH" else "WIFI"
+                            }
+                        )
+                    }
+                }
+
+                if (connectionMethod == "BLUETOOTH") {
+                    // ── Bluetooth device section ─────────────────────────────────
+                    val bleAddr = remember { mutableStateOf(AppSettings.getBleDeviceAddress(ctx)) }
+                    val bleName = remember { mutableStateOf(AppSettings.getBleDeviceName(ctx)) }
+
+                    SettingsSection("BLUETOOTH DEVICE") {
+                        if (bleAddr.value != null) {
+                            // Device saved — show info
+                            Row(
+                                Modifier.fillMaxWidth()
+                                    .background(Surf2, RoundedCornerShape(10.dp))
+                                    .border(1.dp, Brd, RoundedCornerShape(10.dp))
+                                    .padding(14.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Column(Modifier.weight(1f)) {
+                                    Text("Device", fontSize = 9.sp, color = Dim,
+                                        fontFamily = ShareTechMono, letterSpacing = 0.1.sp)
+                                    Spacer(Modifier.height(4.dp))
+                                    Text(bleName.value ?: "WiCAN", fontSize = 13.sp, color = Frost,
+                                        fontFamily = ShareTechMono, fontWeight = FontWeight.SemiBold)
+                                    Spacer(Modifier.height(2.dp))
+                                    Text(bleAddr.value ?: "", fontSize = 10.sp, color = Dim,
+                                        fontFamily = ShareTechMono, letterSpacing = 0.05.sp)
+                                }
+                            }
+                            Spacer(Modifier.height(10.dp))
+                        } else {
+                            Row(
+                                Modifier.fillMaxWidth()
+                                    .background(Surf2, RoundedCornerShape(10.dp))
+                                    .border(1.dp, Brd, RoundedCornerShape(10.dp))
+                                    .padding(14.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text("No device paired", fontSize = 11.sp, color = Dim,
+                                    fontFamily = ShareTechMono)
+                            }
+                            Spacer(Modifier.height(10.dp))
+                        }
+
+                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Box(
+                                Modifier.weight(1f)
+                                    .background(accent.copy(alpha = 0.1f), RoundedCornerShape(8.dp))
+                                    .border(1.dp, accent.copy(alpha = 0.3f), RoundedCornerShape(8.dp))
+                                    .clickable { showBlePicker = true }
+                                    .padding(12.dp),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text("SCAN FOR DEVICES", fontSize = 10.sp, color = accent,
+                                    fontFamily = ShareTechMono, fontWeight = FontWeight.Bold,
+                                    letterSpacing = 0.1.sp)
+                            }
+                            if (bleAddr.value != null) {
+                                Box(
+                                    Modifier.weight(1f)
+                                        .background(Orange.copy(alpha = 0.08f), RoundedCornerShape(8.dp))
+                                        .border(1.dp, Orange.copy(0.3f), RoundedCornerShape(8.dp))
+                                        .clickable {
+                                            AppSettings.clearBleDevice(ctx)
+                                            bleAddr.value = null
+                                            bleName.value = null
+                                        }
+                                        .padding(12.dp),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Text("FORGET", fontSize = 10.sp, color = Orange,
+                                        fontFamily = ShareTechMono, fontWeight = FontWeight.Bold,
+                                        letterSpacing = 0.1.sp)
+                                }
+                            }
+                        }
+                        Spacer(Modifier.height(8.dp))
+                        Text(
+                            "For best results, forget the adapter's WiFi network in your phone's WiFi " +
+                            "settings to keep internet available while connected via Bluetooth.",
+                            fontSize = 10.sp, color = Dim, fontFamily = ShareTechMono
+                        )
+                    }
+
+                    if (showBlePicker) {
+                        BleDevicePickerDialog(
+                            onDeviceSelected = { address, name ->
+                                AppSettings.saveBleDevice(ctx, address, name)
+                                bleAddr.value = address
+                                bleName.value = name
+                                showBlePicker = false
+                            },
+                            onDismiss = { showBlePicker = false }
+                        )
+                    }
+                } else {
+                    // ── WiFi Connection section ──────────────────────────────────
+                    val isPro = adapterType == "MEATPI_PRO"
+                    val defaultHost = if (isPro) AppSettings.DEFAULT_HOST_MEATPI else AppSettings.DEFAULT_HOST
+                    val defaultPort = if (isPro) AppSettings.DEFAULT_PORT_MEATPI else AppSettings.DEFAULT_PORT
+                    val adapterLabel = if (isPro) "MEATPI PRO" else "MEATPI USB"
+                    SettingsSection("$adapterLabel — WIFI") {
+                        OutlinedTextField(
+                            value = host,
+                            onValueChange = { host = it; error = null },
+                            label = { Text("Host / IP Address", fontFamily = ShareTechMono, fontSize = 11.sp) },
+                            placeholder = { Text(defaultHost, fontFamily = ShareTechMono, fontSize = 12.sp, color = Dim) },
+                            singleLine = true,
+                            modifier = Modifier.fillMaxWidth(),
+                            colors = outlinedFieldColors(),
+                            textStyle = androidx.compose.ui.text.TextStyle(fontFamily = ShareTechMono, fontSize = 14.sp, color = Frost)
+                        )
+                        Spacer(Modifier.height(10.dp))
+                        OutlinedTextField(
+                            value = port,
+                            onValueChange = { port = it; error = null },
+                            label = { Text("Port", fontFamily = ShareTechMono, fontSize = 11.sp) },
+                            placeholder = { Text(defaultPort.toString(), fontFamily = ShareTechMono, fontSize = 12.sp, color = Dim) },
+                            singleLine = true,
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                            modifier = Modifier.fillMaxWidth(),
+                            colors = outlinedFieldColors(),
+                            textStyle = androidx.compose.ui.text.TextStyle(fontFamily = ShareTechMono, fontSize = 14.sp, color = Frost)
+                        )
+                        Spacer(Modifier.height(4.dp))
+                        Text(
+                            if (isPro)
+                                "Default: $defaultHost:$defaultPort  (TCP SLCAN — configure port in WiCAN Pro web UI)"
+                            else
+                                "Default: $defaultHost:$defaultPort  (WebSocket SLCAN)",
+                            fontSize = 10.sp, color = Dim, fontFamily = ShareTechMono
+                        )
+                    }
                 }
 
                 // ── Auto-reconnect section ────────────────────────────────────
@@ -576,6 +685,7 @@ fun SettingsDialog(onDismiss: () -> Unit) {
                         autoRecordDrives = AppSettings.DEFAULT_AUTO_RECORD_DRIVES
                         maxSavedDrives = AppSettings.DEFAULT_MAX_SAVED_DRIVES.toString()
                         adapterType   = AppSettings.DEFAULT_ADAPTER_TYPE
+                        connectionMethod = AppSettings.DEFAULT_CONNECTION_METHOD
                         meatPiMicroSd = AppSettings.DEFAULT_MEATPI_MICROSD
                         edgeShiftLight    = AppSettings.DEFAULT_EDGE_SHIFT_LIGHT
                         edgeShiftColor    = AppSettings.DEFAULT_EDGE_SHIFT_COLOR
@@ -629,6 +739,7 @@ fun SettingsDialog(onDismiss: () -> Unit) {
                                     reconnectIntervalSec = retryInt ?: AppSettings.DEFAULT_RECONNECT_INTERVAL,
                                     maxDiagZips          = maxZips,
                                     adapterType          = adapterType,
+                                    connectionMethod     = connectionMethod,
                                     meatPiMicroSdLog     = meatPiMicroSd,
                                     edgeShiftLight       = edgeShiftLight,
                                     edgeShiftColor       = edgeShiftColor,

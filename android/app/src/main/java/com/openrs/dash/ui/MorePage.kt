@@ -38,9 +38,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.openrs.dash.OpenRSDashApp
-import com.openrs.dash.can.BusyException
 import com.openrs.dash.can.DriveCommandResult
-import com.openrs.dash.can.FirmwareApi
+import com.openrs.dash.can.FirmwareCommandSender
 import com.openrs.dash.can.executeDriveModeChange
 import com.openrs.dash.data.DriveMode
 import com.openrs.dash.data.EscStatus
@@ -63,7 +62,8 @@ private const val SAPPHIRE_URL = "https://klexical.github.io/openRS_/"
     p: UserPrefs,
     snackbarHostState: SnackbarHostState,
     onSettings: () -> Unit,
-    onCustomDash: () -> Unit = {}
+    onCustomDash: () -> Unit = {},
+    firmwareApi: FirmwareCommandSender? = null
 ) {
     val isFw   by OpenRSDashApp.instance.isOpenRsFirmware.collectAsState()
     val fwLabel by OpenRSDashApp.instance.firmwareVersionLabel.collectAsState()
@@ -72,8 +72,6 @@ private const val SAPPHIRE_URL = "https://klexical.github.io/openRS_/"
     val haptic = LocalHapticFeedback.current
     val accent = LocalThemeAccent.current
     val canControl = isFw && vs.isConnected
-    val prefs by UserPrefsStore.prefs.collectAsState()
-    val host = remember(prefs) { AppSettings.getHost(ctx) }
     var pendingDriveMode by remember { mutableStateOf<DriveMode?>(null) }
     var pendingEsc       by remember { mutableStateOf<EscStatus?>(null) }
 
@@ -109,11 +107,11 @@ private const val SAPPHIRE_URL = "https://klexical.github.io/openRS_/"
                                     if (isActive || isPending) modeAccent else Brd,
                                     RoundedCornerShape(10.dp)
                                 )
-                                .pressClick(enabled = canControl && !isActive && pendingDriveMode == null) {
+                                .pressClick(enabled = canControl && firmwareApi != null && !isActive && pendingDriveMode == null) {
                                     haptic.performHapticFeedback(HapticFeedbackType.Confirm)
                                     pendingDriveMode = mode
                                     scope.launch {
-                                        when (val r = executeDriveModeChange(ctx, host, mode, vs.driveMode)) {
+                                        when (val r = executeDriveModeChange(firmwareApi!!, mode, vs.driveMode)) {
                                             is DriveCommandResult.Success -> { /* CAN state already updated */ }
                                             is DriveCommandResult.Busy ->
                                                 snackbarHostState.showSnackbar("Mode change in progress \u2014 please wait")
@@ -172,19 +170,19 @@ private const val SAPPHIRE_URL = "https://klexical.github.io/openRS_/"
                                     if (isActive || isPending) color else Brd,
                                     RoundedCornerShape(10.dp)
                                 )
-                                .pressClick(enabled = canControl && !isActive) {
+                                .pressClick(enabled = canControl && firmwareApi != null && !isActive) {
                                     haptic.performHapticFeedback(HapticFeedbackType.Confirm)
                                     pendingEsc = status
                                     scope.launch {
                                         DiagnosticLogger.event("ESC_CMD",
-                                            "Sending escMode=${status.toFirmwareInt()} (${status.label}) to $host")
-                                        val result = FirmwareApi.setEscMode(ctx, host, status.toFirmwareInt())
+                                            "Sending escMode=${status.toFirmwareInt()} (${status.label})")
+                                        val result = firmwareApi!!.setEscMode(status.toFirmwareInt())
                                         if (result.isFailure) {
                                             DiagnosticLogger.event("ESC_CMD",
                                                 "FAILED: ${result.exceptionOrNull()?.message}")
                                             snackbarHostState.showSnackbar("ESC command failed")
                                         } else {
-                                            DiagnosticLogger.event("ESC_CMD", "OK (HTTP 200)")
+                                            DiagnosticLogger.event("ESC_CMD", "OK")
                                         }
                                         pendingEsc = null
                                     }

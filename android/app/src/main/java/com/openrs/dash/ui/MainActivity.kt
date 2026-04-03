@@ -78,6 +78,13 @@ class MainActivity : ComponentActivity() {
             perms.add(Manifest.permission.POST_NOTIFICATIONS)
         // Request location at startup for drive recording
         perms.add(Manifest.permission.ACCESS_FINE_LOCATION)
+        // BLE permissions when Bluetooth connection method is selected
+        if (AppSettings.getConnectionMethod(this) == "BLUETOOTH") {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                perms.add(Manifest.permission.BLUETOOTH_SCAN)
+                perms.add(Manifest.permission.BLUETOOTH_CONNECT)
+            }
+        }
         permLauncher.launch(perms.toTypedArray())
 
         setContent {
@@ -160,7 +167,6 @@ class MainActivity : ComponentActivity() {
                                     })
 
                                     // ── Quick Mode Dock ──────────────────
-                                    val dockCtx = LocalContext.current
                                     AnimatedVisibility(
                                         visible = dockOpen,
                                         enter = expandVertically(
@@ -174,13 +180,14 @@ class MainActivity : ComponentActivity() {
                                         DriveModeDock(
                                             vs = vs,
                                             canControl = isFw && vs.isConnected,
-                                            host = remember(prefs) { AppSettings.getHost(dockCtx) },
+                                            firmwareApi = service?.firmwareApi,
                                             snackbarHostState = snackbarHostState,
                                             onDismiss = { dockOpen = false }
                                         )
                                     }
 
                                     ConnectionBanner(vs)
+                                    WifiCoexistenceBanner()
                                     // Auto-dismiss dock on tab change
                                     LaunchedEffect(pagerState.currentPage) { dockOpen = false }
 
@@ -212,7 +219,7 @@ class MainActivity : ComponentActivity() {
                                                 },
                                                 onResetSession = { service?.resetSession() }
                                             )
-                                            6 -> MorePage(vs, prefs, snackbarHostState, onSettings = { settingsOpen = true }, onCustomDash = { showCustomDash = true })
+                                            6 -> MorePage(vs, prefs, snackbarHostState, onSettings = { settingsOpen = true }, onCustomDash = { showCustomDash = true }, firmwareApi = service?.firmwareApi)
                                         }
                                         // Scrim overlay — tap to dismiss dock
                                         if (dockOpen) {
@@ -378,6 +385,10 @@ class MainActivity : ComponentActivity() {
                                 .background(connColor.copy(alpha = dotAlpha)))
                         }
                         MonoLabel(connLabel, 8.sp, connColor, FontWeight.Bold, 0.08.sp)
+                        // Bluetooth indicator when connected via BLE
+                        if (AppSettings.getConnectionMethod(LocalContext.current) == "BLUETOOTH") {
+                            MonoLabel("BT", 7.sp, connColor.copy(alpha = 0.6f), FontWeight.Bold, 0.05.sp)
+                        }
                     }
                 }
 
@@ -565,6 +576,50 @@ class MainActivity : ComponentActivity() {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
+// WIFI COEXISTENCE BANNER — warns when BLE is active but phone is on WiFi
+// ═══════════════════════════════════════════════════════════════════════════
+@Composable
+private fun WifiCoexistenceBanner() {
+    val ctx = LocalContext.current
+    if (AppSettings.getConnectionMethod(ctx) != "BLUETOOTH") return
+
+    val cm = remember { ctx.getSystemService(Context.CONNECTIVITY_SERVICE) as android.net.ConnectivityManager }
+    val wifiConnected = remember {
+        val network = cm.activeNetwork
+        val caps = if (network != null) cm.getNetworkCapabilities(network) else null
+        caps?.hasTransport(android.net.NetworkCapabilities.TRANSPORT_WIFI) == true
+    }
+    var dismissed by remember { mutableStateOf(false) }
+
+    AnimatedVisibility(
+        visible = wifiConnected && !dismissed,
+        enter = expandVertically() + fadeIn(),
+        exit  = shrinkVertically() + fadeOut()
+    ) {
+        Box(
+            Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 10.dp, vertical = 4.dp)
+                .background(Warn.copy(alpha = 0.08f), RoundedCornerShape(8.dp))
+                .border(1.dp, Warn.copy(alpha = 0.25f), RoundedCornerShape(8.dp))
+                .padding(horizontal = 10.dp, vertical = 6.dp)
+        ) {
+            MonoLabel(
+                "WiFi connected — internet may be blocked. Forget adapter WiFi for best BLE experience.",
+                8.sp, Warn, letterSpacing = 0.05.sp,
+                modifier = Modifier.align(Alignment.CenterStart).padding(end = 24.dp)
+            )
+            MonoLabel(
+                "\u2715", 12.sp, Dim,
+                modifier = Modifier
+                    .align(Alignment.CenterEnd)
+                    .clickable { dismissed = true }
+            )
+        }
+    }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
 // CONNECTION BANNER — contextual disconnected state
 // ═══════════════════════════════════════════════════════════════════════════
 @Composable
@@ -578,9 +633,15 @@ private fun ConnectionBanner(vs: VehicleState) {
     }
 
     val adapterType = AppSettings.getAdapterType(ctx)
-    val host = AppSettings.getHost(ctx)
-    val port = AppSettings.getPort(ctx)
-    val adapterLabel = if (adapterType == "MEATPI") "MeatPi Pro" else "WiCAN"
+    val connMethod = AppSettings.getConnectionMethod(ctx)
+    val adapterLabel = if (adapterType == "MEATPI_PRO") "MeatPi Pro" else "MeatPi USB"
+    val addressLabel: String
+    if (connMethod == "BLUETOOTH") {
+        val name = AppSettings.getBleDeviceName(ctx) ?: "BLE"
+        addressLabel = "BT — $name"
+    } else {
+        addressLabel = "${AppSettings.getHost(ctx)}:${AppSettings.getPort(ctx)}"
+    }
 
     AnimatedVisibility(
         visible = !vs.isConnected && !dismissed,
@@ -596,7 +657,7 @@ private fun ConnectionBanner(vs: VehicleState) {
                 .padding(horizontal = 10.dp, vertical = 8.dp)
         ) {
             MonoLabel(
-                "$adapterLabel  —  $host:$port  —  DISCONNECTED",
+                "$adapterLabel  —  $addressLabel  —  DISCONNECTED",
                 9.sp, Orange, letterSpacing = 0.1.sp,
                 modifier = Modifier.align(Alignment.CenterStart).padding(end = 24.dp)
             )

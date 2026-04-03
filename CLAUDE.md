@@ -20,21 +20,29 @@ can/
   ObdResponseParser.kt    — Mode 22 DID dispatch by module (PCM/BCM/AWD/PSCM/FENG/RSProt/HVAC/IPC)
   PidRegistry.kt          — Data-driven catalog decoder; builds index from ForscanCatalog on first load
                             Fallback for ObdResponseParser when DID not hardcoded; stores in genericValues
-  WiCanConnection.kt      — WiCAN: WebSocket ws://192.168.80.1:80/ws
-  MeatPiConnection.kt     — MeatPi Pro: raw TCP 192.168.0.10:35000
+  SlcanTransport.kt       — Transport interface: open/readLine/writeLine/close
+  TcpSlcanTransport.kt    — MeatPi Pro: raw TCP 192.168.0.10:35000
+  WebSocketSlcanTransport.kt — MeatPi USB: WebSocket ws://192.168.80.1:80/ws
+  BleSlcanTransport.kt    — BLE GATT transport: service 0xFFE0, RX char FFE1, TX char FFE2
+                            Auto-reconnect (autoConnect=true after first success), MTU 247 w/ fallback
+  BleDeviceScanner.kt     — BLE device discovery filtered to service UUID 0xFFE0
+  SlcanConnection.kt      — Shared connection: retry, SLCAN init, firmware probe, OBD pollers,
+                            frame dispatch, DTC scan/clear, ISO-TP reassembly, FPS tracking.
+                            Constructor takes transportFactory: () -> SlcanTransport
+                            Command response channel routes +FRS: lines separately from SLCAN frames
   AdapterState.kt         — Disconnected / Connecting / Connected / Idle / Error (sealed class)
   SlcanParser.kt          — SLCAN frame tokenizer ('t'=standard, 'T'=extended)
   IsoTpBuffer.kt          — ISO-TP SF/FF/CF reassembly; caller sends BCM_FLOW_CONTROL after FF
-  FirmwareApi.kt          — REST POST to openRS_ firmware /api/frs (drive mode, ESC)
-                            Parses response body for {"busy":true}; throws BusyException
+  FirmwareApi.kt          — FirmwareCommandSender interface + WiFiFirmwareApi (REST /api/frs) +
+                            BleFirmwareApi (AT+FRS= over SLCAN transport). Both throw BusyException
   DriveCommand.kt         — Shared drive mode command flow: executeDriveModeChange() suspend function
-                            REST POST → 2s settle → 15s CAN poll → auto-correct on overshoot
+                            Accepts FirmwareCommandSender → 2s settle → 15s CAN poll → auto-correct
                             Returns DriveCommandResult sealed class; used by MorePage + DriveModeDock
 data/
   VehicleState.kt         — Immutable data class ~95 fields. See sentinel rules below.
   ForscanCatalog.kt       — Lazy loader for assets/pids/forscan_modules.json (1,149 PIDs)
-  TripState.kt            — PeakType enum + PeakEvent data class (used by DriveRecorder/DriveMap)
-  DriveDatabase.kt        — Room DB v2: DriveEntity, DrivePointEntity, DriveDao, migration v1→v2
+  TripState.kt            — PeakType enum (RPM/BOOST/LATERAL_G/SPEED) + PeakEvent data class
+  DriveDatabase.kt        — Room DB v3: DriveEntity (with name column), DrivePointEntity, DriveDao, migrations v1→v2→v3
   DriveState.kt           — Live drive state flow: isRecording, isPaused, peaks, recentPoints, fuel
   DtcResult.kt            — module, code, description, status (ACTIVE/PENDING/PERMANENT/UNKNOWN)
   DtcModuleSpec.kt        — name, requestId, responseId for DTC scan targets
@@ -42,6 +50,7 @@ diagnostics/
   DtcScanner.kt           — UDS 0x19/02 scan across PCM(7E0)/BCM(726)/ABS(760)/AWD(703)/PSCM(730)
   DiagnosticLogger.kt     — Thread-safe singleton: frame inventory (opt B), decode trace, SLCAN log (opt C)
                             Pre-allocated hex lookup table; hex conversion outside lock for reduced contention
+                            sessionTransport field: transport label for diagnostic reports and share intents
   DiagnosticExporter.kt   — ZIP orchestrator + share intents + crash history; delegates format generation
                             to DiagnosticReportBuilder and DriveExportBuilder
   DiagnosticReportBuilder.kt — Diagnostic summary text + JSON detail (JSONObject/JSONArray, no hand-rolled strings)
@@ -50,8 +59,8 @@ diagnostics/
   CrashReporter.kt        — Installs UncaughtExceptionHandler; persists CrashTelemetryBuffer to disk
   CrashTelemetryBuffer.kt — 100-snapshot ring buffer of VehicleState; flushed on crash to JSON
 service/
-  CanDataService.kt       — Foreground service; WiFi-gated auto-reconnect; owns connection lifecycle
-                            Adapter selection: AppSettings.getAdapterType() → "WICAN"|"MEATPI"
+  CanDataService.kt       — Foreground service; WiFi/BLE-gated auto-reconnect; owns connection lifecycle
+                            Transport selected by connectionMethod (WiFi vs BLE) + adapterType (TCP vs WebSocket)
                             Auto-record integration: starts/stops DriveRecorder on connect/disconnect (if setting enabled)
   DriveRecorder.kt        — Room-backed drive recorder: start/stop/pause/resume, 1 Hz GPS + telemetry
                             FusedLocationProviderClient @ 1 Hz; batch writes (30 points/flush); peak tracking
@@ -59,14 +68,19 @@ service/
 ui/
   MainActivity.kt         — 7-tab Compose host (DASH/POWER/CHASSIS/TEMPS/MAP/DIAG/MORE)
                             Binds CanDataService via LocalBinder; passes callbacks to child composables
-                            Location permission requested at startup; REC indicator in AppHeader
+                            Location + BLE permissions; REC indicator + BT indicator in AppHeader
                             Quick Mode Dock: tap MODE cell in telemetry strip → dropdown drive mode selector
+                            WiFi coexistence banner: warns when BLE active but phone connected to adapter WiFi
   DriveModeDock.kt        — Quick-access drive mode dock (N/S/T/D) with staggered entrance animation
                             Drops down from header via AnimatedVisibility; auto-dismisses on success
   AppSettings.kt          — SharedPreferences wrapper; prefs file: "openrs_settings"
+                            adapterType ("MEATPI_USB"/"MEATPI_PRO") + connectionMethod ("WIFI"/"BLUETOOTH")
+                            Legacy migration: "WICAN"→"MEATPI_USB", "MEATPI"→"MEATPI_PRO", "BLUETOOTH"(adapter)→USB+BLE
+                            BLE device prefs: saveBleDevice/getBleDeviceAddress/clearBleDevice
                             rememberSectionExpanded() composable for persistent collapsible sections
   UserPrefs.kt            — Observable prefs data class + unit-conversion helpers
                             UserPrefsStore object: MutableStateFlow<UserPrefs>
+                            Fields: adapterType, connectionMethod, host, port, + all unit/UI prefs
   Components.kt           — Shared composables: HeroCard (valueFraction glow), DataCell, BarCard,
                             TireCard, GfCard, WheelCell, AfrCard, SectionLabel (animated chevron),
                             NeonDivider, AnimatedHeroNum, FocusRsOutline, tireTempColor()
@@ -74,8 +88,10 @@ ui/
   DesignTokens.kt         — Tokens object: PagePad, CardGap, SectionGap, InnerH/V,
                             CardShape(12dp), HeroShape(14dp), CardRadius, HeroRadius, CardBorder
   Theme.kt                — Color tokens (see below), typography (Orbitron/JetBrains/ShareTech/Barlow)
+  BleDevicePickerDialog.kt — BLE device picker: scan filtered to 0xFFE0, RSSI bars, dark neon aesthetic
   SettingsSheet.kt        — Settings drawer: units, TPMS threshold, shift light, adapter, connection,
                             reconnect, drives (auto-record, max saved), diag, theme picker (RS paint colours)
+                            2-way adapter picker (MeatPi USB / Pro) + connection method toggle (WiFi / Bluetooth)
                             Accent left-bar titles, gradient section backgrounds, animated SegmentedPicker
   anim/
     EdgeShiftLight.kt     — Peripheral shift light: multi-zone edge glow overlay (breathing → fill → flash)
@@ -90,7 +106,9 @@ ui/
   WhatsNewDialog.kt       — Version changelog dialog; shown on first launch after update
   trip/
     DrivePage.kt          — MAP tab: live mode (Google Maps + HUD + controls) + history mode (drive list)
-    DriveMap.kt           — Google Maps Compose wrapper: dark styled, color-segmented polylines, peak markers
+    DriveMap.kt           — Google Maps Compose wrapper: 6 color modes (SPD/MODE/BOOST/THRTL/G-LAT/TEMP),
+                            start/finish flags, pause markers, peak markers (RPM/boost/lat-G/speed),
+                            zoom-to-fit, map type cycling, blue dot location, color legend
 update/
   UpdateManager.kt        — In-app update orchestrator: check → download → install via GitHub Releases API
   UpdateChecker.kt        — GitHub Releases API client; compares installed vs latest version per channel
@@ -179,7 +197,9 @@ data[5] = B5,  data[6] = B6 …
 - Firmware REST POST `/api/frs` returns `{"ok":false,"busy":true}` when a drive mode change is in progress — app must handle this
 - `fengTimedOut` / `rsprotTimedOut` = true after 3 failed probe cycles — do not suggest retrying indefinitely
 - **Drive mode cold-start gate** — `has420Arrived` flag in CanDecoder prevents Sport/Track resolution until the first `0x420` frame is received. Without this gate, `0x1B0` nibble=1 resolves against stale `modeDetail420` default during the 0-600ms blind window after connection, causing wrong mode flashes. The drive mode confirmation loop in MorePage adds a 2s post-command settling delay, a 15s timeout, and auto-correction if the car lands on the wrong mode (sends a corrective command automatically).
-- Android 10+ silently routes new sockets through cellular when WiFi has no internet — `FirmwareApi` uses `Network.socketFactory` via `ConnectivityManager` to force all traffic on WiFi
+- Android 10+ silently routes new sockets through cellular when WiFi has no internet — `WiFiFirmwareApi` uses `Network.socketFactory` via `ConnectivityManager` to force all traffic on WiFi. BLE transport avoids this entirely (not a "network" in Android's routing model)
+- **BLE auto-reconnect** — `autoConnect=true` on `connectGatt()` after first successful connection. Android handles reconnection when device returns to range. 15s timeout covers slow auto-reconnect; on timeout, `SlcanConnection` retry logic takes over
+- **BLE MTU** — `requestMtu(247)` requested after service discovery. If `requestMtu()` returns false (unsupported), proceeds with 23-byte default. SLCAN frames mostly fit; longer frames arrive as multiple BLE notifications and are reassembled by `lineBuffer`
 
 ## Theme Colors
 
@@ -196,14 +216,17 @@ RS paint themes (`themeId`): `cyan`=Nitrous Blue, `red`=Race Red, `orange`=Deep 
 
 ```
 Speed: MPH  |  Temp: °F  |  Boost: PSI  |  Tire: PSI  |  TireLowPsi: 30
-WiCAN:   192.168.80.1:80     MeatPi: 192.168.0.10:35000
+MeatPi USB (C3): 192.168.80.1:80 (WebSocket)    MeatPi Pro (S3): 192.168.0.10:35000 (TCP)
 ScreenOn: true  |  AutoReconnect: true  |  MaxDiagZips: 5
-AdapterType: "WICAN"  (alt: "MEATPI")
+AdapterType: "MEATPI_USB"  (alt: "MEATPI_PRO")
+ConnectionMethod: "WIFI"  (alt: "BLUETOOTH")
 EdgeShiftLight: false  |  EdgeShiftColor: "accent"  |  EdgeShiftIntensity: "high"  |  EdgeShiftRpm: 6800
 AutoRecordDrives: false  |  MaxSavedDrives: 50
 UpdateChannel: "stable"  (alt: "beta")
 Prefs file: "openrs_settings"
 ```
+
+**Adapter vs connection method:** `adapterType` identifies the hardware (determines protocol: WebSocket for USB, TCP for Pro). `connectionMethod` selects the transport (WiFi or BLE GATT). Both adapters support both WiFi and Bluetooth.
 
 ## Assets
 

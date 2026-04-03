@@ -219,7 +219,9 @@ object DiagnosticExporter {
                 "App      : v${BuildConfig.VERSION_NAME} (build ${BuildConfig.VERSION_CODE})\n" +
                 "Session  : ${DiagnosticLogger.formatDuration(DiagnosticLogger.sessionDurationMs)}\n" +
                 "Firmware : ${DiagnosticLogger.firmwareVersion}\n" +
-                "Host     : ${DiagnosticLogger.sessionHost}:${DiagnosticLogger.sessionPort}"
+                "Host     : ${DiagnosticLogger.sessionHost}:${DiagnosticLogger.sessionPort}" +
+                if (DiagnosticLogger.sessionTransport.isNotEmpty())
+                    "\nTransport: ${DiagnosticLogger.sessionTransport}" else ""
             )
             addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
         }

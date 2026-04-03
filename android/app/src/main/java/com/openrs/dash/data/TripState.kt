@@ -4,7 +4,8 @@ package com.openrs.dash.data
 enum class PeakType(val label: String) {
     RPM("Peak RPM"),
     BOOST("Peak Boost"),
-    LATERAL_G("Peak Lat-G")
+    LATERAL_G("Peak Lat-G"),
+    SPEED("Peak Speed")
 }
 
 /** A notable peak moment, stored so the map can drop a pin at its GPS coordinate. */

@@ -14,11 +14,20 @@ import androidx.core.app.NotificationCompat
 import androidx.core.app.ServiceCompat
 import com.openrs.dash.OpenRSDashApp
 import com.openrs.dash.R
+import android.bluetooth.BluetoothAdapter
+import android.bluetooth.BluetoothManager
+import android.content.BroadcastReceiver
+import android.content.IntentFilter
 import com.openrs.dash.can.AdapterState
+import com.openrs.dash.can.BleFirmwareApi
+import com.openrs.dash.can.BleSlcanTransport
 import com.openrs.dash.can.CanDecoder
-import com.openrs.dash.can.MeatPiConnection
+import com.openrs.dash.can.FirmwareCommandSender
 import com.openrs.dash.can.PidRegistry
-import com.openrs.dash.can.WiCanConnection
+import com.openrs.dash.can.SlcanConnection
+import com.openrs.dash.can.TcpSlcanTransport
+import com.openrs.dash.can.WebSocketSlcanTransport
+import com.openrs.dash.can.WiFiFirmwareApi
 import com.openrs.dash.data.DriveDatabase
 import com.openrs.dash.data.DtcResult
 import com.openrs.dash.data.SessionEntity
@@ -37,12 +46,7 @@ class CanDataService : Service() {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
     private var connectionJob: Job? = null
 
-    private var wican: WiCanConnection   = WiCanConnection()
-    private var meatpi: MeatPiConnection = MeatPiConnection()
-
-    /** True when the currently selected adapter is MeatPi Pro. */
-    private val isMeatPi: Boolean
-        get() = AppSettings.getAdapterType(this) == "MEATPI"
+    private var connection: SlcanConnection? = null
 
     private val cm by lazy { getSystemService(ConnectivityManager::class.java) }
     private var wifiCallback: ConnectivityManager.NetworkCallback? = null
@@ -53,26 +57,42 @@ class CanDataService : Service() {
     private var snapshotJob: Job? = null
     private var sessionFrameCount: Long = 0L
 
-    private fun buildWiCan(): WiCanConnection {
-        val s = AppSettings
-        val autoReconnect = s.getAutoReconnect(this)
-        return WiCanConnection(
-            host             = s.getHost(this),
-            port             = s.getPort(this),
-            maxRetries       = if (autoReconnect) 3 else 1,
-            reconnectDelayMs = s.getReconnectInterval(this) * 1_000L
-        )
-    }
+    /** The active firmware command sender — WiFi REST or BLE AT+FRS. */
+    var firmwareApi: FirmwareCommandSender? = null
+        private set
 
-    private fun buildMeatPi(): MeatPiConnection {
+    private fun buildConnection(): SlcanConnection {
         val s = AppSettings
+        val host = s.getHost(this)
+        val port = s.getPort(this)
         val autoReconnect = s.getAutoReconnect(this)
-        return MeatPiConnection(
-            host             = s.getHost(this),
-            port             = s.getPort(this),
-            maxRetries       = if (autoReconnect) 3 else 1,
-            reconnectDelayMs = s.getReconnectInterval(this) * 1_000L
+        val maxRetries = if (autoReconnect) 3 else 1
+        val reconnectDelayMs = s.getReconnectInterval(this) * 1_000L
+        val adapterType = s.getAdapterType(this)
+        val connMethod = s.getConnectionMethod(this)
+
+        val conn = SlcanConnection(
+            transportFactory = {
+                if (connMethod == "BLUETOOTH") {
+                    val mac = s.getBleDeviceAddress(this)
+                        ?: throw RuntimeException("No BLE device saved")
+                    val name = s.getBleDeviceName(this) ?: "WiCAN"
+                    BleSlcanTransport(this, mac, name)
+                } else {
+                    // WiFi: adapter type determines protocol
+                    if (adapterType == "MEATPI_PRO") TcpSlcanTransport(host, port)
+                    else WebSocketSlcanTransport(host, port)
+                }
+            },
+            maxRetries       = maxRetries,
+            reconnectDelayMs = reconnectDelayMs
         )
+
+        // Create the appropriate firmware command sender
+        firmwareApi = if (connMethod == "BLUETOOTH") BleFirmwareApi(conn)
+                      else WiFiFirmwareApi(this, host)
+
+        return conn
     }
 
     inner class LocalBinder : Binder() {
@@ -85,10 +105,9 @@ class CanDataService : Service() {
      * Returns an empty list if the adapter is not connected.
      */
     suspend fun scanDtcs(): List<DtcResult> {
-        val (useMeatPi, w, m) = synchronized(this) { Triple(isMeatPi, wican, meatpi) }
+        val conn = synchronized(this) { connection } ?: return emptyList()
         return try {
-            if (useMeatPi) DtcScanner(this).scanMeatPi(m)
-            else           DtcScanner(this).scan(w)
+            DtcScanner(this).scan(conn)
         } catch (e: kotlinx.coroutines.CancellationException) {
             throw e
         } catch (e: Exception) {
@@ -105,10 +124,9 @@ class CanDataService : Service() {
      * An empty map means the adapter is not connected or the clear failed.
      */
     suspend fun clearDtcs(): Map<String, Boolean> {
-        val (useMeatPi, w, m) = synchronized(this) { Triple(isMeatPi, wican, meatpi) }
+        val conn = synchronized(this) { connection } ?: return emptyMap()
         return try {
-            if (useMeatPi) DtcScanner(this).clearDtcsMeatPi(m)
-            else           DtcScanner(this).clearDtcs(w)
+            DtcScanner(this).clearDtcs(conn)
         } catch (e: kotlinx.coroutines.CancellationException) {
             throw e
         } catch (e: Exception) {
@@ -122,31 +140,42 @@ class CanDataService : Service() {
      * Used by the DID prober to test individual DIDs against an ECU.
      */
     suspend fun sendRawQuery(responseId: Int, frame: String, timeoutMs: Long = 1_500L): ByteArray? {
-        val (useMeatPi, w, m) = synchronized(this) { Triple(isMeatPi, wican, meatpi) }
-        return if (useMeatPi) m.sendRawQuery(responseId, frame, timeoutMs)
-               else           w.sendRawQuery(responseId, frame, timeoutMs)
+        val conn = synchronized(this) { connection } ?: return null
+        return conn.sendRawQuery(responseId, frame, timeoutMs)
     }
 
     override fun onBind(intent: Intent?): IBinder = binder
 
     override fun onCreate() {
         super.onCreate()
+        goForeground()   // Must be first — Android kills the service if startForeground() not called within 5s
         PidRegistry.ensureLoaded(this)
-        wican = buildWiCan()
         registerWifiCallback()
-        if (isOnWifi()) startConnection()
+        registerBluetoothCallback()
+        if (isTransportReady()) startConnection()
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int = START_STICKY
 
     override fun onDestroy() {
         unregisterWifiCallback()
+        unregisterBluetoothCallback()
         stopConnection()   // flush sessionEnd() before scope is torn down
         scope.cancel()
         super.onDestroy()
     }
 
-    // ── WiFi gating ─────────────────────────────────────────────────────────
+    // ── Transport gating (WiFi + Bluetooth) ────────────────────────────────
+
+    private var bluetoothReceiver: BroadcastReceiver? = null
+
+    private fun isBluetooth(): Boolean =
+        AppSettings.getConnectionMethod(this) == "BLUETOOTH"
+
+    private fun isBluetoothEnabled(): Boolean {
+        val btManager = getSystemService(BluetoothManager::class.java) ?: return false
+        return btManager.adapter?.isEnabled == true
+    }
 
     private fun isOnWifi(): Boolean {
         val network = cm.activeNetwork ?: return false
@@ -154,16 +183,17 @@ class CanDataService : Service() {
         return caps.hasTransport(NetworkCapabilities.TRANSPORT_WIFI)
     }
 
+    /** True if the selected transport is ready (WiFi connected or Bluetooth enabled). */
+    private fun isTransportReady(): Boolean =
+        if (isBluetooth()) isBluetoothEnabled() else isOnWifi()
+
     private fun registerWifiCallback() {
         val request = NetworkRequest.Builder()
             .addTransportType(NetworkCapabilities.TRANSPORT_WIFI)
             .build()
         wifiCallback = object : ConnectivityManager.NetworkCallback() {
             override fun onAvailable(network: Network) {
-                // WiFi gained — attempt connection if not already active.
-                // Guard: onAvailable can fire when the app is backgrounded; starting a
-                // foreground service from a background context throws
-                // ForegroundServiceStartNotAllowedException on Android 12+.
+                if (isBluetooth()) return  // WiFi events irrelevant in BLE mode
                 if (connectionJob?.isActive != true) {
                     try {
                         startConnection()
@@ -173,7 +203,7 @@ class CanDataService : Service() {
                 }
             }
             override fun onLost(network: Network) {
-                stopConnection()
+                if (!isBluetooth()) stopConnection()
             }
         }
         try { cm.registerNetworkCallback(request, wifiCallback!!) } catch (e: Exception) {
@@ -188,6 +218,35 @@ class CanDataService : Service() {
             }
         }
         wifiCallback = null
+    }
+
+    @Suppress("MissingPermission")
+    private fun registerBluetoothCallback() {
+        bluetoothReceiver = object : BroadcastReceiver() {
+            override fun onReceive(ctx: android.content.Context, intent: android.content.Intent) {
+                if (intent.action != BluetoothAdapter.ACTION_STATE_CHANGED) return
+                if (!isBluetooth()) return
+                val state = intent.getIntExtra(BluetoothAdapter.EXTRA_STATE, BluetoothAdapter.ERROR)
+                when (state) {
+                    BluetoothAdapter.STATE_ON -> {
+                        if (connectionJob?.isActive != true) {
+                            try { startConnection() } catch (e: Exception) {
+                                android.util.Log.w("CAN", "Cannot start service from BT callback", e)
+                            }
+                        }
+                    }
+                    BluetoothAdapter.STATE_OFF,
+                    BluetoothAdapter.STATE_TURNING_OFF -> stopConnection()
+                }
+            }
+        }
+        val filter = IntentFilter(BluetoothAdapter.ACTION_STATE_CHANGED)
+        registerReceiver(bluetoothReceiver, filter)
+    }
+
+    private fun unregisterBluetoothCallback() {
+        bluetoothReceiver?.let { try { unregisterReceiver(it) } catch (_: Exception) { } }
+        bluetoothReceiver = null
     }
 
     // ── Foreground notification ──────────────────────────────────────────────
@@ -310,15 +369,25 @@ class CanDataService : Service() {
     // ── Connection control ───────────────────────────────────────────────────
 
     @Synchronized fun startConnection() {
-        if (!isOnWifi()) return
+        if (!isTransportReady()) return
         if (connectionJob?.isActive == true) return
 
         goForeground()
 
         val s = AppSettings
+        val connMethod = s.getConnectionMethod(this)
+        val adapterType = s.getAdapterType(this)
+        val isBle = connMethod == "BLUETOOTH"
+        val transportLabel = if (isBle) {
+            "Bluetooth (${s.getBleDeviceName(this) ?: "BLE"} / ${s.getBleDeviceAddress(this) ?: "?"})"
+        } else {
+            val protocol = if (adapterType == "MEATPI_PRO") "TCP SLCAN" else "WebSocket SLCAN"
+            "$protocol (${s.getHost(this)}:${s.getPort(this)})"
+        }
         DiagnosticLogger.sessionStart(
-            host   = s.getHost(this),
-            port   = s.getPort(this),
+            host      = if (isBle) s.getBleDeviceAddress(this) ?: "BLE" else s.getHost(this),
+            port      = if (isBle) 0 else s.getPort(this),
+            transport = transportLabel,
             prefs  = UserPrefsStore.prefs.value,
             logDir = java.io.File(filesDir, "diagnostics")
         )
@@ -330,67 +399,33 @@ class CanDataService : Service() {
             OpenRSDashApp.instance.driveRecorder.startDrive(sessionId = currentSessionId)
         }
 
-        if (isMeatPi) {
-            meatpi = buildMeatPi()
-            startMeatPiConnection()
-        } else {
-            wican = buildWiCan()
-            startWiCanConnection()
-        }
-    }
+        val conn = buildConnection()
+        connection = conn
 
-    private fun startWiCanConnection() {
         connectionJob = scope.launch {
             launch {
-                wican.state.collect { state ->
+                conn.state.collect { state ->
                     OpenRSDashApp.instance.vehicleState.update {
                         it.copy(
                             isConnected = state is AdapterState.Connected,
                             isIdle      = state is AdapterState.Idle
                         )
                     }
+                    val btLabel = if (isBluetooth()) "via Bluetooth" else "to vehicle"
                     when (state) {
-                        is AdapterState.Connected -> updateNotification("Connected to vehicle")
+                        is AdapterState.Connected -> updateNotification("Connected $btLabel")
                         is AdapterState.Idle      -> updateNotification("Disconnected — tap to retry")
-                        else                      -> updateNotification("Connecting to vehicle…")
+                        else                      -> updateNotification("Connecting $btLabel…")
                     }
                     DiagnosticLogger.event("STATE", state::class.simpleName ?: "Unknown")
                 }
             }
 
-            wican.connectHybrid(
+            conn.connectHybrid(
                 onObdUpdate = { obdState -> mergeObdState(obdState) },
                 getCurrentState = { OpenRSDashApp.instance.vehicleState.value }
             ).collect { (canId, data) ->
-                processCanFrame(canId, data, wican.fps)
-            }
-        }
-    }
-
-    private fun startMeatPiConnection() {
-        connectionJob = scope.launch {
-            launch {
-                meatpi.state.collect { state ->
-                    OpenRSDashApp.instance.vehicleState.update {
-                        it.copy(
-                            isConnected = state is AdapterState.Connected,
-                            isIdle      = state is AdapterState.Idle
-                        )
-                    }
-                    when (state) {
-                        is AdapterState.Connected -> updateNotification("Connected to vehicle")
-                        is AdapterState.Idle      -> updateNotification("Disconnected — tap to retry")
-                        else                      -> updateNotification("Connecting to vehicle…")
-                    }
-                    DiagnosticLogger.event("STATE", state::class.simpleName ?: "Unknown")
-                }
-            }
-
-            meatpi.connectHybrid(
-                onObdUpdate = { obdState -> mergeObdState(obdState) },
-                getCurrentState = { OpenRSDashApp.instance.vehicleState.value }
-            ).collect { (canId, data) ->
-                processCanFrame(canId, data, meatpi.fps)
+                processCanFrame(canId, data, conn.fps)
             }
         }
     }

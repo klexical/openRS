@@ -32,6 +32,8 @@ internal object DiagnosticReportBuilder {
         // ── Connection
         appendLine("─── CONNECTION ────────────────────────────────────────────")
         appendLine("  Host     : ${log.sessionHost}:${log.sessionPort}")
+        if (log.sessionTransport.isNotEmpty())
+            appendLine("  Transport: ${log.sessionTransport}")
         appendLine("  Firmware : ${log.firmwareVersion}")
         val connEvent = log.sessionEvents.lastOrNull { it.type == "SESSION" }
         if (connEvent != null) appendLine("  Last evt : ${connEvent.message}")
@@ -256,6 +258,7 @@ internal object DiagnosticReportBuilder {
             put("isOpenRsFirmware", log.isOpenRsFirmware)
             put("host", log.sessionHost)
             put("port", log.sessionPort)
+            if (log.sessionTransport.isNotEmpty()) put("transport", log.sessionTransport)
             put("slcanLinesLogged", log.slcanLineCount)
             put("slcanFileIncluded", log.slcanLogFile != null && log.slcanLineCount > 0)
         })

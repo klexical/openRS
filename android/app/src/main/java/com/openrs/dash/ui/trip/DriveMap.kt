@@ -18,6 +18,7 @@ import com.openrs.dash.data.DrivePointEntity
 import com.openrs.dash.data.PeakEvent
 import com.openrs.dash.data.PeakType
 import com.openrs.dash.ui.Accent
+import com.openrs.dash.ui.Frost
 import com.openrs.dash.ui.Ok
 import com.openrs.dash.ui.Orange
 import com.openrs.dash.ui.Warn
@@ -27,19 +28,28 @@ import androidx.compose.ui.geometry.Offset
 // DriveMap — Google Maps Compose wrapper with telemetry polyline overlay
 // ═══════════════════════════════════════════════════════════════════════════
 
-enum class ColorMode { SPEED, DRIVE_MODE }
+enum class ColorMode(val label: String) {
+    SPEED("SPD"),
+    DRIVE_MODE("MODE"),
+    BOOST("BOOST"),
+    THROTTLE("THRTL"),
+    LATERAL_G("G-LAT"),
+    OIL_TEMP("TEMP")
+}
 
 /**
  * Google Maps composable for the MAP tab.
  *
  * @param points     Drive points to render as a polyline (live or historic)
- * @param colorMode  Polyline coloring strategy (speed thresholds or drive mode)
+ * @param colorMode  Polyline coloring strategy
  * @param peakEvents Peak markers to place on the map
  * @param rtrPoint   Race-ready achievement point (optional marker)
  * @param currentLat Current live latitude (for position dot, null if no location)
  * @param currentLng Current live longitude
  * @param isRecording Whether a drive is actively recording
- * @param isPaused   Whether recording is paused (still shows position but no polyline growth)
+ * @param isPaused   Whether recording is paused
+ * @param hasLocationPermission Whether fine location permission is granted
+ * @param mapType    Google Maps map type (Normal, Satellite, Terrain)
  */
 @Composable
 fun DriveMap(
@@ -51,6 +61,8 @@ fun DriveMap(
     currentLng: Double? = null,
     isRecording: Boolean = false,
     isPaused: Boolean = false,
+    hasLocationPermission: Boolean = false,
+    mapType: MapType = MapType.NORMAL,
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
@@ -60,7 +72,7 @@ fun DriveMap(
 
     val cameraPositionState = rememberCameraPositionState()
 
-    // Auto-center on first point or current location
+    // Auto-center on first point or current location (idle)
     LaunchedEffect(currentLat, currentLng, points.firstOrNull()) {
         val lat = currentLat ?: points.firstOrNull()?.lat ?: return@LaunchedEffect
         val lng = currentLng ?: points.firstOrNull()?.lng ?: return@LaunchedEffect
@@ -81,20 +93,36 @@ fun DriveMap(
         }
     }
 
-    val mapProperties = remember(mapStyleOptions) {
+    // Zoom to fit entire route when loading a historic drive (not recording)
+    LaunchedEffect(points.size, isRecording) {
+        if (!isRecording && points.size >= 2) {
+            val bounds = LatLngBounds.builder().apply {
+                points.forEach { include(LatLng(it.lat, it.lng)) }
+            }.build()
+            cameraPositionState.animate(
+                CameraUpdateFactory.newLatLngBounds(bounds, 80),
+                500
+            )
+        }
+    }
+
+    // Apply dark style only on Normal map type (satellite/terrain have their own look)
+    val effectiveStyle = if (mapType == MapType.NORMAL) mapStyleOptions else null
+
+    val mapProperties = remember(effectiveStyle, mapType, hasLocationPermission) {
         MapProperties(
-            mapStyleOptions = mapStyleOptions,
-            mapType = MapType.NORMAL,
-            isMyLocationEnabled = false  // we draw our own position marker
+            mapStyleOptions = effectiveStyle,
+            mapType = mapType,
+            isMyLocationEnabled = hasLocationPermission
         )
     }
 
-    val uiSettings = remember {
+    val uiSettings = remember(hasLocationPermission) {
         MapUiSettings(
             zoomControlsEnabled = false,
             mapToolbarEnabled = false,
-            myLocationButtonEnabled = false,
-            compassEnabled = false
+            myLocationButtonEnabled = hasLocationPermission,
+            compassEnabled = true
         )
     }
 
@@ -119,8 +147,47 @@ fun DriveMap(
             }
         }
 
-        // ── Current position marker ──────────────────────────────────
-        if (currentLat != null && currentLng != null) {
+        // ── Start / Finish flags ─────────────────────────────────────
+        if (points.isNotEmpty()) {
+            val first = points.first()
+            Marker(
+                state = MarkerState(position = LatLng(first.lat, first.lng)),
+                title = "Start",
+                icon = BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_GREEN),
+                zIndex = 6f
+            )
+
+            if (points.size >= 2) {
+                val last = points.last()
+                Marker(
+                    state = MarkerState(position = LatLng(last.lat, last.lng)),
+                    title = if (isRecording) "Current" else "Finish",
+                    icon = BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_RED),
+                    zIndex = 6f
+                )
+            }
+        }
+
+        // ── Pause point markers ──────────────────────────────────────
+        if (points.size >= 2) {
+            for (i in 1 until points.size) {
+                val gap = points[i].timestamp - points[i - 1].timestamp
+                if (gap > 5000) {
+                    val pauseIcon = remember { createPauseMarker() }
+                    Marker(
+                        state = MarkerState(position = LatLng(points[i - 1].lat, points[i - 1].lng)),
+                        title = "Paused",
+                        snippet = "%.0fs pause".format(gap / 1000.0),
+                        icon = pauseIcon,
+                        anchor = Offset(0.5f, 0.5f),
+                        zIndex = 4f
+                    )
+                }
+            }
+        }
+
+        // ── Current position marker (only when no blue dot / during recording) ──
+        if (currentLat != null && currentLng != null && isRecording) {
             val posIcon = remember { createPositionDot() }
             Marker(
                 state = MarkerState(position = LatLng(currentLat, currentLng)),
@@ -137,6 +204,7 @@ fun DriveMap(
                 PeakType.RPM -> Warn to "RPM: ${peak.value.toInt()}"
                 PeakType.BOOST -> Accent to "Boost: ${"%.1f".format(peak.value)} PSI"
                 PeakType.LATERAL_G -> Orange to "Lat-G: ${"%.2f".format(peak.value)}"
+                PeakType.SPEED -> Frost to "Speed: ${"%.0f".format(peak.value)} km/h"
             }
             Marker(
                 state = MarkerState(position = LatLng(peak.lat, peak.lng)),
@@ -199,7 +267,7 @@ private fun buildColorSegments(
     return segments
 }
 
-private fun pointColor(point: DrivePointEntity, mode: ColorMode): Color = when (mode) {
+internal fun pointColor(point: DrivePointEntity, mode: ColorMode): Color = when (mode) {
     ColorMode.SPEED -> when {
         point.speedKph < 60  -> Ok       // green — slow
         point.speedKph < 100 -> Accent   // cyan — moderate
@@ -212,6 +280,40 @@ private fun pointColor(point: DrivePointEntity, mode: ColorMode): Color = when (
         DriveMode.DRIFT.label  -> Orange   // orange
         else                   -> Accent   // cyan — Normal
     }
+    ColorMode.BOOST -> when {
+        point.boostPsi < 0   -> Accent   // cyan — vacuum
+        point.boostPsi < 8   -> Ok       // green — low boost
+        point.boostPsi < 16  -> Warn     // yellow — mid boost
+        else                 -> Orange   // orange — full boost
+    }
+    ColorMode.THROTTLE -> when {
+        point.throttlePct < 25  -> Accent   // cyan — coasting
+        point.throttlePct < 50  -> Ok       // green — light
+        point.throttlePct < 75  -> Warn     // yellow — moderate
+        else                    -> Orange   // orange — full send
+    }
+    ColorMode.LATERAL_G -> when {
+        kotlin.math.abs(point.lateralG) < 0.3 -> Accent  // cyan — straight
+        kotlin.math.abs(point.lateralG) < 0.6 -> Ok      // green — gentle
+        kotlin.math.abs(point.lateralG) < 0.9 -> Warn    // yellow — spirited
+        else                                  -> Orange   // orange — high-G
+    }
+    ColorMode.OIL_TEMP -> when {
+        point.oilTempC < 0   -> Accent   // cyan — cold / no data
+        point.oilTempC < 90  -> Ok       // green — warming
+        point.oilTempC < 110 -> Warn     // yellow — operating
+        else                 -> Orange   // orange — hot
+    }
+}
+
+/** Legend entries for each color mode — label + color pairs. */
+internal fun colorLegend(mode: ColorMode): List<Pair<String, Color>> = when (mode) {
+    ColorMode.SPEED -> listOf("<60" to Ok, "60-100" to Accent, "100-140" to Warn, "140+" to Orange)
+    ColorMode.DRIVE_MODE -> listOf("Normal" to Accent, "Sport" to Warn, "Track" to Ok, "Drift" to Orange)
+    ColorMode.BOOST -> listOf("Vac" to Accent, "<8" to Ok, "8-16" to Warn, "16+" to Orange)
+    ColorMode.THROTTLE -> listOf("<25%" to Accent, "25-50" to Ok, "50-75" to Warn, "75+" to Orange)
+    ColorMode.LATERAL_G -> listOf("<0.3g" to Accent, "0.3-0.6" to Ok, "0.6-0.9" to Warn, "0.9+" to Orange)
+    ColorMode.OIL_TEMP -> listOf("<90°" to Ok, "90-110" to Warn, "110+" to Orange)
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -237,10 +339,32 @@ private fun createPositionDot(): BitmapDescriptor {
     return BitmapDescriptorFactory.fromBitmap(bitmap)
 }
 
+/** Small orange pause marker. */
+private fun createPauseMarker(): BitmapDescriptor {
+    val size = 24
+    val bitmap = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
+    val canvas = Canvas(bitmap)
+    val cx = size / 2f
+    val cy = size / 2f
+    canvas.drawCircle(cx, cy, 10f, Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        color = 0xFFFFCC00.toInt()
+        style = Paint.Style.FILL
+    })
+    // Pause bars
+    canvas.drawRect(cx - 4f, cy - 4f, cx - 1.5f, cy + 4f, Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        color = 0xFF05070A.toInt()
+        style = Paint.Style.FILL
+    })
+    canvas.drawRect(cx + 1.5f, cy - 4f, cx + 4f, cy + 4f, Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        color = 0xFF05070A.toInt()
+        style = Paint.Style.FILL
+    })
+    return BitmapDescriptorFactory.fromBitmap(bitmap)
+}
+
 /** Map a Compose Color to a Google Maps marker hue (0-360). */
 private fun colorToHue(color: Color): Float {
     val hsv = FloatArray(3)
     android.graphics.Color.colorToHSV(color.toArgb(), hsv)
     return hsv[0]
 }
-

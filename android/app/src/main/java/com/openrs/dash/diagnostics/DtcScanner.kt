@@ -1,8 +1,7 @@
 package com.openrs.dash.diagnostics
 
 import android.content.Context
-import com.openrs.dash.can.MeatPiConnection
-import com.openrs.dash.can.WiCanConnection
+import com.openrs.dash.can.SlcanConnection
 import com.openrs.dash.data.DtcModuleSpec
 import com.openrs.dash.data.DtcResult
 import com.openrs.dash.data.DtcStatus
@@ -104,35 +103,24 @@ class DtcScanner(private val ctx: Context) {
     }
 
     /**
-     * Runs the full scan via WiCAN adapter and returns parsed [DtcResult] records.
+     * Runs the full scan and returns parsed [DtcResult] records.
      * Returns an empty list if the connection is not live.
      * Suspends for up to ~15 seconds while querying all modules.
      */
-    suspend fun scan(wican: WiCanConnection): List<DtcResult> {
+    suspend fun scan(conn: SlcanConnection): List<DtcResult> {
         DtcDatabase.load(ctx)
-        val raw = wican.performDtcScan(MODULES)
-        return raw.flatMap { (moduleName, payload) -> parsePayload(moduleName, payload) }
-    }
-
-    /** Same as [scan] but uses the MeatPi Pro adapter. */
-    suspend fun scanMeatPi(meatpi: MeatPiConnection): List<DtcResult> {
-        DtcDatabase.load(ctx)
-        val raw = meatpi.performDtcScan(MODULES)
+        val raw = conn.performDtcScan(MODULES)
         return raw.flatMap { (moduleName, payload) -> parsePayload(moduleName, payload) }
     }
 
     /**
      * Sends UDS Service 0x14 (ClearDiagnosticInformation, group 0xFFFFFF) to all
-     * target ECUs via WiCAN.
+     * target ECUs.
      *
      * Returns a map of module name → true when the ECU acknowledged the clear.
      * A missing key means no response was received from that module.
      */
-    suspend fun clearDtcs(wican: WiCanConnection): Map<String, Boolean> =
-        wican.performDtcClear(MODULES)
-
-    /** Same as [clearDtcs] but uses the MeatPi Pro adapter. */
-    suspend fun clearDtcsMeatPi(meatpi: MeatPiConnection): Map<String, Boolean> =
-        meatpi.performDtcClear(MODULES)
+    suspend fun clearDtcs(conn: SlcanConnection): Map<String, Boolean> =
+        conn.performDtcClear(MODULES)
 
 }

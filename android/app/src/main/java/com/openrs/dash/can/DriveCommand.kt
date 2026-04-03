@@ -19,7 +19,7 @@ sealed class DriveCommandResult {
 
 /**
  * Executes the full drive mode change flow:
- *   1. FirmwareApi REST POST
+ *   1. Send command via [FirmwareCommandSender] (WiFi REST or BLE AT+FRS)
  *   2. 2-second settling delay
  *   3. 15-second CAN polling for confirmation
  *   4. Auto-correction on overshoot
@@ -27,8 +27,7 @@ sealed class DriveCommandResult {
  * Returns a [DriveCommandResult] — callers map it to UI feedback.
  */
 suspend fun executeDriveModeChange(
-    ctx: Context,
-    host: String,
+    sender: FirmwareCommandSender,
     targetMode: DriveMode,
     currentMode: DriveMode
 ): DriveCommandResult {
@@ -36,9 +35,9 @@ suspend fun executeDriveModeChange(
         "Pre-flight: current=$currentMode, modeDetail=0x${CanDecoder.modeDetail420Hex}, " +
         "fw=${OpenRSDashApp.instance.firmwareVersionLabel.value}")
     DiagnosticLogger.event("DM_CMD",
-        "Sending driveMode=${targetMode.toFirmwareInt()} (${targetMode.label}) to $host")
+        "Sending driveMode=${targetMode.toFirmwareInt()} (${targetMode.label})")
 
-    val result = FirmwareApi.setDriveMode(ctx, host, targetMode.toFirmwareInt())
+    val result = sender.setDriveMode(targetMode.toFirmwareInt())
     if (result.isFailure) {
         val ex = result.exceptionOrNull()
         DiagnosticLogger.event("DM_CMD", "FAILED: ${ex?.message}")
@@ -46,7 +45,7 @@ suspend fun executeDriveModeChange(
                else DriveCommandResult.Failed(ex?.message ?: "Drive mode command failed")
     }
 
-    DiagnosticLogger.event("DM_CMD", "OK (HTTP 200)")
+    DiagnosticLogger.event("DM_CMD", "OK")
 
     // Settling delay: firmware needs time to press the mode button and
     // ECU needs time to broadcast the new mode on 0x420 (~600 ms interval).
@@ -74,7 +73,7 @@ suspend fun executeDriveModeChange(
         DiagnosticLogger.event("DM_CMD",
             "Overshoot: landed=${landed.label}, expected=${targetMode.label} — auto-correcting")
 
-        val retry = FirmwareApi.setDriveMode(ctx, host, targetMode.toFirmwareInt())
+        val retry = sender.setDriveMode(targetMode.toFirmwareInt())
         if (retry.isSuccess) {
             delay(2_000)
             var corrected = false
@@ -100,3 +99,14 @@ suspend fun executeDriveModeChange(
         "modeDetail420=0x${CanDecoder.modeDetail420Hex})")
     return DriveCommandResult.NoConfirmation
 }
+
+// ── Legacy convenience overload ──────────────────────────────────────────────
+// Used during transition — callers that still pass ctx+host create a WiFiFirmwareApi inline.
+
+@Deprecated("Use FirmwareCommandSender overload", ReplaceWith("executeDriveModeChange(WiFiFirmwareApi(ctx, host), targetMode, currentMode)"))
+suspend fun executeDriveModeChange(
+    ctx: Context,
+    host: String,
+    targetMode: DriveMode,
+    currentMode: DriveMode
+): DriveCommandResult = executeDriveModeChange(WiFiFirmwareApi(ctx, host), targetMode, currentMode)

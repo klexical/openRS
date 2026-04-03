@@ -128,7 +128,7 @@ object CanDecoder {
     // RS_HS.dbc PCMmsg30 (0x380): FuelLevelFiltered : 17|10@0+ (0.4,0) [0|102] "%"
     // Motorola big-endian, 10-bit, start bit 17 (MSB). Extract: (data[2]&0x03)<<8|data[3], ×0.4 %
     // Confirmed from live log: raw=254 → 101.6 % (full tank). Range-filtered 0–110 %.
-    // 12V battery voltage does NOT broadcast on HS-CAN — polled via Mode 01 PID 0x42 in WiCanConnection.
+    // 12V battery voltage does NOT broadcast on HS-CAN — polled via Mode 01 PID 0x42 in SlcanConnection.
     // 12V battery voltage is now polled via PCM Mode 22 DID 0x0304 in ObdResponseParser (refs #92).
     const val ID_FUEL_LEVEL   = 0x380
 
@@ -340,7 +340,7 @@ object CanDecoder {
 
             // ── 0x2C0: AWD / GKN Twinster torque ─────────────────────────────────
             // Torque vectoring left/right Nm. RDU temp is NOT in this passive frame —
-            // it is polled via AWD module Mode 22 PID 0x1E8A (see WiCanConnection).
+            // it is polled via AWD module Mode 22 PID 0x1E8A (see SlcanConnection).
             ID_AWD_TORQUE -> if (n >= 7) {
                 var left  = bits(data, 0,  12).toDouble()
                 var right = bits(data, 12, 12).toDouble()

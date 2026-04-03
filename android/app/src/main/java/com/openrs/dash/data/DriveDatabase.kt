@@ -13,6 +13,7 @@ data class DriveEntity(
     @PrimaryKey(autoGenerate = true) val id: Long = 0,
     val startTime: Long,                        // epoch millis
     val endTime: Long = 0,                      // 0 = still active
+    val name: String? = null,                   // user-assigned drive name
     val hasGps: Boolean = true,                 // false for legacy migrated sessions
     val sessionId: Long = 0,                    // links to diagnostic session (for unified export)
     val distanceKm: Double = 0.0,
@@ -106,6 +107,9 @@ interface DriveDao {
     @Query("DELETE FROM drives WHERE id = :id")
     fun deleteDrive(id: Long)
 
+    @Query("UPDATE drives SET name = :name WHERE id = :id")
+    fun updateDriveName(id: Long, name: String?)
+
     // ── Drive points (telemetry at ~1 Hz) ────────────────────
     @Insert
     fun insertPoints(points: List<DrivePointEntity>)
@@ -153,7 +157,7 @@ interface DriveDao {
         DriveEntity::class,
         DrivePointEntity::class
     ],
-    version = 2,
+    version = 3,
     exportSchema = false
 )
 abstract class DriveDatabase : RoomDatabase() {
@@ -242,6 +246,13 @@ abstract class DriveDatabase : RoomDatabase() {
             }
         }
 
+        /** Migration v2 → v3: add user-editable drive name column. */
+        private val MIGRATION_2_3 = object : Migration(2, 3) {
+            override fun migrate(db: androidx.sqlite.db.SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE drives ADD COLUMN name TEXT DEFAULT NULL")
+            }
+        }
+
         fun getInstance(context: Context): DriveDatabase {
             return INSTANCE ?: synchronized(this) {
                 INSTANCE ?: Room.databaseBuilder(
@@ -249,7 +260,7 @@ abstract class DriveDatabase : RoomDatabase() {
                     DriveDatabase::class.java,
                     "openrs_sessions.db"      // same DB file — migration adds new tables
                 )
-                    .addMigrations(MIGRATION_1_2)
+                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3)
                     .build()
                     .also { INSTANCE = it }
             }

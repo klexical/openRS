@@ -352,6 +352,10 @@ class DriveRecorder(
             peaks.removeAll { it.type == PeakType.LATERAL_G }
             peaks += PeakEvent(PeakType.LATERAL_G, abs(vs.lateralG), point.lat, point.lng, now)
         }
+        if (vs.speedKph > state.maxSpeedKph) {
+            peaks.removeAll { it.type == PeakType.SPEED }
+            peaks += PeakEvent(PeakType.SPEED, vs.speedKph, point.lat, point.lng, now)
+        }
         return peaks
     }
 

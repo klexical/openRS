@@ -33,7 +33,8 @@ data class UserPrefs(
     val maxDiagZips: Int            = AppSettings.DEFAULT_MAX_DIAG_ZIPS, // max diagnostic ZIPs to keep
     val themeId: String             = AppSettings.DEFAULT_THEME_ID,      // RS paint color theme
     val tempPreset: String          = AppSettings.DEFAULT_TEMP_PRESET,   // "street"|"track"|"race"
-    val adapterType: String         = AppSettings.DEFAULT_ADAPTER_TYPE,  // "WICAN" | "MEATPI"
+    val adapterType: String         = AppSettings.DEFAULT_ADAPTER_TYPE,  // "MEATPI_USB" | "MEATPI_PRO"
+    val connectionMethod: String    = AppSettings.DEFAULT_CONNECTION_METHOD, // "WIFI" | "BLUETOOTH"
     val meatPiMicroSdLog: Boolean   = false,                              // MeatPi Pro microSD logging
     val odomInMiles: Boolean        = speedUnit == "MPH",                 // Odometer display: true=mi, false=km
     val edgeShiftLight: Boolean     = AppSettings.DEFAULT_EDGE_SHIFT_LIGHT,  // peripheral edge glow

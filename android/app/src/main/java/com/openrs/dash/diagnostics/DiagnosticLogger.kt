@@ -155,6 +155,7 @@ object DiagnosticLogger {
     @Volatile var firmwareVersion: String = "WiCAN stock"
     @Volatile var sessionHost: String = ""
     @Volatile var sessionPort: Int = 0
+    @Volatile var sessionTransport: String = ""
     @Volatile var sessionPrefs: UserPrefs? = null
 
     // Read-only snapshots for DiagnosticExporter
@@ -194,7 +195,7 @@ object DiagnosticLogger {
      *                "session_slcan.log". Pass [android.content.Context.filesDir]
      *                resolved to a "diagnostics" sub-folder from the calling service.
      */
-    fun sessionStart(host: String, port: Int, prefs: UserPrefs?, logDir: File? = null) {
+    fun sessionStart(host: String, port: Int, prefs: UserPrefs?, logDir: File? = null, transport: String = "") {
         synchronized(lock) {
             // Close any previous SLCAN writer
             try { slcanWriter?.flush(); slcanWriter?.close() } catch (_: Exception) {}
@@ -206,6 +207,7 @@ object DiagnosticLogger {
             sessionStartMs = System.currentTimeMillis()
             sessionHost = host
             sessionPort = port
+            sessionTransport = transport
             sessionPrefs = prefs
             isOpenRsFirmware = false
             firmwareVersion = "WiCAN stock"
@@ -224,7 +226,8 @@ object DiagnosticLogger {
                     val f = File(logDir, "session_slcan.log")
                     f.delete()
                     val w = f.bufferedWriter(Charsets.UTF_8)
-                    w.write("# openRS_ SLCAN log — $host:$port\n")
+                    val transportLabel = if (transport.isNotEmpty()) " ($transport)" else ""
+                    w.write("# openRS_ SLCAN log — $host:$port$transportLabel\n")
                     w.write("# Session started: ${System.currentTimeMillis()} ms epoch\n")
                     w.write("# Format: (relative_seconds) can0 ID#DATA\n")
                     w.write("# Compatible with candump, SavvyCAN, Kayak\n")

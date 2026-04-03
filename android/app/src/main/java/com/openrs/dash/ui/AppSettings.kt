@@ -86,7 +86,15 @@ object AppSettings {
 
     // ── Adapter type ─────────────────────────────────────────────────────────
     const val KEY_ADAPTER_TYPE     = "adapter_type"
-    const val DEFAULT_ADAPTER_TYPE = "WICAN"     // "WICAN" | "MEATPI"
+    const val DEFAULT_ADAPTER_TYPE = "MEATPI_USB"  // "MEATPI_USB" | "MEATPI_PRO"
+
+    // ── Connection method ────────────────────────────────────────────────────
+    const val KEY_CONNECTION_METHOD     = "connection_method"
+    const val DEFAULT_CONNECTION_METHOD = "WIFI"   // "WIFI" | "BLUETOOTH"
+
+    // ── BLE device ──────────────────────────────────────────────────────────
+    const val KEY_BLE_DEVICE_ADDRESS = "ble_device_address"
+    const val KEY_BLE_DEVICE_NAME    = "ble_device_name"
 
     // ── MeatPi microSD logging reminder ─────────────────────────────────────
     // SD logging on the WiCAN Pro is configured via its web UI (http://192.168.0.10/).
@@ -127,13 +135,13 @@ object AppSettings {
         val p = prefs(ctx)
         val stored = p.getString(KEY_HOST, null)
         if (stored != null) return stored
-        return if (getAdapterType(ctx) == "MEATPI") DEFAULT_HOST_MEATPI else DEFAULT_HOST
+        return if (getAdapterType(ctx) == "MEATPI_PRO") DEFAULT_HOST_MEATPI else DEFAULT_HOST
     }
 
     fun getPort(ctx: Context): Int {
         val p = prefs(ctx)
         if (p.contains(KEY_PORT)) return p.getInt(KEY_PORT, DEFAULT_PORT)
-        return if (getAdapterType(ctx) == "MEATPI") DEFAULT_PORT_MEATPI else DEFAULT_PORT
+        return if (getAdapterType(ctx) == "MEATPI_PRO") DEFAULT_PORT_MEATPI else DEFAULT_PORT
     }
 
     fun getSpeedUnit(ctx: Context): String =
@@ -181,8 +189,26 @@ object AppSettings {
     fun getTempPreset(ctx: Context): String =
         prefs(ctx).getString(KEY_TEMP_PRESET, DEFAULT_TEMP_PRESET) ?: DEFAULT_TEMP_PRESET
 
-    fun getAdapterType(ctx: Context): String =
-        prefs(ctx).getString(KEY_ADAPTER_TYPE, DEFAULT_ADAPTER_TYPE) ?: DEFAULT_ADAPTER_TYPE
+    fun getAdapterType(ctx: Context): String {
+        val raw = prefs(ctx).getString(KEY_ADAPTER_TYPE, null) ?: return DEFAULT_ADAPTER_TYPE
+        // Migrate legacy values from v2.2.6-rc.6 and earlier
+        return when (raw) {
+            "WICAN"     -> "MEATPI_USB"
+            "MEATPI"    -> "MEATPI_PRO"
+            "BLUETOOTH" -> "MEATPI_USB"   // legacy: was a separate adapter type
+            else        -> raw
+        }
+    }
+
+    fun getConnectionMethod(ctx: Context): String {
+        val p = prefs(ctx)
+        if (p.contains(KEY_CONNECTION_METHOD)) {
+            return p.getString(KEY_CONNECTION_METHOD, DEFAULT_CONNECTION_METHOD) ?: DEFAULT_CONNECTION_METHOD
+        }
+        // Legacy migration: if adapter was "BLUETOOTH", infer BLUETOOTH connection
+        val rawAdapter = p.getString(KEY_ADAPTER_TYPE, null)
+        return if (rawAdapter == "BLUETOOTH") "BLUETOOTH" else DEFAULT_CONNECTION_METHOD
+    }
 
     fun getMeatPiMicroSd(ctx: Context): Boolean =
         prefs(ctx).getBoolean(KEY_MEATPI_MICROSD, DEFAULT_MEATPI_MICROSD)
@@ -214,6 +240,28 @@ object AppSettings {
         // Backward compat: if key absent, derive from speed unit.
         return if (p.contains(KEY_ODOM_IN_MILES)) p.getBoolean(KEY_ODOM_IN_MILES, true)
         else getSpeedUnit(ctx) == "MPH"
+    }
+
+    // ── BLE device helpers ──────────────────────────────────────────────────
+
+    fun getBleDeviceAddress(ctx: Context): String? =
+        prefs(ctx).getString(KEY_BLE_DEVICE_ADDRESS, null)
+
+    fun getBleDeviceName(ctx: Context): String? =
+        prefs(ctx).getString(KEY_BLE_DEVICE_NAME, null)
+
+    fun saveBleDevice(ctx: Context, address: String, name: String) {
+        prefs(ctx).edit {
+            putString(KEY_BLE_DEVICE_ADDRESS, address)
+            putString(KEY_BLE_DEVICE_NAME, name)
+        }
+    }
+
+    fun clearBleDevice(ctx: Context) {
+        prefs(ctx).edit {
+            remove(KEY_BLE_DEVICE_ADDRESS)
+            remove(KEY_BLE_DEVICE_NAME)
+        }
     }
 
     // ── Write helpers ────────────────────────────────────────────────────────
@@ -255,6 +303,7 @@ object AppSettings {
             putString(KEY_THEME_ID,    p.themeId)
             putString(KEY_TEMP_PRESET, p.tempPreset)
             putString(KEY_ADAPTER_TYPE, p.adapterType)
+            putString(KEY_CONNECTION_METHOD, p.connectionMethod)
             putBoolean(KEY_MEATPI_MICROSD, p.meatPiMicroSdLog)
             putBoolean(KEY_ODOM_IN_MILES, p.odomInMiles)
             putBoolean(KEY_EDGE_SHIFT_LIGHT, p.edgeShiftLight)
@@ -282,6 +331,7 @@ object AppSettings {
         themeId              = getThemeId(ctx),
         tempPreset           = getTempPreset(ctx),
         adapterType          = getAdapterType(ctx),
+        connectionMethod     = getConnectionMethod(ctx),
         meatPiMicroSdLog     = getMeatPiMicroSd(ctx),
         odomInMiles          = getOdomInMiles(ctx),
         edgeShiftLight       = getEdgeShiftLight(ctx),
