@@ -32,15 +32,17 @@ import com.openrs.dash.BuildConfig
  */
 private val versionHighlights: Map<String, List<String>> = mapOf(
     "2.2.6" to listOf(
+        "MAP tab with Google Maps — live color-coded routes (6 modes), drive history, peak markers, zoom controls",
+        "BLE transport — connect over Bluetooth Low Energy, freeing WiFi for internet",
+        "Brightness control — Night/Day/Sun presets + slider for any lighting condition",
+        "Neon glow UI — animated borders, edge shift light, staggered entrance animations",
+        "Quick Mode Dock — tap MODE cell to change drive modes without leaving DASH",
+        "In-app updates — check and install new versions directly from the app",
         "0-60 / 0-100 performance timer — arm from DASH tab, times via CAN speed at ~100 Hz",
         "Real-time fuel economy — instant/average MPG or L/100km plus distance to empty",
-        "Clutch pedal position — live display on DASH tab from CAN 0x138",
-        "Wheel rotation counts — per-wheel counters in TPMS section on CHASSIS tab",
-        "Passive VIN decode — 17-char VIN assembled from CAN 0x40A, shown on MORE tab",
         "Configurable TPMS thresholds — low/warn/high pressure with 4-zone color coding",
-        "Reset session button — on DIAG tab with double-confirm, resets all live data",
-        "Mission Control HTML removed — Sapphire web dashboard is the replacement",
-        "Drive mode reliability — pre-flight logging + auto-correction on overshoot"
+        "Drive mode reliability — pre-flight logging + auto-correction on overshoot",
+        "Passive VIN decode — 17-char VIN assembled from CAN 0x40A, shown on MORE tab"
     ),
     "2.2.5" to listOf(
         "FORScan PID catalog — 1,149 PIDs across 8 ECU modules, browsable on DIAG tab",

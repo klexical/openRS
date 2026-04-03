@@ -149,6 +149,17 @@ Firmware changes are tracked separately in [firmware releases](https://github.co
 - **Adapter naming refactor** — adapters renamed from "WiCAN"/"MeatPi" to "MeatPi USB (C3)"/"MeatPi Pro (S3)". Bluetooth separated from adapter type into its own `connectionMethod` field (`"WIFI"`/`"BLUETOOTH"`). Settings UI: 2-way adapter picker + separate connection method toggle. Legacy migration handles old `"WICAN"`, `"MEATPI"`, `"BLUETOOTH"` values. (`AppSettings.kt`, `UserPrefs.kt`, `SettingsSheet.kt`)
 - **FirmwareApi abstracted for transport** — `FirmwareCommandSender` interface with `WiFiFirmwareApi` (REST `/api/frs`) and `BleFirmwareApi` (`AT+FRS=` over SLCAN transport). `DriveCommand`, `DriveModeDock`, and `MorePage` use the interface for transport-agnostic firmware commands. (`FirmwareApi.kt`, `DriveCommand.kt`)
 
+### Fixed (rc.7.1 — field-test fixes)
+- **BLE permission crash on scan** — `BleDevicePickerDialog` called `scanner.startScan()` without runtime BLE permissions. `MainActivity.onCreate()` only requested permissions if `connectionMethod == "BLUETOOTH"` at startup, but users start on WiFi and switch later. Dialog now uses `rememberLauncherForActivityResult(RequestMultiplePermissions)` to check/request BLUETOOTH_SCAN + BLUETOOTH_CONNECT before scanning. Permission-denied UI state added with retry button. (`BleDevicePickerDialog.kt`)
+- **BLE SecurityException safety net** — `BleDeviceScanner.startScan()` wraps `scanner.startScan()` in try/catch for SecurityException as a fallback if permissions are revoked mid-scan. (`BleDeviceScanner.kt`)
+- **Foreground service start from background** — `CanDataService.startConnection()` wraps `goForeground()` in try/catch because WiFi/BT callbacks can fire when the app is backgrounded. `MainActivity.startSvc()` also catches `ForegroundServiceStartNotAllowedException`. (`CanDataService.kt`, `MainActivity.kt`)
+- **AnimatedHeroNum illegible at high update rates** — the vertical slide+fade animation (150ms/100ms) introduced in rc.4 made RPM, boost, and speed hero values unreadable when data updates at ~100 Hz. Reverted all hero cards and AWD split percentages to plain `HeroNum` for instant static display. (`Components.kt`, `DashPage.kt`)
+- **MAP tab location button hidden** — Google Maps native My Location button was behind the floating controls column at `Alignment.TopEnd`. Disabled native button; custom locate button added (see Added below). (`DriveMap.kt`)
+
+### Added (rc.7.1 — field-test fixes)
+- **MAP tab zoom controls** — custom `+`/`−` buttons for zoom in/out and `◎` button to recenter on current location at zoom 15. `cameraPositionState` hoisted from `DriveMap` to `DrivePage` for shared control. Pinch-to-zoom and all native gestures retained. (`DrivePage.kt`, `DriveMap.kt`)
+- **Brightness/visibility system** — 7 base color tokens (Bg/Surf/Surf2/Surf3/Brd/Dim/Mid) now computed via `lerp()` between Night and Sun endpoints, backed by `mutableFloatStateOf`. Presets: Night (0.0), Day (0.5), Sun (1.0) plus continuous slider in Settings. Accents, Frost, and semantic colors (Ok/Warn/Orange) unchanged. Zero consumer changes — Compose snapshot system tracks reads automatically. (`Theme.kt`, `AppSettings.kt`, `UserPrefs.kt`, `SettingsSheet.kt`, `MainActivity.kt`)
+
 ---
 
 ## [v2.2.5] — 2026-03-27
