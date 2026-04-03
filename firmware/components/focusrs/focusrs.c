@@ -8,6 +8,8 @@
 #include "driver/twai.h"
 #include "esp_log.h"
 #include <string.h>
+#include <stdio.h>
+#include <stdlib.h>
 
 static const char *TAG = "focusrs";
 static SemaphoreHandle_t s_state_mutex = NULL;
@@ -676,6 +678,87 @@ static void frs_boot_apply_task(void *arg) {
 
 void frs_boot_apply(void) {
     xTaskCreate(frs_boot_apply_task, "frs_boot", 3072, NULL, 4, NULL);
+}
+
+// ── BLE command channel (AT+FRS) ─────────────────────────────
+// Parses commands received via SLCAN transport (BLE, TCP, or WebSocket).
+// Same handlers as REST /api/frs — second entry point for the same logic.
+// cmd: null-terminated string after "AT+FRS" prefix (e.g., "?" or "=driveMode,1")
+// Returns length of response written to resp_buf.
+int frs_handle_at_command(const char *cmd, char *resp_buf, int resp_buf_size) {
+    if (!cmd || !resp_buf || resp_buf_size < 16) {
+        return 0;
+    }
+
+    // AT+FRS? → state query (same data as GET /api/frs)
+    if (cmd[0] == '?') {
+        frs_state_t snap = frs_get_state_copy();
+        return snprintf(resp_buf, resp_buf_size,
+            "+FRS:driveMode=%d,escMode=%d,lcEnabled=%s,assKill=%s,"
+            "battMv=%lu,sleepMv=%u\r",
+            snap.drive_mode, snap.esc_mode,
+            snap.lc_enabled ? "true" : "false",
+            snap.ass_kill   ? "true" : "false",
+            (unsigned long)snap.battery_mv,
+            (unsigned)snap.sleep_threshold_mv);
+    }
+
+    // AT+FRS=key,value → set command (same logic as POST /api/frs)
+    if (cmd[0] != '=') {
+        return snprintf(resp_buf, resp_buf_size, "+FRS:ERROR,bad syntax\r");
+    }
+
+    const char *kv = cmd + 1;  // skip '='
+    const char *comma = strchr(kv, ',');
+    if (!comma) {
+        return snprintf(resp_buf, resp_buf_size, "+FRS:ERROR,missing value\r");
+    }
+
+    int key_len = (int)(comma - kv);
+    const char *val = comma + 1;
+
+    if (key_len == 9 && strncmp(kv, "driveMode", 9) == 0) {
+        int mode = atoi(val);
+        if (mode < 0 || mode > FRS_MODE_TRACK) {
+            return snprintf(resp_buf, resp_buf_size, "+FRS:ERROR,invalid mode\r");
+        }
+        if (!frs_set_drive_mode((uint8_t)mode)) {
+            return snprintf(resp_buf, resp_buf_size, "+FRS:BUSY\r");
+        }
+        return snprintf(resp_buf, resp_buf_size, "+FRS:OK\r");
+    }
+
+    if (key_len == 7 && strncmp(kv, "escMode", 7) == 0) {
+        int mode = atoi(val);
+        if (mode < 0 || mode > FRS_ESC_OFF) {
+            return snprintf(resp_buf, resp_buf_size, "+FRS:ERROR,invalid escMode\r");
+        }
+        frs_set_esc((uint8_t)mode);
+        return snprintf(resp_buf, resp_buf_size, "+FRS:OK\r");
+    }
+
+    if (key_len == 8 && strncmp(kv, "enableLC", 8) == 0) {
+        bool en = (strncmp(val, "true", 4) == 0 || val[0] == '1');
+        frs_set_lc(en);
+        return snprintf(resp_buf, resp_buf_size, "+FRS:OK\r");
+    }
+
+    if (key_len == 7 && strncmp(kv, "killASS", 7) == 0) {
+        bool en = (strncmp(val, "true", 4) == 0 || val[0] == '1');
+        frs_set_ass_kill(en);
+        return snprintf(resp_buf, resp_buf_size, "+FRS:OK\r");
+    }
+
+    if (key_len == 12 && strncmp(kv, "sleepVoltage", 12) == 0) {
+        int mv = atoi(val);
+        if (mv < 10000 || mv > 15000) {
+            return snprintf(resp_buf, resp_buf_size, "+FRS:ERROR,out of range\r");
+        }
+        frs_set_sleep_threshold((float)mv / 1000.0f);
+        return snprintf(resp_buf, resp_buf_size, "+FRS:OK\r");
+    }
+
+    return snprintf(resp_buf, resp_buf_size, "+FRS:ERROR,unknown key\r");
 }
 
 // ── Thread-safe state access ─────────────────────────────────

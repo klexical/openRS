@@ -9,8 +9,8 @@ extern "C" {
 
 // ── Firmware version (returned to Android app via OPENRS? probe) ───────────
 // Actual value is patched per-target by apply_patches.py.
-// USB → "USB v1.6"   PRO → "PRO v1.1"
-#define OPENRS_FW_VERSION   "USB v1.61"
+// USB → "USB v1.61-rc.1"   PRO → "PRO v1.2-rc.1"
+#define OPENRS_FW_VERSION   "USB v1.61-rc.1"
 
 // ── Drive mode values ──────────────────────────────────────────
 // Confirmed from live CAN log (0x1B0 byte6 upper nibble, DBC VAL_ 432):
@@ -134,6 +134,13 @@ void     frs_set_sleep_threshold(float volts);
 void     frs_boot_apply(void);         // Apply NVS settings after CAN templates captured
 frs_state_t  frs_get_state_copy(void);  // Thread-safe snapshot
 frs_state_t *frs_get_state(void);      // DEPRECATED: not thread-safe on dual-core
+
+// ── BLE command channel (AT+FRS) ────────────────────────────
+// Parses commands received via SLCAN transport (BLE, TCP, or WebSocket).
+// Same handlers as REST /api/frs — second entry point for the same logic.
+// cmd: null-terminated string after "AT+FRS" prefix (e.g., "?" or "=driveMode,1")
+// Returns length of response written to resp_buf.
+int frs_handle_at_command(const char *cmd, char *resp_buf, int resp_buf_size);
 
 // ── UDS diagnostic API ──────────────────────────────────────
 void frs_uds_init(void);
