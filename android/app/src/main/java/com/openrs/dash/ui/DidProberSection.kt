@@ -31,6 +31,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import com.openrs.dash.ui.Tokens.CardBorder
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.openrs.dash.diagnostics.DiagnosticLogger
@@ -87,7 +88,7 @@ fun DidProberSection(
         Modifier
             .fillMaxWidth()
             .background(Surf2, RoundedCornerShape(10.dp))
-            .border(1.dp, Brd, RoundedCornerShape(10.dp))
+            .border(CardBorder, Brd, RoundedCornerShape(10.dp))
             .padding(10.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
@@ -210,7 +211,7 @@ fun DidProberSection(
                     Modifier
                         .width(72.dp)
                         .background(Orange.copy(0.08f), RoundedCornerShape(8.dp))
-                        .border(1.dp, Orange.copy(0.3f), RoundedCornerShape(8.dp))
+                        .border(CardBorder, Orange.copy(0.3f), RoundedCornerShape(8.dp))
                         .clickable {
                             cancelled = true
                             probing = false

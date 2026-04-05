@@ -10,7 +10,9 @@ import androidx.compose.ui.unit.dp
 object Tokens {
     // ── Page-level spacing ──────────────────────────────────────────────
     val PagePad       = 12.dp
-    val CardGap       = 10.dp
+    val NavBarHeight    = 38.dp
+    val StatusBarHeight = 34.dp
+    val CardGap         = 10.dp
     val SectionGap    = 14.dp
 
     // ── Card internal padding ───────────────────────────────────────────
@@ -27,9 +29,9 @@ object Tokens {
     val BarShape      = RoundedCornerShape(2.dp)
 
     // ── Border ──────────────────────────────────────────────────────────
-    val CardBorder    = 1.dp
+    val CardBorder    = 0.5.dp
 
-    // ── Specific component radii (for drawRoundRect / neonBorder) ──────
+    // ── Specific component radii ─────────────────────────────────────────
     val CardRadius    = 12.dp
     val HeroRadius    = 14.dp
     val GfRadius      = 10.dp

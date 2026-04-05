@@ -27,7 +27,10 @@ import androidx.compose.material3.rememberSwipeToDismissBoxState
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -59,7 +62,8 @@ import java.util.*
 fun DrivePage(
     driveState: DriveState,
     vehicleState: VehicleState,
-    prefs: UserPrefs
+    prefs: UserPrefs,
+    onMapTouched: (Boolean) -> Unit = {}
 ) {
     val context = LocalContext.current
     val accent = LocalThemeAccent.current
@@ -124,10 +128,23 @@ fun DrivePage(
     val isLive = vehicleState.isConnected || driveState.isRecording
     val cameraPositionState = rememberCameraPositionState()
 
-    Column(Modifier.fillMaxSize().background(Bg)) {
+    Column(Modifier.fillMaxSize().background(Bg).padding(bottom = com.openrs.dash.ui.Tokens.NavBarHeight)) {
         // ── Map section ──────────────────────────────────────────────
+        // pointerInput tracks touch state so the parent HorizontalPager
+        // can disable swiping while the user is interacting with the map.
+        // Events are NOT consumed — map and floating controls work normally.
         Box(
             Modifier.weight(if (isLive) 0.55f else 0.45f).fillMaxWidth()
+                .pointerInput(Unit) {
+                    awaitEachGesture {
+                        awaitFirstDown(requireUnconsumed = false)
+                        onMapTouched(true)
+                        try {
+                            do { val event = awaitPointerEvent() }
+                            while (event.changes.any { it.pressed })
+                        } finally { onMapTouched(false) }
+                    }
+                }
         ) {
             val mapPoints = if (driveState.isRecording) {
                 driveState.recentPoints
@@ -163,7 +180,7 @@ fun DrivePage(
                 Box(
                     Modifier.clip(RoundedCornerShape(6.dp))
                         .background(Surf.copy(alpha = 0.85f))
-                        .border(1.dp, Brd, RoundedCornerShape(6.dp))
+                        .border(Tokens.CardBorder, Brd, RoundedCornerShape(6.dp))
                         .clickable {
                             colorModeIndex = (colorModeIndex + 1) % ColorMode.entries.size
                         }
@@ -176,7 +193,7 @@ fun DrivePage(
                 Box(
                     Modifier.clip(RoundedCornerShape(6.dp))
                         .background(Surf.copy(alpha = 0.85f))
-                        .border(1.dp, Brd, RoundedCornerShape(6.dp))
+                        .border(Tokens.CardBorder, Brd, RoundedCornerShape(6.dp))
                         .clickable {
                             mapType = when (mapType) {
                                 MapType.NORMAL -> MapType.SATELLITE
@@ -201,7 +218,7 @@ fun DrivePage(
                     Box(
                         Modifier.clip(RoundedCornerShape(6.dp))
                             .background(Surf.copy(alpha = 0.85f))
-                            .border(1.dp, Brd, RoundedCornerShape(6.dp))
+                            .border(Tokens.CardBorder, Brd, RoundedCornerShape(6.dp))
                             .padding(horizontal = 8.dp, vertical = 4.dp)
                     ) {
                         Column {
@@ -218,7 +235,7 @@ fun DrivePage(
                 Box(
                     Modifier.clip(RoundedCornerShape(6.dp))
                         .background(Surf.copy(alpha = 0.85f))
-                        .border(1.dp, Brd, RoundedCornerShape(6.dp))
+                        .border(Tokens.CardBorder, Brd, RoundedCornerShape(6.dp))
                         .clickable { scope.launch { cameraPositionState.animate(CameraUpdateFactory.zoomIn()) } }
                         .padding(horizontal = 10.dp, vertical = 6.dp)
                 ) {
@@ -229,7 +246,7 @@ fun DrivePage(
                 Box(
                     Modifier.clip(RoundedCornerShape(6.dp))
                         .background(Surf.copy(alpha = 0.85f))
-                        .border(1.dp, Brd, RoundedCornerShape(6.dp))
+                        .border(Tokens.CardBorder, Brd, RoundedCornerShape(6.dp))
                         .clickable { scope.launch { cameraPositionState.animate(CameraUpdateFactory.zoomOut()) } }
                         .padding(horizontal = 10.dp, vertical = 6.dp)
                 ) {
@@ -241,7 +258,7 @@ fun DrivePage(
                     Box(
                         Modifier.clip(RoundedCornerShape(6.dp))
                             .background(Surf.copy(alpha = 0.85f))
-                            .border(1.dp, Brd, RoundedCornerShape(6.dp))
+                            .border(Tokens.CardBorder, Brd, RoundedCornerShape(6.dp))
                             .clickable {
                                 scope.launch {
                                     cameraPositionState.animate(
@@ -311,7 +328,7 @@ fun DrivePage(
                     Modifier.align(Alignment.BottomStart).padding(12.dp)
                         .clip(RoundedCornerShape(6.dp))
                         .background(Surf.copy(alpha = 0.85f))
-                        .border(1.dp, Brd, RoundedCornerShape(6.dp))
+                        .border(Tokens.CardBorder, Brd, RoundedCornerShape(6.dp))
                         .padding(horizontal = 8.dp, vertical = 6.dp)
                 ) {
                     Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
@@ -642,7 +659,7 @@ private fun DriveHistoryList(
             Box(
                 Modifier.fillMaxWidth()
                     .background(Surf2, RoundedCornerShape(10.dp))
-                    .border(1.dp, Brd, RoundedCornerShape(10.dp))
+                    .border(Tokens.CardBorder, Brd, RoundedCornerShape(10.dp))
                     .padding(24.dp),
                 contentAlignment = Alignment.Center
             ) {
@@ -758,7 +775,7 @@ private fun DriveCard(
             .fillMaxWidth()
             .clip(RoundedCornerShape(10.dp))
             .background(bgColor)
-            .border(1.dp, borderColor, RoundedCornerShape(10.dp))
+            .border(Tokens.CardBorder, borderColor, RoundedCornerShape(10.dp))
             .clickable { onClick() }
             .padding(12.dp)
     ) {

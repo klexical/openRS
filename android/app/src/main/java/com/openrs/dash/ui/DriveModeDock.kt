@@ -26,6 +26,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
+import com.openrs.dash.ui.Tokens.CardBorder
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.openrs.dash.can.DriveCommandResult
@@ -34,7 +35,6 @@ import com.openrs.dash.can.executeDriveModeChange
 import com.openrs.dash.data.DriveMode
 import com.openrs.dash.data.VehicleState
 import com.openrs.dash.ui.Tokens.PagePad
-import com.openrs.dash.ui.anim.neonBorder
 import com.openrs.dash.ui.anim.pressClick
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -103,7 +103,7 @@ import kotlinx.coroutines.launch
                             translationY = offsets[index].value * density
                         }
                         .then(
-                            if (isActive) Modifier.neonBorder(modeAccent, 10.dp, alpha = 0.35f, animated = true)
+                            if (isActive) Modifier.border(CardBorder, modeAccent.copy(alpha = 0.35f), RoundedCornerShape(10.dp))
                             else Modifier
                         )
                         .background(
@@ -170,7 +170,7 @@ import kotlinx.coroutines.launch
         Spacer(Modifier.height(6.dp))
         MonoLabel(
             if (canControl) "Tap to change \u00B7 Quick Mode Dock"
-            else "Read-only mirror of CAN 0x1B0. Use steering wheel MODE button.",
+            else "Displays current Drive Mode \u2014 openRS_ firmware unlocks tap control",
             9.sp, Dim
         )
     }

@@ -21,6 +21,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -47,10 +48,13 @@ import com.openrs.dash.data.VehicleState
 import com.openrs.dash.diagnostics.DiagnosticLogger
 import android.content.Intent
 import android.net.Uri
+import com.openrs.dash.ui.Tokens.CardBorder
 import com.openrs.dash.ui.Tokens.PagePad
 import com.openrs.dash.ui.anim.pressClick
+import com.openrs.dash.data.PerformanceTimer
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlin.math.roundToInt
 
 private const val SAPPHIRE_URL = "https://klexical.github.io/openRS_/"
 
@@ -76,7 +80,8 @@ private const val SAPPHIRE_URL = "https://klexical.github.io/openRS_/"
     var pendingEsc       by remember { mutableStateOf<EscStatus?>(null) }
 
     Column(
-        Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(PagePad),
+        Modifier.fillMaxSize().verticalScroll(rememberScrollState())
+            .padding(start = PagePad, end = PagePad, top = PagePad, bottom = PagePad + Tokens.NavBarHeight),
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
 
@@ -139,8 +144,8 @@ private const val SAPPHIRE_URL = "https://klexical.github.io/openRS_/"
             }
             Spacer(Modifier.height(6.dp))
             MonoLabel(
-                if (canControl) "Tap to change \u00B7 Live from CAN 0x1B0"
-                else "Read-only mirror of CAN 0x1B0. Use steering wheel MODE button.",
+                if (canControl) "Tap to change \u00B7 Quick Mode Dock"
+                else "Displays current Drive Mode \u2014 openRS_ firmware unlocks tap control",
                 9.sp, Dim
             )
         }
@@ -202,7 +207,7 @@ private const val SAPPHIRE_URL = "https://klexical.github.io/openRS_/"
                 Box(
                     Modifier.fillMaxWidth()
                         .background(Warn.copy(alpha = 0.1f), RoundedCornerShape(8.dp))
-                        .border(1.dp, Warn.copy(alpha = 0.4f), RoundedCornerShape(8.dp))
+                        .border(CardBorder, Warn.copy(alpha = 0.4f), RoundedCornerShape(8.dp))
                         .padding(10.dp),
                     contentAlignment = Alignment.Center
                 ) {
@@ -225,7 +230,7 @@ private const val SAPPHIRE_URL = "https://klexical.github.io/openRS_/"
                 Column(
                     Modifier.weight(1f)
                         .background(Surf2, RoundedCornerShape(10.dp))
-                        .border(1.dp, Brd, RoundedCornerShape(10.dp))
+                        .border(CardBorder, Brd, RoundedCornerShape(10.dp))
                         .padding(12.dp)
                 ) {
                     UIText("Launch Control", 12.sp, Frost, FontWeight.SemiBold)
@@ -254,7 +259,7 @@ private const val SAPPHIRE_URL = "https://klexical.github.io/openRS_/"
                 Column(
                     Modifier.weight(1f)
                         .background(Surf2, RoundedCornerShape(10.dp))
-                        .border(1.dp, Brd, RoundedCornerShape(10.dp))
+                        .border(CardBorder, Brd, RoundedCornerShape(10.dp))
                         .padding(12.dp)
                 ) {
                     UIText("Auto Start-Stop", 12.sp, Frost, FontWeight.SemiBold)
@@ -277,7 +282,7 @@ private const val SAPPHIRE_URL = "https://klexical.github.io/openRS_/"
             Row(
                 Modifier.fillMaxWidth()
                     .background(if (isFw) Ok.copy(alpha = 0.06f) else Orange.copy(alpha = 0.06f), RoundedCornerShape(8.dp))
-                    .border(1.dp, if (isFw) Ok.copy(0.2f) else Orange.copy(0.2f), RoundedCornerShape(8.dp))
+                    .border(CardBorder, if (isFw) Ok.copy(0.2f) else Orange.copy(0.2f), RoundedCornerShape(8.dp))
                     .padding(10.dp),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
@@ -306,7 +311,7 @@ private const val SAPPHIRE_URL = "https://klexical.github.io/openRS_/"
                     Column(
                         Modifier.weight(1f)
                             .background(Surf2, RoundedCornerShape(10.dp))
-                            .border(1.dp, Brd, RoundedCornerShape(10.dp))
+                            .border(CardBorder, Brd, RoundedCornerShape(10.dp))
                             .padding(10.dp),
                         horizontalAlignment = Alignment.CenterHorizontally
                     ) {
@@ -336,7 +341,7 @@ private const val SAPPHIRE_URL = "https://klexical.github.io/openRS_/"
                 Row(
                     Modifier.fillMaxWidth()
                         .background(Surf2, RoundedCornerShape(8.dp))
-                        .border(1.dp, Brd, RoundedCornerShape(8.dp))
+                        .border(CardBorder, Brd, RoundedCornerShape(8.dp))
                         .padding(horizontal = 12.dp, vertical = 10.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
@@ -359,7 +364,7 @@ private const val SAPPHIRE_URL = "https://klexical.github.io/openRS_/"
                         Brush.horizontalGradient(listOf(accent.copy(0.1f), accent.copy(0.05f))),
                         RoundedCornerShape(10.dp)
                     )
-                    .border(1.dp, accent.copy(0.3f), RoundedCornerShape(10.dp))
+                    .border(CardBorder, accent.copy(0.3f), RoundedCornerShape(10.dp))
                     .clickable { onCustomDash() }
                     .padding(horizontal = 14.dp, vertical = 13.dp)
             ) {
@@ -384,6 +389,18 @@ private const val SAPPHIRE_URL = "https://klexical.github.io/openRS_/"
 
         HorizontalDivider(color = Brd)
 
+        // ── Performance Timer ────────────────────────────────────────────
+        val timerState by PerformanceTimer.state.collectAsState()
+        SideEffect {
+            if (timerState.state == PerformanceTimer.State.ARMED ||
+                timerState.state == PerformanceTimer.State.RUNNING) {
+                PerformanceTimer.onSpeedUpdate(vs.speedKph, vs.rpm, vs.boostPsi)
+            }
+        }
+        PerformanceTimerSection(timerState, accent)
+
+        HorizontalDivider(color = Brd)
+
         // ── Sapphire Web Dashboard ───────────────────────────────────────
         MoreSection("WEB DASHBOARD") {
             Box(
@@ -392,7 +409,7 @@ private const val SAPPHIRE_URL = "https://klexical.github.io/openRS_/"
                         Brush.horizontalGradient(listOf(accent.copy(0.08f), accent.copy(0.03f))),
                         RoundedCornerShape(10.dp)
                     )
-                    .border(1.dp, accent.copy(0.2f), RoundedCornerShape(10.dp))
+                    .border(CardBorder, accent.copy(0.2f), RoundedCornerShape(10.dp))
                     .clickable {
                         val intent = Intent(Intent.ACTION_VIEW, Uri.parse(SAPPHIRE_URL))
                         ctx.startActivity(intent)
@@ -450,7 +467,7 @@ private const val SAPPHIRE_URL = "https://klexical.github.io/openRS_/"
     Column(
         modifier
             .background(if (isActive) color.copy(alpha = 0.12f) else Surf2, RoundedCornerShape(10.dp))
-            .border(2.dp, if (isActive) color else Brd, RoundedCornerShape(10.dp))
+            .border(1.dp, if (isActive) color else Brd, RoundedCornerShape(10.dp))
             .clickable { UserPrefsStore.update(ctx) { it.copy(themeId = id) } }
             .padding(vertical = 10.dp, horizontal = 6.dp),
         horizontalAlignment = Alignment.CenterHorizontally
@@ -463,6 +480,123 @@ private const val SAPPHIRE_URL = "https://klexical.github.io/openRS_/"
         Spacer(Modifier.height(5.dp))
         MonoLabel(name, 8.sp, if (isActive) color else Dim, letterSpacing = 0.1.sp,
             modifier = Modifier.fillMaxWidth(), fontWeight = if (isActive) FontWeight.Bold else FontWeight.Normal)
+    }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// PERFORMANCE TIMER SECTION
+// ═══════════════════════════════════════════════════════════════════════════
+
+@Composable private fun PerformanceTimerSection(
+    ts: PerformanceTimer.TimerState,
+    accent: androidx.compose.ui.graphics.Color
+) {
+    MoreSection("PERFORMANCE TIMER") {
+        Column(
+            Modifier.fillMaxWidth()
+                .background(Surf2, RoundedCornerShape(12.dp))
+                .border(CardBorder, when (ts.state) {
+                    PerformanceTimer.State.RUNNING  -> accent.copy(0.6f)
+                    PerformanceTimer.State.ARMED    -> Warn.copy(0.4f)
+                    PerformanceTimer.State.FINISHED -> Ok.copy(0.4f)
+                    else -> Brd
+                }, RoundedCornerShape(12.dp))
+                .padding(horizontal = 14.dp, vertical = 10.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(6.dp)
+        ) {
+            // Header row: target toggle
+            Row(
+                Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.End,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Box(
+                    Modifier
+                        .background(Surf, RoundedCornerShape(6.dp))
+                        .border(CardBorder, Brd, RoundedCornerShape(6.dp))
+                        .clickable {
+                            val next = if (ts.target == PerformanceTimer.Target.ZERO_TO_60)
+                                PerformanceTimer.Target.ZERO_TO_100
+                            else PerformanceTimer.Target.ZERO_TO_60
+                            if (ts.state == PerformanceTimer.State.IDLE) PerformanceTimer.arm(next)
+                            else if (ts.state == PerformanceTimer.State.FINISHED) {
+                                PerformanceTimer.reset()
+                                PerformanceTimer.arm(next)
+                            }
+                        }
+                        .padding(horizontal = 8.dp, vertical = 4.dp)
+                ) {
+                    MonoLabel(ts.target.label, 9.sp, Frost, letterSpacing = 0.1.sp)
+                }
+            }
+
+            // Timer display
+            val timeStr = when (ts.state) {
+                PerformanceTimer.State.IDLE     -> "—.——"
+                PerformanceTimer.State.ARMED    -> "0.00"
+                PerformanceTimer.State.RUNNING  -> "%.2f".format(ts.elapsedMs / 1000.0)
+                PerformanceTimer.State.FINISHED -> "%.2f".format(ts.resultMs / 1000.0)
+            }
+            val timeColor = when (ts.state) {
+                PerformanceTimer.State.RUNNING  -> accent
+                PerformanceTimer.State.FINISHED -> Ok
+                PerformanceTimer.State.ARMED    -> Warn
+                else -> Frost
+            }
+            HeroNum(timeStr, 42.sp, timeColor)
+            MonoLabel("seconds", 8.sp, Dim)
+
+            // Status / details row
+            when (ts.state) {
+                PerformanceTimer.State.IDLE -> {
+                    Box(
+                        Modifier
+                            .background(accent.copy(0.12f), RoundedCornerShape(6.dp))
+                            .border(CardBorder, accent.copy(0.3f), RoundedCornerShape(6.dp))
+                            .pressClick { PerformanceTimer.arm(ts.target) }
+                            .padding(horizontal = 16.dp, vertical = 8.dp)
+                    ) {
+                        MonoLabel("ARM TIMER", 10.sp, accent, FontWeight.Bold)
+                    }
+                }
+                PerformanceTimer.State.ARMED -> {
+                    MonoLabel("Waiting for launch…", 10.sp, Warn)
+                }
+                PerformanceTimer.State.RUNNING -> {
+                    MonoLabel("Launch RPM: ${ts.launchRpm.roundToInt()}", 9.sp, Dim)
+                }
+                PerformanceTimer.State.FINISHED -> {
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        DataCell("LAUNCH", "${ts.launchRpm.roundToInt()} RPM", modifier = Modifier.weight(1f))
+                        DataCell("BOOST", "${"%.1f".format(ts.peakBoostPsi)} PSI", modifier = Modifier.weight(1f))
+                        if (ts.bestResultMs > 0) {
+                            DataCell("BEST", "${"%.2f".format(ts.bestResultMs / 1000.0)}s", modifier = Modifier.weight(1f))
+                        }
+                    }
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Box(
+                            Modifier
+                                .background(accent.copy(0.12f), RoundedCornerShape(6.dp))
+                                .border(CardBorder, accent.copy(0.3f), RoundedCornerShape(6.dp))
+                                .pressClick { PerformanceTimer.reset(); PerformanceTimer.arm(ts.target) }
+                                .padding(horizontal = 12.dp, vertical = 6.dp)
+                        ) {
+                            MonoLabel("GO AGAIN", 10.sp, accent, FontWeight.Bold)
+                        }
+                        Box(
+                            Modifier
+                                .background(Surf, RoundedCornerShape(6.dp))
+                                .border(CardBorder, Brd, RoundedCornerShape(6.dp))
+                                .clickable { PerformanceTimer.reset() }
+                                .padding(horizontal = 12.dp, vertical = 6.dp)
+                        ) {
+                            MonoLabel("RESET", 10.sp, Dim)
+                        }
+                    }
+                }
+            }
+        }
     }
 }
 

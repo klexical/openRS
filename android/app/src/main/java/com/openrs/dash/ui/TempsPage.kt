@@ -38,19 +38,19 @@ import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.openrs.dash.ui.Tokens.CardBorder
 import com.openrs.dash.ui.Tokens.PagePad
 import com.openrs.dash.ui.Tokens.CardGap
 import com.openrs.dash.data.VehicleState
 import com.openrs.dash.ui.anim.StaggeredColumn
-import com.openrs.dash.ui.anim.neonBorder
-import com.openrs.dash.ui.anim.neonGlowRect
 
 // ═══════════════════════════════════════════════════════════════════════════
 // TEMPS PAGE
 // ═══════════════════════════════════════════════════════════════════════════
 @Composable fun TempsPage(vs: VehicleState, p: UserPrefs) {
     Column(
-        Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(PagePad),
+        Modifier.fillMaxSize().verticalScroll(rememberScrollState())
+            .padding(start = PagePad, end = PagePad, top = PagePad, bottom = PagePad + Tokens.NavBarHeight),
         verticalArrangement = Arrangement.spacedBy(CardGap)
     ) {
         RtrBanner(vs, p)
@@ -153,7 +153,7 @@ data class TempSpec(
     Row(
         Modifier.fillMaxWidth()
             .background(bannerBrush, RoundedCornerShape(12.dp))
-            .border(1.dp, bannerBorder, RoundedCornerShape(12.dp))
+            .border(CardBorder, bannerBorder, RoundedCornerShape(12.dp))
             .padding(14.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
@@ -167,7 +167,7 @@ data class TempSpec(
                 if (isReady) "RACE READY" else "WARMING UP — NOT RACE READY",
                 13.sp, Frost, FontWeight.SemiBold, 0.5.sp
             )
-            if (!isReady && warmupDetail != null) {
+            if (!isReady) {
                 MonoLabel(warmupDetail, 9.sp, Warn, modifier = Modifier.padding(top = 2.dp))
             }
         }
@@ -180,7 +180,7 @@ data class TempSpec(
     Row(
         Modifier.fillMaxWidth()
             .background(Surf2, RoundedCornerShape(10.dp))
-            .border(1.dp, Brd, RoundedCornerShape(10.dp))
+            .border(CardBorder, Brd, RoundedCornerShape(10.dp))
             .padding(12.dp),
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically
@@ -197,7 +197,7 @@ data class TempSpec(
                 Box(
                     Modifier
                         .background(if (isActive) color.copy(alpha = 0.15f) else Surf3, RoundedCornerShape(6.dp))
-                        .border(1.dp, if (isActive) color.copy(alpha = 0.5f) else Brd, RoundedCornerShape(6.dp))
+                        .border(CardBorder, if (isActive) color.copy(alpha = 0.5f) else Brd, RoundedCornerShape(6.dp))
                         .clickable { haptic.performHapticFeedback(HapticFeedbackType.Confirm); UserPrefsStore.update(ctx) { it.copy(tempPreset = id) } }
                         .padding(horizontal = 10.dp, vertical = 5.dp)
                 ) {
@@ -237,7 +237,7 @@ data class TempSpec(
     Box(
         modifier
             .background(Surf2, RoundedCornerShape(14.dp))
-            .then(if (!isPlaceholder) Modifier.neonBorder(borderGlow, 14.dp) else Modifier)
+            .border(CardBorder, if (!isPlaceholder) borderGlow else Brd.copy(alpha = 0.15f), RoundedCornerShape(14.dp))
     ) {
         Column(Modifier.padding(12.dp)) {
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
@@ -280,7 +280,7 @@ data class TempSpec(
                 if (!isPlaceholder && barPct > 0) {
                     Box(Modifier.fillMaxWidth(barPct).height(3.dp)
                         .background(barColor, RoundedCornerShape(2.dp))
-                        .then(if (isWarn) Modifier.neonGlowRect(barColor) else Modifier))
+                    )
                 }
                 // Peak tick mark
                 if (peakBarPct > 0.05f) {

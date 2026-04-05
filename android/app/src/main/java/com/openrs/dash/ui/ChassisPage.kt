@@ -54,6 +54,7 @@ import com.openrs.dash.ui.anim.GForcePlot
 import com.openrs.dash.ui.anim.RingBuffer
 import com.openrs.dash.ui.anim.WHEEL_ANCHORS
 import com.openrs.dash.ui.anim.tireStatusColor
+import com.openrs.dash.ui.Tokens.CardBorder
 import com.openrs.dash.ui.Tokens.PagePad
 import kotlin.math.abs
 import kotlin.math.roundToInt
@@ -63,7 +64,8 @@ import kotlin.math.roundToInt
 // ═══════════════════════════════════════════════════════════════════════════
 @Composable fun ChassisPage(vs: VehicleState, p: UserPrefs, onReset: () -> Unit) {
     Column(
-        Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(PagePad),
+        Modifier.fillMaxSize().verticalScroll(rememberScrollState())
+            .padding(start = PagePad, end = PagePad, top = PagePad, bottom = PagePad + Tokens.NavBarHeight),
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
         UnifiedChassisSection(vs, p)
@@ -107,7 +109,7 @@ import kotlin.math.roundToInt
     Column(
         Modifier.fillMaxWidth()
             .background(Surf, RoundedCornerShape(16.dp))
-            .border(1.dp, Brd, RoundedCornerShape(16.dp))
+            .border(CardBorder, Brd, RoundedCornerShape(16.dp))
             .padding(14.dp)
     ) {
         SectionLabel("CHASSIS — TIRES & AWD")
@@ -219,7 +221,7 @@ import kotlin.math.roundToInt
             Column(
                 Modifier.fillMaxWidth()
                     .background(Orange.copy(alpha = 0.1f), RoundedCornerShape(10.dp))
-                    .border(1.dp, Orange.copy(alpha = 0.5f), RoundedCornerShape(10.dp))
+                    .border(CardBorder, Orange.copy(alpha = 0.5f), RoundedCornerShape(10.dp))
                     .padding(12.dp),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
@@ -241,7 +243,7 @@ import kotlin.math.roundToInt
             Box(
                 Modifier.fillMaxWidth()
                     .background(Warn.copy(alpha = 0.08f), RoundedCornerShape(10.dp))
-                    .border(1.dp, Warn.copy(alpha = 0.4f), RoundedCornerShape(10.dp))
+                    .border(CardBorder, Warn.copy(alpha = 0.4f), RoundedCornerShape(10.dp))
                     .padding(12.dp),
                 contentAlignment = Alignment.Center
             ) {
@@ -321,7 +323,7 @@ private fun NeonTireCard(
     Column(
         Modifier.fillMaxWidth()
             .background(bgColor, RoundedCornerShape(12.dp))
-            .border(1.dp, borderColor, RoundedCornerShape(12.dp))
+            .border(CardBorder, borderColor, RoundedCornerShape(12.dp))
             .padding(horizontal = 10.dp, vertical = 10.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
@@ -683,7 +685,7 @@ private fun AwdMetrics(vs: VehicleState, p: UserPrefs) {
     val animLonG by animateFloatAsState(vs.longitudinalG.toFloat(), spring(stiffness = Spring.StiffnessHigh), label = "lonG")
 
     // G-force trail (sampled at ~10 Hz)
-    val gTrail = remember { RingBuffer<Pair<Float, Float>>(30) }
+    val gTrail = remember { RingBuffer<Pair<Float, Float>>(120) }
     val lastTrailTime = remember { mutableLongStateOf(0L) }
     val now = vs.lastUpdate
     if (now - lastTrailTime.longValue >= 100L) {
@@ -694,7 +696,7 @@ private fun AwdMetrics(vs: VehicleState, p: UserPrefs) {
     Column(
         Modifier.fillMaxWidth()
             .background(Surf, RoundedCornerShape(16.dp))
-            .border(1.dp, Brd, RoundedCornerShape(16.dp))
+            .border(CardBorder, Brd, RoundedCornerShape(16.dp))
             .padding(14.dp)
     ) {
         SectionLabel("G-FORCE & DYNAMICS")
@@ -708,6 +710,8 @@ private fun AwdMetrics(vs: VehicleState, p: UserPrefs) {
             lateralG = animLatG,
             longitudinalG = animLonG,
             trail = gTrail.toList(),
+            peakLatG = vs.peakLateralG.toFloat(),
+            peakLonG = vs.peakLongitudinalG.toFloat(),
             modifier = gPlotModifier,
             dotColor = accent
         )
@@ -730,7 +734,7 @@ private fun AwdMetrics(vs: VehicleState, p: UserPrefs) {
         Box(
             Modifier.fillMaxWidth()
                 .background(Surf2, RoundedCornerShape(8.dp))
-                .border(1.dp, Brd, RoundedCornerShape(8.dp))
+                .border(CardBorder, Brd, RoundedCornerShape(8.dp))
                 .clickable { onReset() }
                 .padding(vertical = 8.dp),
             contentAlignment = Alignment.Center

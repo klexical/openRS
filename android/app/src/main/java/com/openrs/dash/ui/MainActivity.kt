@@ -16,7 +16,6 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.*
 import androidx.compose.animation.core.*
 import androidx.compose.ui.draw.drawBehind
-import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -29,6 +28,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
@@ -38,17 +38,21 @@ import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import kotlinx.coroutines.launch
 import com.openrs.dash.OpenRSDashApp
 import com.openrs.dash.data.DriveMode
 import com.openrs.dash.data.EscStatus
 import com.openrs.dash.data.VehicleState
 import com.openrs.dash.service.CanDataService
 import com.openrs.dash.ui.anim.EdgeShiftLight
+import com.openrs.dash.ui.Tokens.CardBorder
 import com.openrs.dash.ui.anim.bloomGlow
+
+import dev.chrisbanes.haze.HazeState
+import dev.chrisbanes.haze.hazeSource
 import com.openrs.dash.ui.anim.pressClick
 import com.openrs.dash.ui.trip.DrivePage
 import com.openrs.dash.update.UpdateManager
+import kotlinx.coroutines.launch
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.ui.platform.LocalContext
 
@@ -70,7 +74,11 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        enableEdgeToEdge()
+        enableEdgeToEdge(
+            navigationBarStyle = androidx.activity.SystemBarStyle.dark(
+                android.graphics.Color.TRANSPARENT
+            )
+        )
         UserPrefsStore.load(this)
         setBrightness(AppSettings.getBrightness(this))
 
@@ -94,23 +102,15 @@ class MainActivity : ComponentActivity() {
             val debugLines  by OpenRSDashApp.instance.debugLines.collectAsState()
             val driveState  by OpenRSDashApp.instance.driveState.collectAsState()
             val pagerState  = rememberPagerState(pageCount = { 7 })
-            val pagerScope  = rememberCoroutineScope()
+            val selectedTab by remember { derivedStateOf { pagerState.currentPage } }
+            var mapTouched  by remember { mutableStateOf(false) }
+            val hazeState   = remember { HazeState() }
             var settingsOpen    by remember { mutableStateOf(false) }
             var showCustomDash  by remember { mutableStateOf(false) }
             var dockOpen        by remember { mutableStateOf(false) }
             val isFw            by OpenRSDashApp.instance.isOpenRsFirmware.collectAsState()
             val snackbarHostState = remember { SnackbarHostState() }
 
-            // "Going live" connection sweep
-            var wasConnected by remember { mutableStateOf(vs.isConnected) }
-            val sweepProgress = remember { Animatable(0f) }
-            LaunchedEffect(vs.isConnected) {
-                if (vs.isConnected && !wasConnected) {
-                    sweepProgress.snapTo(0f)
-                    sweepProgress.animateTo(1f, tween(800, easing = EaseInOut))
-                }
-                wasConnected = vs.isConnected
-            }
 
             // What's New — show once after version update
             val whatsNewCtx = LocalContext.current
@@ -151,11 +151,14 @@ class MainActivity : ComponentActivity() {
                     Box(Modifier.fillMaxSize()) {
                         Scaffold(
                             snackbarHost   = { SnackbarHost(snackbarHostState) },
-                            containerColor = Bg
+                            containerColor = Bg,
+                            contentWindowInsets = WindowInsets.statusBars
                         ) { innerPadding ->
                             Box(
-                                Modifier.fillMaxSize().padding(innerPadding)
+                                Modifier.fillMaxSize()
+                                    .padding(innerPadding)
                                     .background(Bg)
+                                    .hazeSource(hazeState)
                             ) {
                                 Column(Modifier.fillMaxSize()) {
                                     AppHeader(
@@ -168,9 +171,6 @@ class MainActivity : ComponentActivity() {
                                         driveState   = driveState,
                                         onModeClick  = { dockOpen = !dockOpen }
                                     )
-                                    TabBar(pagerState.currentPage, onSelect = { page ->
-                                        pagerScope.launch { pagerState.animateScrollToPage(page) }
-                                    })
 
                                     // ── Quick Mode Dock ──────────────────
                                     AnimatedVisibility(
@@ -194,51 +194,49 @@ class MainActivity : ComponentActivity() {
 
                                     ConnectionBanner(vs)
                                     WifiCoexistenceBanner()
+                                    EBrakeWarningBanner(vs)
                                     // Auto-dismiss dock on tab change
-                                    LaunchedEffect(pagerState.currentPage) { dockOpen = false }
+                                    LaunchedEffect(selectedTab) { dockOpen = false }
 
                                     HorizontalPager(
                                         state = pagerState,
                                         modifier = Modifier.weight(1f),
-                                        beyondViewportPageCount = 0,
-                                        userScrollEnabled = pagerState.currentPage != 4,
+                                        beyondViewportPageCount = 1,
+                                        userScrollEnabled = !(selectedTab == 4 && mapTouched), // disable pager swipe while touching map
                                         key = { it }
                                     ) { page ->
-                                        val pageOffset = (pagerState.currentPage - page) +
-                                            pagerState.currentPageOffsetFraction
-                                        val alpha = 1f - (kotlin.math.abs(pageOffset) * 0.15f).coerceIn(0f, 0.15f)
-                                        Box(Modifier.graphicsLayer { this.alpha = alpha }) {
-                                        when (page) {
-                                            0 -> DashPage(vs, prefs)
-                                            1 -> PowerPage(vs, prefs)
-                                            2 -> ChassisPage(vs, prefs, onReset = { service?.resetPeaks() })
-                                            3 -> TempsPage(vs, prefs)
-                                            4 -> DrivePage(driveState, vs, prefs)
-                                            5 -> DiagPage(
-                                                debugLines,
-                                                vs,
-                                                onScanDtcs  = service?.let { svc -> { svc.scanDtcs() } },
-                                                onClearDtcs = service?.let { svc -> { svc.clearDtcs() } },
-                                                onSendRawQuery = service?.let { svc ->
-                                                    val q: suspend (Int, String, Long) -> ByteArray? =
-                                                        { r, f, t -> svc.sendRawQuery(r, f, t) }
-                                                    q
-                                                },
-                                                onResetSession = { service?.resetSession() }
-                                            )
-                                            6 -> MorePage(vs, prefs, snackbarHostState, onSettings = { settingsOpen = true }, onCustomDash = { showCustomDash = true }, firmwareApi = service?.firmwareApi)
-                                        }
-                                        // Scrim overlay — tap to dismiss dock
-                                        if (dockOpen) {
-                                            Box(
-                                                Modifier.fillMaxSize()
-                                                    .background(Color.Black.copy(alpha = 0.12f))
-                                                    .clickable(
-                                                        interactionSource = remember { MutableInteractionSource() },
-                                                        indication = null
-                                                    ) { dockOpen = false }
-                                            )
-                                        }
+                                        Box(Modifier.fillMaxSize()) {
+                                            when (page) {
+                                                0 -> DashPage(vs, prefs)
+                                                1 -> PowerPage(vs, prefs)
+                                                2 -> ChassisPage(vs, prefs, onReset = { service?.resetPeaks() })
+                                                3 -> TempsPage(vs, prefs)
+                                                4 -> DrivePage(driveState, vs, prefs, onMapTouched = { mapTouched = it })
+                                                5 -> DiagPage(
+                                                    debugLines,
+                                                    vs,
+                                                    onScanDtcs  = service?.let { svc -> { svc.scanDtcs() } },
+                                                    onClearDtcs = service?.let { svc -> { svc.clearDtcs() } },
+                                                    onSendRawQuery = service?.let { svc ->
+                                                        val q: suspend (Int, String, Long) -> ByteArray? =
+                                                            { r, f, t -> svc.sendRawQuery(r, f, t) }
+                                                        q
+                                                    },
+                                                    onResetSession = { service?.resetSession() }
+                                                )
+                                                6 -> MorePage(vs, prefs, snackbarHostState, onSettings = { settingsOpen = true }, onCustomDash = { showCustomDash = true }, firmwareApi = service?.firmwareApi)
+                                            }
+                                            // Scrim overlay — tap to dismiss dock
+                                            if (dockOpen) {
+                                                Box(
+                                                    Modifier.fillMaxSize()
+                                                        .background(Color.Black.copy(alpha = 0.12f))
+                                                        .clickable(
+                                                            interactionSource = remember { MutableInteractionSource() },
+                                                            indication = null
+                                                        ) { dockOpen = false }
+                                                )
+                                            }
                                         }
                                     }
                                 }
@@ -278,28 +276,15 @@ class MainActivity : ComponentActivity() {
                             }
                         )
 
-                        // "Going live" sweep overlay
-                        if (sweepProgress.value in 0.01f..0.99f) {
-                            val sweepAccent = prefs.themeAccent
-                            Box(
-                                Modifier.fillMaxSize().drawBehind {
-                                    val y = sweepProgress.value * size.height
-                                    val band = 40.dp.toPx()
-                                    drawRect(
-                                        brush = Brush.verticalGradient(
-                                            listOf(
-                                                Color.Transparent,
-                                                sweepAccent.copy(alpha = 0.12f),
-                                                sweepAccent.copy(alpha = 0.06f),
-                                                Color.Transparent
-                                            ),
-                                            startY = y - band,
-                                            endY = y + band
-                                        )
-                                    )
-                                }
-                            )
-                        }
+                        // ── Bottom Nav Bar (overlay — content extends behind) ──
+                        val navScope = rememberCoroutineScope()
+                        BottomNavBar(
+                            selected = selectedTab,
+                            onSelect = { navScope.launch { pagerState.animateScrollToPage(it) } },
+                            hazeState = hazeState,
+                            modifier = Modifier.align(Alignment.BottomCenter)
+                        )
+
                     }
                 }
             }
@@ -323,7 +308,7 @@ class MainActivity : ComponentActivity() {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// HEADER — F1 Telemetry Bar
+// HEADER — Compact Status Bar
 // ═══════════════════════════════════════════════════════════════════════════
 @Composable fun AppHeader(
     vs: VehicleState,
@@ -337,6 +322,7 @@ class MainActivity : ComponentActivity() {
 ) {
     val accent = LocalThemeAccent.current
 
+    // Connection state
     val dotAlpha = if (vs.isConnected) {
         val infiniteTransition = rememberInfiniteTransition(label = "conn")
         val anim by infiniteTransition.animateFloat(
@@ -356,112 +342,72 @@ class MainActivity : ComponentActivity() {
         else           -> "OFF"
     }
 
-    Column(Modifier.fillMaxWidth().background(Surf)) {
-        // ── Top row: logo | connection pill + trip + settings ────────
-        Row(
-            Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 8.dp),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text("open", fontSize = 18.sp, fontFamily = OrbitronFamily,
-                    color = Frost, fontWeight = FontWeight.Bold, letterSpacing = 0.05.sp)
-                Text("RS", fontSize = 18.sp, fontFamily = OrbitronFamily,
-                    color = accent, fontWeight = FontWeight.Bold, letterSpacing = 0.05.sp)
-                Text("_", fontSize = 18.sp, fontFamily = OrbitronFamily,
-                    color = Frost, fontWeight = FontWeight.Bold, letterSpacing = 0.05.sp)
+    // Mode / ESC colors
+    val modeColor = when (vs.driveMode) {
+        DriveMode.SPORT -> Ok; DriveMode.TRACK -> Warn; DriveMode.DRIFT -> Orange; else -> accent
+    }
+    val escColor = when (vs.escStatus) {
+        EscStatus.OFF -> Orange; EscStatus.PARTIAL -> Warn; EscStatus.LAUNCH -> Warn; else -> accent
+    }
+
+    Row(
+        Modifier.fillMaxWidth()
+            .height(Tokens.StatusBarHeight)
+            .background(Surf)
+            .drawBehind {
+                // Bottom border
+                drawLine(
+                    color = Brd.copy(alpha = 0.3f),
+                    start = androidx.compose.ui.geometry.Offset(0f, size.height),
+                    end = androidx.compose.ui.geometry.Offset(size.width, size.height),
+                    strokeWidth = 1.dp.toPx()
+                )
             }
-
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Box(
-                    Modifier
-                        .background(connColor.copy(alpha = 0.08f), RoundedCornerShape(4.dp))
-                        .border(1.dp, connColor.copy(alpha = 0.2f), RoundedCornerShape(4.dp))
-                        .clickable {
-                            when {
-                                vs.isConnected -> onDisconnect()
-                                vs.isIdle      -> onReconnect()
-                                else           -> onConnect()
-                            }
-                        }
-                        .padding(horizontal = 8.dp, vertical = 4.dp),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(5.dp)) {
-                        Box(contentAlignment = Alignment.Center) {
-                            Box(Modifier.size(14.dp).clip(CircleShape)
-                                .background(connColor.copy(alpha = 0.25f * dotAlpha))
-                                .then(if (vs.isConnected) Modifier.bloomGlow(connColor, 10.dp, 0.3f * dotAlpha) else Modifier))
-                            Box(Modifier.size(6.dp).clip(CircleShape)
-                                .background(connColor.copy(alpha = dotAlpha)))
-                        }
-                        MonoLabel(connLabel, 8.sp, connColor, FontWeight.Bold, 0.08.sp)
-                        // Bluetooth indicator when connected via BLE
-                        if (AppSettings.getConnectionMethod(LocalContext.current) == "BLUETOOTH") {
-                            MonoLabel("BT", 7.sp, connColor.copy(alpha = 0.6f), FontWeight.Bold, 0.05.sp)
-                        }
-                    }
-                }
-
-                // REC indicator (visible when drive is recording, not paused)
-                if (driveState.isRecording && !driveState.isPaused) {
-                    val recAlpha by rememberInfiniteTransition(label = "headerRec").animateFloat(
-                        initialValue = 1f, targetValue = 0.2f,
-                        animationSpec = infiniteRepeatable(tween(700), RepeatMode.Reverse),
-                        label = "headerRecAlpha"
-                    )
-                    Row(
-                        Modifier.height(28.dp)
-                            .background(Orange.copy(alpha = 0.12f), RoundedCornerShape(6.dp))
-                            .border(1.dp, Orange.copy(alpha = 0.3f), RoundedCornerShape(6.dp))
-                            .padding(horizontal = 8.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(4.dp)
-                    ) {
-                        Box(Modifier.size(6.dp).clip(CircleShape).background(Orange.copy(alpha = recAlpha)))
-                        MonoLabel("REC", 8.sp, Orange, FontWeight.Bold, 0.1.sp)
-                    }
-                }
-
-                Box(
-                    Modifier.size(28.dp)
-                        .background(Surf2, RoundedCornerShape(6.dp))
-                        .border(1.dp, Brd, RoundedCornerShape(6.dp))
-                        .clickable { onSettings() },
-                    contentAlignment = Alignment.Center
-                ) {
-                    UIText("⚙", 13.sp, Mid)
-                    // Update-available badge dot
-                    if (UpdateManager.hasUpdate) {
-                        Box(
-                            Modifier.align(Alignment.TopEnd)
-                                .offset(x = 2.dp, y = (-2).dp)
-                                .size(7.dp)
-                                .clip(CircleShape)
-                                .background(Ok)
-                        )
-                    }
-                }
-            }
+            .padding(horizontal = 10.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        // ── Left: Logo ──────────────────────────────────────────
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text("open", fontSize = 13.sp, fontFamily = OrbitronFamily,
+                color = Frost, fontWeight = FontWeight.Bold, letterSpacing = 0.05.sp)
+            Text("RS", fontSize = 13.sp, fontFamily = OrbitronFamily,
+                color = accent, fontWeight = FontWeight.Bold, letterSpacing = 0.05.sp)
+            Text("_", fontSize = 13.sp, fontFamily = OrbitronFamily,
+                color = Frost, fontWeight = FontWeight.Bold, letterSpacing = 0.05.sp)
         }
 
-        // ── Telemetry strip — F1 pit-wall style ─────────────────────
+        Spacer(Modifier.weight(1f))
+
+        // ── Center: MODE pill + ESC pill ────────────────────────
         Row(
-            Modifier.fillMaxWidth()
-                .background(Surf2)
-                .border(width = 1.dp, color = Brd.copy(alpha = 0.5f)),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            val modeColor = when (vs.driveMode) {
-                DriveMode.SPORT -> Ok; DriveMode.TRACK -> Warn; DriveMode.DRIFT -> Orange; else -> accent
+            // LC pill — flashing when launch control engaged
+            AnimatedVisibility(
+                visible = vs.launchControlEngaged,
+                enter = expandHorizontally() + fadeIn(),
+                exit = shrinkHorizontally() + fadeOut()
+            ) {
+                val flashAlpha by rememberInfiniteTransition(label = "lcFlash").animateFloat(
+                    initialValue = 1f, targetValue = 0f,
+                    animationSpec = infiniteRepeatable(tween(200), RepeatMode.Reverse),
+                    label = "lcFlashA"
+                )
+                Row {
+                    Box(
+                        Modifier
+                            .alpha(flashAlpha)
+                            .background(Warn, RoundedCornerShape(4.dp))
+                            .border(CardBorder, Warn, RoundedCornerShape(4.dp))
+                            .padding(horizontal = 6.dp, vertical = 2.dp)
+                    ) {
+                        MonoLabel("LC", 8.sp, Bg, FontWeight.Bold, 0.05.sp)
+                    }
+                    Spacer(Modifier.width(6.dp))
+                }
             }
-            val escColor = when (vs.escStatus) {
-                EscStatus.OFF -> Orange; EscStatus.PARTIAL -> Warn; EscStatus.LAUNCH -> Warn; else -> accent
-            }
-            val eBrakeColor = if (vs.eBrake) Warn else Ok
-            val fpsStr = if (vs.isConnected) "${vs.framesPerSecond.toInt()} FPS" else "—"
 
-            // MODE cell — pulsing accent bar (matches tab indicator style)
+            // MODE pill
             val pulseT = rememberInfiniteTransition(label = "modeBar")
             val barAlpha by pulseT.animateFloat(
                 initialValue = 0.3f, targetValue = 1f,
@@ -469,126 +415,134 @@ class MainActivity : ComponentActivity() {
                     tween(2000, easing = EaseInOut), RepeatMode.Reverse
                 ), label = "modeBarA"
             )
+            StatusPill(
+                label = "MODE",
+                value = vs.driveMode.label.uppercase(),
+                valueColor = modeColor,
+                onClick = onModeClick,
+                pulseBarColor = modeColor,
+                pulseBarAlpha = barAlpha
+            )
+
+            Spacer(Modifier.width(6.dp))
+
+            // ESC pill (onClick = null for now, future dock)
+            StatusPill(
+                label = "ESC",
+                value = vs.escStatus.label.uppercase(),
+                valueColor = escColor,
+                onClick = null
+            )
+        }
+
+        Spacer(Modifier.weight(1f))
+
+        // ── Right: REC dot + connection pill + settings gear ────
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(6.dp)
+        ) {
+            // REC dot (pulsing, no text)
+            if (driveState.isRecording && !driveState.isPaused) {
+                val recAlpha by rememberInfiniteTransition(label = "headerRec").animateFloat(
+                    initialValue = 1f, targetValue = 0.2f,
+                    animationSpec = infiniteRepeatable(tween(700), RepeatMode.Reverse),
+                    label = "headerRecAlpha"
+                )
+                Box(Modifier.size(6.dp).clip(CircleShape).background(Orange.copy(alpha = recAlpha)))
+            }
+
+            // Connection pill (compact)
             Box(
-                Modifier.weight(1f)
-                    .defaultMinSize(minHeight = 44.dp)
-                    .pressClick { onModeClick() },
+                Modifier
+                    .background(connColor.copy(alpha = 0.08f), RoundedCornerShape(4.dp))
+                    .border(CardBorder, connColor.copy(alpha = 0.2f), RoundedCornerShape(4.dp))
+                    .clickable {
+                        when {
+                            vs.isConnected -> onDisconnect()
+                            vs.isIdle      -> onReconnect()
+                            else           -> onConnect()
+                        }
+                    }
+                    .padding(horizontal = 5.dp, vertical = 2.dp),
                 contentAlignment = Alignment.Center
             ) {
-                TeleCell("MODE", vs.driveMode.label.uppercase(), modeColor, Modifier.fillMaxWidth())
-                // Accent bar + glow — same style as TabBar indicator, but pulsing
-                Box(Modifier.align(Alignment.BottomCenter)
-                    .fillMaxWidth(0.6f).height(2.dp)
-                    .background(modeColor.copy(alpha = barAlpha),
-                        RoundedCornerShape(topStart = 2.dp, topEnd = 2.dp))
-                )
-                Box(Modifier.align(Alignment.BottomCenter)
-                    .fillMaxWidth(0.7f).height(6.dp)
-                    .background(
-                        Brush.verticalGradient(listOf(
-                            modeColor.copy(alpha = 0.12f * barAlpha), Color.Transparent
-                        )),
-                        RoundedCornerShape(topStart = 4.dp, topEnd = 4.dp)
-                    )
-                )
-            }
-            TeleDivider()
-            if (vs.launchControlEngaged) {
-                TeleCell("LC", "ENGAGED", Warn, Modifier.weight(1f))
-                TeleDivider()
-            }
-            TeleCell("ESC", vs.escStatus.label.uppercase(), escColor, Modifier.weight(1f))
-            TeleDivider()
-            TeleCell("CONN", fpsStr, if (vs.isConnected) Ok else Dim, Modifier.weight(1f))
-            TeleDivider()
-            TeleCell("IGN", ignitionStatusLabel(vs.ignitionStatus).uppercase(), Frost, Modifier.weight(1f))
-            TeleDivider()
-            TeleCell("E-BRK", if (vs.eBrake) "ON" else "OFF", eBrakeColor, Modifier.weight(1f))
-        }
-    }
-}
-
-@Composable private fun TeleCell(label: String, value: String, valueColor: Color, modifier: Modifier = Modifier) {
-    Column(
-        modifier.padding(vertical = 5.dp),
-        horizontalAlignment = Alignment.CenterHorizontally
-    ) {
-        MonoLabel(label, 7.sp, Dim, letterSpacing = 0.08.sp)
-        MonoText(value, 10.sp, valueColor, fontWeight = FontWeight.Bold,
-            textAlign = androidx.compose.ui.text.style.TextAlign.Center)
-    }
-}
-
-@Composable private fun TeleDivider() {
-    Box(Modifier.width(1.dp).height(22.dp).background(Brd.copy(alpha = 0.4f)))
-}
-
-// ═══════════════════════════════════════════════════════════════════════════
-// TAB BAR — 6 tabs with icons
-// ═══════════════════════════════════════════════════════════════════════════
-@Composable fun TabBar(selected: Int, onSelect: (Int) -> Unit) {
-    val accent = LocalThemeAccent.current
-    val haptic = LocalHapticFeedback.current
-    val tabs = listOf(
-        "⚡" to "DASH",
-        "◈" to "POWER",
-        "◎" to "CHASSIS",
-        "△" to "TEMPS",
-        "◉" to "MAP",
-        "≡" to "DIAG",
-        "☰" to "MORE"
-    )
-    val tabCount = tabs.size
-    BoxWithConstraints(
-        Modifier.fillMaxWidth()
-            .background(Surf)
-            .border(width = 1.dp, color = Brd, shape = RoundedCornerShape(0.dp))
-            .height(52.dp)
-    ) {
-        val tabWidth = maxWidth / tabCount
-        // Sliding neon indicator
-        val indicatorOffset by animateDpAsState(
-            targetValue = tabWidth * selected,
-            animationSpec = spring(stiffness = Spring.StiffnessMediumLow),
-            label = "tabSlide"
-        )
-        Row(Modifier.fillMaxSize()) {
-            tabs.forEachIndexed { i, (icon, label) ->
-                val isActive = i == selected
-                Box(
-                    Modifier.weight(1f).fillMaxHeight()
-                        .clickable { haptic.performHapticFeedback(HapticFeedbackType.Confirm); onSelect(i) },
-                    contentAlignment = Alignment.Center
-                ) {
-                    Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
-                        MonoLabel(icon, 13.sp, if (isActive) accent else Dim)
-                        Spacer(Modifier.height(2.dp))
-                        MonoLabel(label, 8.sp, if (isActive) accent else Dim, letterSpacing = 0.12.sp)
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Box(contentAlignment = Alignment.Center) {
+                        Box(Modifier.size(10.dp).clip(CircleShape)
+                            .background(connColor.copy(alpha = 0.25f * dotAlpha))
+                            .then(if (vs.isConnected) Modifier.bloomGlow(connColor, 8.dp, 0.3f * dotAlpha) else Modifier))
+                        Box(Modifier.size(5.dp).clip(CircleShape)
+                            .background(connColor.copy(alpha = dotAlpha)))
                     }
+                    MonoLabel(connLabel, 7.sp, connColor, FontWeight.Bold, 0.08.sp)
+                }
+            }
+
+            // Settings gear (matches pill height)
+            Box(
+                Modifier
+                    .background(Surf2, RoundedCornerShape(4.dp))
+                    .border(CardBorder, Brd, RoundedCornerShape(4.dp))
+                    .clickable { onSettings() }
+                    .padding(horizontal = 6.dp, vertical = 2.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                UIText("⚙", 11.sp, Mid)
+                if (UpdateManager.hasUpdate) {
+                    Box(
+                        Modifier.align(Alignment.TopEnd)
+                            .offset(x = 2.dp, y = (-2).dp)
+                            .size(6.dp)
+                            .clip(CircleShape)
+                            .background(Ok)
+                    )
                 }
             }
         }
-        // Sliding accent bar + glow
-        Box(
-            Modifier.offset(x = indicatorOffset)
-                .width(tabWidth).align(Alignment.BottomStart)
+    }
+}
+
+@Composable private fun StatusPill(
+    label: String,
+    value: String,
+    valueColor: Color,
+    onClick: (() -> Unit)?,
+    pulseBarColor: Color? = null,
+    pulseBarAlpha: Float = 1f
+) {
+    val shape = RoundedCornerShape(4.dp)
+    Box(
+        Modifier
+            .background(valueColor.copy(alpha = 0.10f), shape)
+            .border(CardBorder, valueColor.copy(alpha = 0.25f), shape)
+            .then(if (onClick != null) Modifier.pressClick { onClick() } else Modifier)
+            .padding(horizontal = 6.dp, vertical = 2.dp)
+    ) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(3.dp)
         ) {
-            Box(
-                Modifier.align(Alignment.BottomCenter)
-                    .fillMaxWidth(0.6f).height(2.dp)
-                    .background(accent, RoundedCornerShape(topStart = 2.dp, topEnd = 2.dp))
-            )
-            Box(
-                Modifier.align(Alignment.BottomCenter)
-                    .fillMaxWidth(0.7f).height(6.dp)
-                    .background(
-                        Brush.verticalGradient(listOf(accent.copy(alpha = 0.12f), Color.Transparent)),
-                        RoundedCornerShape(topStart = 4.dp, topEnd = 4.dp)
-                    )
-            )
+            MonoLabel(label, 7.sp, Dim, letterSpacing = 0.08.sp)
+            MonoLabel(value, 8.sp, valueColor, FontWeight.Bold, 0.05.sp)
+        }
+        // Pulsing accent bar at bottom (MODE pill)
+        if (pulseBarColor != null) {
+            Box(Modifier.matchParentSize()) {
+                Box(
+                    Modifier.align(Alignment.BottomCenter)
+                        .fillMaxWidth(0.6f).height(1.5.dp)
+                        .offset(y = 1.dp)
+                        .background(
+                            pulseBarColor.copy(alpha = pulseBarAlpha),
+                            RoundedCornerShape(bottomStart = 2.dp, bottomEnd = 2.dp)
+                        )
+                )
+            }
         }
     }
 }
+
 
 // ═══════════════════════════════════════════════════════════════════════════
 // WIFI COEXISTENCE BANNER — warns when BLE is active but phone is on WiFi
@@ -616,7 +570,7 @@ private fun WifiCoexistenceBanner() {
                 .fillMaxWidth()
                 .padding(horizontal = 10.dp, vertical = 4.dp)
                 .background(Warn.copy(alpha = 0.08f), RoundedCornerShape(8.dp))
-                .border(1.dp, Warn.copy(alpha = 0.25f), RoundedCornerShape(8.dp))
+                .border(CardBorder, Warn.copy(alpha = 0.25f), RoundedCornerShape(8.dp))
                 .padding(horizontal = 10.dp, vertical = 6.dp)
         ) {
             MonoLabel(
@@ -668,12 +622,51 @@ private fun ConnectionBanner(vs: VehicleState) {
                 .fillMaxWidth()
                 .padding(horizontal = 10.dp, vertical = 6.dp)
                 .background(Orange.copy(alpha = 0.08f), RoundedCornerShape(8.dp))
-                .border(1.dp, Orange.copy(alpha = 0.35f), RoundedCornerShape(8.dp))
+                .border(CardBorder, Orange.copy(alpha = 0.35f), RoundedCornerShape(8.dp))
                 .padding(horizontal = 10.dp, vertical = 8.dp)
         ) {
             MonoLabel(
                 "$adapterLabel  —  $addressLabel  —  DISCONNECTED",
                 9.sp, Orange, letterSpacing = 0.1.sp,
+                modifier = Modifier.align(Alignment.CenterStart).padding(end = 24.dp)
+            )
+            MonoLabel(
+                "\u2715", 12.sp, Dim,
+                modifier = Modifier
+                    .align(Alignment.CenterEnd)
+                    .clickable { dismissed = true }
+            )
+        }
+    }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// E-BRAKE WARNING BANNER — shown when e-brake is engaged
+// ═══════════════════════════════════════════════════════════════════════════
+@Composable
+private fun EBrakeWarningBanner(vs: VehicleState) {
+    var dismissed by remember { mutableStateOf(false) }
+
+    LaunchedEffect(vs.eBrake) {
+        if (!vs.eBrake) dismissed = false
+    }
+
+    AnimatedVisibility(
+        visible = vs.eBrake && !dismissed,
+        enter = expandVertically() + fadeIn(),
+        exit  = shrinkVertically() + fadeOut()
+    ) {
+        Box(
+            Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 10.dp, vertical = 4.dp)
+                .background(Warn.copy(alpha = 0.08f), RoundedCornerShape(8.dp))
+                .border(CardBorder, Warn.copy(alpha = 0.25f), RoundedCornerShape(8.dp))
+                .padding(horizontal = 10.dp, vertical = 6.dp)
+        ) {
+            MonoLabel(
+                "E-BRAKE ENGAGED",
+                9.sp, Warn, letterSpacing = 0.1.sp,
                 modifier = Modifier.align(Alignment.CenterStart).padding(end = 24.dp)
             )
             MonoLabel(

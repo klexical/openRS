@@ -198,6 +198,33 @@ Firmware changes are tracked separately in [firmware releases](https://github.co
 - **Error boundary** — class component wrapping all panels with retry button, resets on panel switch. (`ErrorBoundary.tsx`)
 - **129 vitest tests** — import pipeline (54), unit conversions (27), map colors (20), comparisons (16), formatters (17), store operations (15). (`web/src/lib/*.test.ts`, `web/src/store/store.test.ts`)
 
+### Added (rc.9 — UI overhaul)
+- **Bottom nav bar with frosted glass** — new `BottomNavBar` using Haze backdrop blur, 7 custom vector icons (replacing emoji tab labels), spring-animated neon indicator, stamped bevel gradient, pressClick + haptics. Height: 38dp + system gesture bar padding. Content extends behind the nav bar for edge-to-edge feel. (`BottomNavBar.kt`, `MainActivity.kt`)
+- **`cardGlow()` modifier** — subtle outer shadow + top specular highlight providing ambient depth on all card components, replacing decorative neon effects. (`GlowModifiers.kt`, `Components.kt`)
+- **`AggressiveNum` composable** — Orbitron Bold with 0.5sp letter-spacing for DataCell, BarCard, and WheelCell numeric values, replacing `MonoText` for a sharper aesthetic. (`Theme.kt`, `Components.kt`)
+- **G-Force Plot redesign** — rectangular grid with auto-scaling axes (`ceilToQuarter`), corner brackets, 120-dot age-graded trail (up from 30), peak labels (lateral G, accel G), dense grid lines, scale numbers, and "LAT G" / "ACCEL / BRAKE G" axis titles. (`GForcePlot.kt`, `ChassisPage.kt`)
+- **E-Brake warning banner** — dismissible animated banner when electronic parking brake is engaged. Auto-reappears on re-engagement. (`MainActivity.kt`)
+- **MAP tab touch isolation** — `pointerInput` on map Box tracks touch state; parent `HorizontalPager` disables swipe while map is touched, preventing conflicts with Google Maps pan/pinch gestures. (`DrivePage.kt`, `MainActivity.kt`)
+- **StatusPill composable** — compact MODE and ESC pills in the status bar with value-colored backgrounds and pulsing accent bar on MODE. Replaces full-width telemetry strip. (`MainActivity.kt`)
+- **LC flashing pill** — animated flashing "LC" badge in the status bar when launch control is engaged. (`MainActivity.kt`)
+- **7 custom vector nav icons** — purpose-drawn vector drawables for DASH/POWER/CHASSIS/TEMPS/MAP/DIAG/MORE replacing Unicode emoji tab labels. (`res/drawable/ic_nav_*.xml`)
+
+### Changed (rc.9 — UI overhaul)
+- **AppHeader compacted to single-row status bar** — two-row header (logo row + full-width telemetry strip with IGN/CONN/E-BRK cells) replaced by a single 34dp row with logo, MODE/ESC pills, and connection controls. Frees ~50dp of vertical screen space. (`MainActivity.kt`)
+- **Navigation moved to bottom overlay** — tab bar relocated from below header to bottom-of-screen overlay outside Scaffold. Scaffold uses `contentWindowInsets = statusBars`; all pages add `Tokens.NavBarHeight` as bottom scroll padding. (`MainActivity.kt`, all page files)
+- **Edge-to-edge with transparent system nav bar** — `enableEdgeToEdge` with `SystemBarStyle.dark(TRANSPARENT)` removes the system navigation bar scrim. (`MainActivity.kt`)
+- **Card borders thinned to 0.5dp** — `Tokens.CardBorder` reduced from 1dp to 0.5dp across ~50 border declarations for lighter visual weight. (`DesignTokens.kt`, all UI files)
+- **Performance timer moved to MORE tab** — `PerformanceTimerSection` relocated from DASH tab to MORE tab under its own section header, decluttering the main dashboard. (`DashPage.kt`, `MorePage.kt`)
+- **Haze dependency added** — `dev.chrisbanes.haze:haze:1.5.1` for backdrop blur / glassmorphism on the bottom nav bar. (`build.gradle.kts`)
+- **Drive mode hint text improved** — "Read-only mirror of CAN 0x1B0" replaced with user-friendly "Displays current Drive Mode — openRS_ firmware unlocks tap control". (`MorePage.kt`, `DriveModeDock.kt`)
+
+### Removed (rc.9 — UI overhaul)
+- **Decorative neon effects** — `neonBorder`, `neonGlow`, `neonGlowRect`, `neonPulse`, `scanLine` modifiers removed from `GlowModifiers.kt`. Replaced by `cardGlow()` for ambient depth and thin 0.5dp borders. (`GlowModifiers.kt`, `Components.kt`, `TempsPage.kt`, `DriveModeDock.kt`)
+- **"Going live" connection sweep** — 800ms accent light band on adapter connect removed. (`MainActivity.kt`)
+- **CRT scan line** — faint horizontal sweep effect on DASH tab removed. (`DashPage.kt`)
+- **Tab crossfade** — 15% opacity dip during pager transitions removed. (`MainActivity.kt`)
+- **TabBar + TeleCell composables** — inline emoji-based tab bar and full-width telemetry strip removed; replaced by `BottomNavBar` and `StatusPill`. (`MainActivity.kt`)
+
 ---
 
 ## [v2.2.5] — 2026-03-27

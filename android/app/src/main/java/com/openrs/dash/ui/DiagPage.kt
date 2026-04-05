@@ -43,6 +43,7 @@ import com.openrs.dash.data.DtcStatus
 import com.openrs.dash.data.VehicleState
 import com.openrs.dash.diagnostics.DiagnosticExporter
 import com.openrs.dash.diagnostics.DiagnosticLogger
+import com.openrs.dash.ui.Tokens.CardBorder
 import com.openrs.dash.ui.anim.pressClick
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -86,7 +87,8 @@ import kotlin.math.roundToInt
     var pidBrowserExpanded  by rememberSectionExpanded("DIAG_PID_BROWSER", default = false)
     var showAllFrames       by remember { mutableStateOf(false) }
 
-    Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(Tokens.PagePad)) {
+    Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState())
+        .padding(start = Tokens.PagePad, end = Tokens.PagePad, top = Tokens.PagePad, bottom = Tokens.PagePad + Tokens.NavBarHeight)) {
 
         val frameCount = inv.values.sumOf { it.totalReceived }
         val dtcCount = dtcResults?.size ?: 0
@@ -156,7 +158,7 @@ import kotlin.math.roundToInt
                             else Brush.horizontalGradient(listOf(Dim.copy(0.1f), Dim.copy(0.05f))),
                             RoundedCornerShape(10.dp)
                         )
-                        .border(1.dp, if (!exporting) accent.copy(0.3f) else Dim.copy(0.3f), RoundedCornerShape(10.dp))
+                        .border(CardBorder, if (!exporting) accent.copy(0.3f) else Dim.copy(0.3f), RoundedCornerShape(10.dp))
                         .clickable(enabled = !exporting) {
                             exporting = true
                             scope.launch(Dispatchers.IO) {
@@ -192,7 +194,7 @@ import kotlin.math.roundToInt
                             Box(
                                 Modifier
                                     .background(Orange.copy(0.15f), RoundedCornerShape(6.dp))
-                                    .border(1.dp, Orange.copy(0.4f), RoundedCornerShape(6.dp))
+                                    .border(CardBorder, Orange.copy(0.4f), RoundedCornerShape(6.dp))
                                     .clickable {
                                         onResetSession()
                                         confirmReset = false
@@ -204,7 +206,7 @@ import kotlin.math.roundToInt
                             Box(
                                 Modifier
                                     .background(Surf2, RoundedCornerShape(6.dp))
-                                    .border(1.dp, Brd, RoundedCornerShape(6.dp))
+                                    .border(CardBorder, Brd, RoundedCornerShape(6.dp))
                                     .clickable { confirmReset = false }
                                     .padding(horizontal = 10.dp, vertical = 6.dp)
                             ) {
@@ -214,7 +216,7 @@ import kotlin.math.roundToInt
                             Box(
                                 Modifier
                                     .background(Surf2, RoundedCornerShape(6.dp))
-                                    .border(1.dp, Brd, RoundedCornerShape(6.dp))
+                                    .border(CardBorder, Brd, RoundedCornerShape(6.dp))
                                     .clickable { confirmReset = true }
                                     .padding(horizontal = 10.dp, vertical = 6.dp)
                             ) {
@@ -293,7 +295,7 @@ import kotlin.math.roundToInt
                         Box(
                             Modifier.width(72.dp)
                                 .background(Color(0xFF1A0A0A), RoundedCornerShape(10.dp))
-                                .border(1.dp, Dim.copy(0.3f), RoundedCornerShape(10.dp))
+                                .border(CardBorder, Dim.copy(0.3f), RoundedCornerShape(10.dp))
                                 .clickable(enabled = !dtcBusy) { dtcResults = null; dtcError = null; dtcClearStatus = null }
                                 .padding(vertical = 13.dp),
                             contentAlignment = Alignment.Center
@@ -352,7 +354,7 @@ import kotlin.math.roundToInt
                     Box(
                         Modifier.fillMaxWidth()
                             .background(Color(0xFF060E06), RoundedCornerShape(8.dp))
-                            .border(1.dp, Ok.copy(0.3f), RoundedCornerShape(8.dp))
+                            .border(CardBorder, Ok.copy(0.3f), RoundedCornerShape(8.dp))
                             .padding(10.dp)
                     ) {
                         MonoLabel("✓  ${dtcClearStatus}", 10.sp, Ok)
@@ -376,7 +378,7 @@ import kotlin.math.roundToInt
                                 Box(
                                     Modifier.fillMaxWidth()
                                         .background(Color(0xFF060E0A), RoundedCornerShape(10.dp))
-                                        .border(1.dp, Ok.copy(0.25f), RoundedCornerShape(10.dp))
+                                        .border(CardBorder, Ok.copy(0.25f), RoundedCornerShape(10.dp))
                                         .padding(14.dp),
                                     contentAlignment = Alignment.Center
                                 ) {
@@ -388,7 +390,7 @@ import kotlin.math.roundToInt
                                 Column(
                                     Modifier.fillMaxWidth()
                                         .background(Surf2, RoundedCornerShape(10.dp))
-                                        .border(1.dp, Brd, RoundedCornerShape(10.dp))
+                                        .border(CardBorder, Brd, RoundedCornerShape(10.dp))
                                         .padding(10.dp),
                                     verticalArrangement = Arrangement.spacedBy(8.dp)
                                 ) {
@@ -659,7 +661,7 @@ private fun CrashHistorySection() {
         Box(
             Modifier.fillMaxWidth()
                 .background(Surf2, RoundedCornerShape(10.dp))
-                .border(1.dp, Brd, RoundedCornerShape(10.dp))
+                .border(CardBorder, Brd, RoundedCornerShape(10.dp))
                 .padding(14.dp),
             contentAlignment = Alignment.Center
         ) {
@@ -669,7 +671,7 @@ private fun CrashHistorySection() {
         Column(
             Modifier.fillMaxWidth()
                 .background(Surf2, RoundedCornerShape(10.dp))
-                .border(1.dp, Brd, RoundedCornerShape(10.dp))
+                .border(CardBorder, Brd, RoundedCornerShape(10.dp))
                 .padding(10.dp),
             verticalArrangement = Arrangement.spacedBy(6.dp)
         ) {
@@ -680,7 +682,7 @@ private fun CrashHistorySection() {
                 Row(
                     Modifier.fillMaxWidth()
                         .background(Surf, RoundedCornerShape(6.dp))
-                        .border(1.dp, Brd, RoundedCornerShape(6.dp))
+                        .border(CardBorder, Brd, RoundedCornerShape(6.dp))
                         .padding(8.dp),
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
@@ -693,7 +695,7 @@ private fun CrashHistorySection() {
             Box(
                 Modifier.fillMaxWidth()
                     .background(Orange.copy(alpha = 0.08f), RoundedCornerShape(8.dp))
-                    .border(1.dp, Orange.copy(0.3f), RoundedCornerShape(8.dp))
+                    .border(CardBorder, Orange.copy(0.3f), RoundedCornerShape(8.dp))
                     .clickable {
                         scope.launch(Dispatchers.IO) {
                             DiagnosticExporter.clearCrashHistory(ctx)

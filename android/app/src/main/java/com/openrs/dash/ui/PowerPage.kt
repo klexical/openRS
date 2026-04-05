@@ -42,7 +42,8 @@ import kotlin.math.roundToInt
     var fuelExpanded     by rememberSectionExpanded("POWER_FUEL")
 
     Column(
-        Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(PagePad),
+        Modifier.fillMaxSize().verticalScroll(rememberScrollState())
+            .padding(start = PagePad, end = PagePad, top = PagePad, bottom = PagePad + Tokens.NavBarHeight),
         verticalArrangement = Arrangement.spacedBy(CardGap)
     ) {
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {

@@ -31,6 +31,7 @@ import com.openrs.dash.service.HudOverlayService
 import com.openrs.dash.update.UpdateManager
 import com.openrs.dash.update.UpdateState
 import kotlinx.coroutines.launch
+import com.openrs.dash.ui.Tokens.CardBorder
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
@@ -78,7 +79,7 @@ fun SettingsDialog(onDismiss: () -> Unit) {
                 .fillMaxWidth(0.95f)
                 .fillMaxHeight(0.92f)
                 .background(Bg, RoundedCornerShape(12.dp))
-                .border(1.dp, Brd, RoundedCornerShape(12.dp))
+                .border(CardBorder, Brd, RoundedCornerShape(12.dp))
         ) {
             // ── Title bar ────────────────────────────────────────────────────
             Row(
@@ -326,7 +327,7 @@ fun SettingsDialog(onDismiss: () -> Unit) {
                         Box(
                             Modifier.fillMaxWidth()
                                 .background(LocalThemeAccent.current.copy(alpha = 0.08f), RoundedCornerShape(8.dp))
-                                .border(1.dp, LocalThemeAccent.current.copy(0.3f), RoundedCornerShape(8.dp))
+                                .border(CardBorder, LocalThemeAccent.current.copy(0.3f), RoundedCornerShape(8.dp))
                                 .clickable {
                                     ctx.startActivity(
                                         Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
@@ -349,7 +350,7 @@ fun SettingsDialog(onDismiss: () -> Unit) {
                             Box(
                                 Modifier.weight(1f)
                                     .background(Ok.copy(alpha = 0.08f), RoundedCornerShape(8.dp))
-                                    .border(1.dp, Ok.copy(0.3f), RoundedCornerShape(8.dp))
+                                    .border(CardBorder, Ok.copy(0.3f), RoundedCornerShape(8.dp))
                                     .clickable {
                                         ctx.startService(Intent(ctx, HudOverlayService::class.java))
                                     }
@@ -362,7 +363,7 @@ fun SettingsDialog(onDismiss: () -> Unit) {
                             Box(
                                 Modifier.weight(1f)
                                     .background(Orange.copy(alpha = 0.08f), RoundedCornerShape(8.dp))
-                                    .border(1.dp, Orange.copy(0.3f), RoundedCornerShape(8.dp))
+                                    .border(CardBorder, Orange.copy(0.3f), RoundedCornerShape(8.dp))
                                     .clickable {
                                         ctx.stopService(Intent(ctx, HudOverlayService::class.java))
                                     }
@@ -444,7 +445,7 @@ fun SettingsDialog(onDismiss: () -> Unit) {
                             Row(
                                 Modifier.fillMaxWidth()
                                     .background(Surf2, RoundedCornerShape(10.dp))
-                                    .border(1.dp, Brd, RoundedCornerShape(10.dp))
+                                    .border(CardBorder, Brd, RoundedCornerShape(10.dp))
                                     .padding(14.dp),
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
@@ -464,7 +465,7 @@ fun SettingsDialog(onDismiss: () -> Unit) {
                             Row(
                                 Modifier.fillMaxWidth()
                                     .background(Surf2, RoundedCornerShape(10.dp))
-                                    .border(1.dp, Brd, RoundedCornerShape(10.dp))
+                                    .border(CardBorder, Brd, RoundedCornerShape(10.dp))
                                     .padding(14.dp),
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
@@ -478,7 +479,7 @@ fun SettingsDialog(onDismiss: () -> Unit) {
                             Box(
                                 Modifier.weight(1f)
                                     .background(accent.copy(alpha = 0.1f), RoundedCornerShape(8.dp))
-                                    .border(1.dp, accent.copy(alpha = 0.3f), RoundedCornerShape(8.dp))
+                                    .border(CardBorder, accent.copy(alpha = 0.3f), RoundedCornerShape(8.dp))
                                     .clickable { showBlePicker = true }
                                     .padding(12.dp),
                                 contentAlignment = Alignment.Center
@@ -491,7 +492,7 @@ fun SettingsDialog(onDismiss: () -> Unit) {
                                 Box(
                                     Modifier.weight(1f)
                                         .background(Orange.copy(alpha = 0.08f), RoundedCornerShape(8.dp))
-                                        .border(1.dp, Orange.copy(0.3f), RoundedCornerShape(8.dp))
+                                        .border(CardBorder, Orange.copy(0.3f), RoundedCornerShape(8.dp))
                                         .clickable {
                                             AppSettings.clearBleDevice(ctx)
                                             bleAddr.value = null
@@ -662,7 +663,7 @@ fun SettingsDialog(onDismiss: () -> Unit) {
                 Box(
                     Modifier.fillMaxWidth()
                         .background(Surf2, RoundedCornerShape(8.dp))
-                        .border(1.dp, Brd, RoundedCornerShape(8.dp))
+                        .border(CardBorder, Brd, RoundedCornerShape(8.dp))
                         .clickable { showWhatsNewLocal = true }
                         .padding(14.dp),
                     contentAlignment = Alignment.Center
@@ -894,7 +895,7 @@ fun SegmentedPicker(options: List<String>, selected: String, onSelect: (String) 
             Box(
                 Modifier
                     .background(bgColor, RoundedCornerShape(4.dp))
-                    .border(1.dp, borderColor, RoundedCornerShape(4.dp))
+                    .border(CardBorder, borderColor, RoundedCornerShape(4.dp))
                     .clickable { haptic.performHapticFeedback(HapticFeedbackType.Confirm); onSelect(option) }
                     .padding(horizontal = 10.dp, vertical = 5.dp),
                 contentAlignment = Alignment.Center
@@ -945,7 +946,7 @@ private fun AppUpdatesSection(
         Box(
             Modifier.fillMaxWidth()
                 .background(Surf2, RoundedCornerShape(8.dp))
-                .border(1.dp, Brd, RoundedCornerShape(8.dp))
+                .border(CardBorder, Brd, RoundedCornerShape(8.dp))
                 .clickable {
                     scope.launch {
                         UpdateManager.checkForUpdate(ctx, updateChannel)
@@ -1014,7 +1015,7 @@ private fun AppUpdatesSection(
                         Box(
                             Modifier.fillMaxWidth()
                                 .background(Orange.copy(alpha = 0.15f), RoundedCornerShape(8.dp))
-                                .border(1.dp, Orange.copy(alpha = 0.3f), RoundedCornerShape(8.dp))
+                                .border(CardBorder, Orange.copy(alpha = 0.3f), RoundedCornerShape(8.dp))
                                 .clickable {
                                     val intent = Intent(
                                         Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES,
@@ -1032,7 +1033,7 @@ private fun AppUpdatesSection(
                         Box(
                             Modifier.fillMaxWidth()
                                 .background(accent.copy(alpha = 0.15f), RoundedCornerShape(8.dp))
-                                .border(1.dp, accent.copy(alpha = 0.3f), RoundedCornerShape(8.dp))
+                                .border(CardBorder, accent.copy(alpha = 0.3f), RoundedCornerShape(8.dp))
                                 .clickable {
                                     scope.launch {
                                         UpdateManager.downloadUpdate(ctx, state.downloadUrl)
@@ -1085,7 +1086,7 @@ private fun AppUpdatesSection(
                     Box(
                         Modifier.fillMaxWidth()
                             .background(Ok.copy(alpha = 0.15f), RoundedCornerShape(8.dp))
-                            .border(1.dp, Ok.copy(alpha = 0.3f), RoundedCornerShape(8.dp))
+                            .border(CardBorder, Ok.copy(alpha = 0.3f), RoundedCornerShape(8.dp))
                             .clickable { UpdateManager.installApk(ctx, state.apkFile) }
                             .padding(12.dp),
                         contentAlignment = Alignment.Center

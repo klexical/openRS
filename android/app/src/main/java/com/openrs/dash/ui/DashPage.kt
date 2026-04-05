@@ -50,14 +50,13 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.runtime.collectAsState
 import com.openrs.dash.data.FuelEconomy
-import com.openrs.dash.data.PerformanceTimer
 import com.openrs.dash.data.VehicleState
 import com.openrs.dash.ui.anim.pressClick
 import com.openrs.dash.ui.anim.ShiftLightBar
 import com.openrs.dash.ui.anim.SparklineData
 import com.openrs.dash.ui.anim.StaggeredColumn
-import com.openrs.dash.ui.anim.scanLine
 import com.openrs.dash.ui.Tokens.PagePad
+import com.openrs.dash.ui.Tokens.CardBorder
 import com.openrs.dash.ui.Tokens.CardGap
 import kotlin.math.roundToInt
 
@@ -106,11 +105,10 @@ import kotlin.math.roundToInt
 
     val scrollState = rememberScrollState()
 
-    Box(Modifier.fillMaxSize()
-        .then(if (vs.isConnected) Modifier.scanLine(accent, speedMs = 4000, alpha = 0.06f) else Modifier)
-    ) {
+    Box(Modifier.fillMaxSize()) {
     Column(
-        Modifier.fillMaxSize().verticalScroll(scrollState).padding(PagePad),
+        Modifier.fillMaxSize().verticalScroll(scrollState)
+            .padding(start = PagePad, end = PagePad, top = PagePad, bottom = PagePad + Tokens.NavBarHeight),
         verticalArrangement = Arrangement.spacedBy(CardGap)
     ) {
         // ── Hero Row: BOOST | RPM | SPEED (with ▲ session peaks) ─────────
@@ -155,7 +153,7 @@ import kotlin.math.roundToInt
                     Brush.verticalGradient(listOf(accent.copy(alpha = if (gearActive) 0.04f else 0f), Surf2)),
                     RoundedCornerShape(16.dp)
                 )
-                .border(2.dp, if (gearActive) accent.copy(alpha = 0.25f) else Brd.copy(alpha = 0.15f), RoundedCornerShape(16.dp))
+                .border(1.dp, if (gearActive) accent.copy(alpha = 0.25f) else Brd.copy(alpha = 0.15f), RoundedCornerShape(16.dp))
                 .padding(vertical = 18.dp),
             contentAlignment = Alignment.Center
         ) {
@@ -179,23 +177,13 @@ import kotlin.math.roundToInt
             Box(
                 Modifier.fillMaxWidth()
                     .background(Warn.copy(alpha = 0.12f), RoundedCornerShape(10.dp))
-                    .border(1.5.dp, Warn.copy(alpha = 0.6f), RoundedCornerShape(10.dp))
+                    .border(1.dp, Warn.copy(alpha = 0.6f), RoundedCornerShape(10.dp))
                     .padding(horizontal = 14.dp, vertical = 10.dp),
                 contentAlignment = Alignment.Center
             ) {
                 MonoLabel("⚡ LAUNCH CONTROL ACTIVE", 12.sp, Warn, letterSpacing = 0.2.sp)
             }
         }
-
-        // ── Performance Timer (0-60 / 0-100) ──────────────────────────────
-        val timerState by PerformanceTimer.state.collectAsState()
-        SideEffect {
-            if (timerState.state == PerformanceTimer.State.ARMED ||
-                timerState.state == PerformanceTimer.State.RUNNING) {
-                PerformanceTimer.onSpeedUpdate(vs.speedKph, vs.rpm, vs.boostPsi)
-            }
-        }
-        PerformanceTimerSection(timerState, accent)
 
         // ── Warning Lamps (populated once IPC DIDs are discovered) ─────────
         val activeWarnings = listOfNotNull(
@@ -210,7 +198,7 @@ import kotlin.math.roundToInt
             Box(
                 Modifier.fillMaxWidth()
                     .background(Orange.copy(alpha = 0.1f), RoundedCornerShape(10.dp))
-                    .border(1.5.dp, Orange.copy(alpha = 0.5f), RoundedCornerShape(10.dp))
+                    .border(1.dp, Orange.copy(alpha = 0.5f), RoundedCornerShape(10.dp))
                     .padding(horizontal = 14.dp, vertical = 10.dp),
                 contentAlignment = Alignment.Center
             ) {
@@ -342,7 +330,7 @@ import kotlin.math.roundToInt
         Box(
             Modifier.fillMaxWidth()
                 .background(Surf2, RoundedCornerShape(12.dp))
-                .border(1.dp, Brd, RoundedCornerShape(12.dp))
+                .border(CardBorder, Brd, RoundedCornerShape(12.dp))
                 .clickable(enabled = vs.odometerKm >= 0) {
                     UserPrefsStore.update(ctx) { it.copy(odomInMiles = !it.odomInMiles) }
                 }
@@ -467,7 +455,7 @@ import kotlin.math.roundToInt
     Column(
         Modifier.fillMaxWidth()
             .background(Surf2, RoundedCornerShape(12.dp))
-            .border(1.dp, Brd, RoundedCornerShape(12.dp))
+            .border(CardBorder, Brd, RoundedCornerShape(12.dp))
             .padding(14.dp)
     ) {
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
@@ -522,118 +510,3 @@ internal fun tempColorShade(c: Double, warnC: Double, critC: Double) = when {
     else        -> Frost
 }
 
-// ═══════════════════════════════════════════════════════════════════════════
-// PERFORMANCE TIMER SECTION
-// ═══════════════════════════════════════════════════════════════════════════
-
-@Composable private fun PerformanceTimerSection(
-    ts: PerformanceTimer.TimerState,
-    accent: androidx.compose.ui.graphics.Color
-) {
-    Column(
-        Modifier.fillMaxWidth()
-            .background(Surf2, RoundedCornerShape(12.dp))
-            .border(1.dp, when (ts.state) {
-                PerformanceTimer.State.RUNNING  -> accent.copy(0.6f)
-                PerformanceTimer.State.ARMED    -> Warn.copy(0.4f)
-                PerformanceTimer.State.FINISHED -> Ok.copy(0.4f)
-                else -> Brd
-            }, RoundedCornerShape(12.dp))
-            .padding(horizontal = 14.dp, vertical = 10.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(6.dp)
-    ) {
-        // Header row: label + target toggle
-        Row(
-            Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            MonoLabel("PERFORMANCE TIMER", 9.sp, Dim, letterSpacing = 0.15.sp)
-            Box(
-                Modifier
-                    .background(Surf, RoundedCornerShape(6.dp))
-                    .border(1.dp, Brd, RoundedCornerShape(6.dp))
-                    .clickable {
-                        val next = if (ts.target == PerformanceTimer.Target.ZERO_TO_60)
-                            PerformanceTimer.Target.ZERO_TO_100
-                        else PerformanceTimer.Target.ZERO_TO_60
-                        if (ts.state == PerformanceTimer.State.IDLE) PerformanceTimer.arm(next)
-                        else if (ts.state == PerformanceTimer.State.FINISHED) {
-                            PerformanceTimer.reset()
-                            PerformanceTimer.arm(next)
-                        }
-                    }
-                    .padding(horizontal = 8.dp, vertical = 4.dp)
-            ) {
-                MonoLabel(ts.target.label, 9.sp, Frost, letterSpacing = 0.1.sp)
-            }
-        }
-
-        // Timer display
-        val timeStr = when (ts.state) {
-            PerformanceTimer.State.IDLE     -> "—.——"
-            PerformanceTimer.State.ARMED    -> "0.00"
-            PerformanceTimer.State.RUNNING  -> "%.2f".format(ts.elapsedMs / 1000.0)
-            PerformanceTimer.State.FINISHED -> "%.2f".format(ts.resultMs / 1000.0)
-        }
-        val timeColor = when (ts.state) {
-            PerformanceTimer.State.RUNNING  -> accent
-            PerformanceTimer.State.FINISHED -> Ok
-            PerformanceTimer.State.ARMED    -> Warn
-            else -> Frost
-        }
-        HeroNum(timeStr, 42.sp, timeColor)
-        MonoLabel("seconds", 8.sp, Dim)
-
-        // Status / details row
-        when (ts.state) {
-            PerformanceTimer.State.IDLE -> {
-                Box(
-                    Modifier
-                        .background(accent.copy(0.12f), RoundedCornerShape(6.dp))
-                        .border(1.dp, accent.copy(0.3f), RoundedCornerShape(6.dp))
-                        .pressClick { PerformanceTimer.arm(ts.target) }
-                        .padding(horizontal = 16.dp, vertical = 8.dp)
-                ) {
-                    MonoLabel("ARM TIMER", 10.sp, accent, androidx.compose.ui.text.font.FontWeight.Bold)
-                }
-            }
-            PerformanceTimer.State.ARMED -> {
-                MonoLabel("Waiting for launch…", 10.sp, Warn)
-            }
-            PerformanceTimer.State.RUNNING -> {
-                MonoLabel("Launch RPM: ${ts.launchRpm.roundToInt()}", 9.sp, Dim)
-            }
-            PerformanceTimer.State.FINISHED -> {
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    DataCell("LAUNCH", "${ts.launchRpm.roundToInt()} RPM", modifier = Modifier.weight(1f))
-                    DataCell("BOOST", "${"%.1f".format(ts.peakBoostPsi)} PSI", modifier = Modifier.weight(1f))
-                    if (ts.bestResultMs > 0) {
-                        DataCell("BEST", "${"%.2f".format(ts.bestResultMs / 1000.0)}s", modifier = Modifier.weight(1f))
-                    }
-                }
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Box(
-                        Modifier
-                            .background(accent.copy(0.12f), RoundedCornerShape(6.dp))
-                            .border(1.dp, accent.copy(0.3f), RoundedCornerShape(6.dp))
-                            .pressClick { PerformanceTimer.reset(); PerformanceTimer.arm(ts.target) }
-                            .padding(horizontal = 12.dp, vertical = 6.dp)
-                    ) {
-                        MonoLabel("GO AGAIN", 10.sp, accent, androidx.compose.ui.text.font.FontWeight.Bold)
-                    }
-                    Box(
-                        Modifier
-                            .background(Surf, RoundedCornerShape(6.dp))
-                            .border(1.dp, Brd, RoundedCornerShape(6.dp))
-                            .clickable { PerformanceTimer.reset() }
-                            .padding(horizontal = 12.dp, vertical = 6.dp)
-                    ) {
-                        MonoLabel("RESET", 10.sp, Dim)
-                    }
-                }
-            }
-        }
-    }
-}

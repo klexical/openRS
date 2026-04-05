@@ -71,8 +71,16 @@ ui/
   MainActivity.kt         — 7-tab Compose host (DASH/POWER/CHASSIS/TEMPS/MAP/DIAG/MORE)
                             Binds CanDataService via LocalBinder; passes callbacks to child composables
                             Location + BLE permissions; REC indicator + BT indicator in AppHeader
-                            Quick Mode Dock: tap MODE cell in telemetry strip → dropdown drive mode selector
+                            Quick Mode Dock: tap MODE pill in status bar → dropdown drive mode selector
                             WiFi coexistence banner: warns when BLE active but phone connected to adapter WiFi
+                            Navigation: HorizontalPager (swipe) + BottomNavBar overlay outside Scaffold
+                            MAP tab: pager swipe disabled while touching map (onMapTouched callback + mapTouched state)
+                            Scaffold uses contentWindowInsets=statusBars (content extends behind nav bar)
+                            hazeSource on content Box inside Scaffold (NOT outer Box — see Haze gotcha)
+                            enableEdgeToEdge with transparent navigation bar style
+  BottomNavBar.kt         — Custom bottom nav: 7 vector icons, frosted glass via Haze (hazeEffect),
+                            spring-animated neon indicator, stamped bevel gradient, pressClick + haptics
+                            Height: 38dp (icons) + sysNavPad (gesture area). Tokens.NavBarHeight = 38dp
   DriveModeDock.kt        — Quick-access drive mode dock (N/S/T/D) with staggered entrance animation
                             Drops down from header via AnimatedVisibility; auto-dismisses on success
   AppSettings.kt          — SharedPreferences wrapper; prefs file: "openrs_settings"
@@ -86,15 +94,17 @@ ui/
   Components.kt           — Shared composables: HeroCard (valueFraction glow), DataCell, BarCard,
                             TireCard, GfCard, WheelCell, AfrCard, SectionLabel (animated chevron),
                             NeonDivider, FocusRsOutline, tireTempColor()
-                            Glow is data-gated: neonBorder only renders when live data present.
-                            HeroCard glow scales with valueFraction (0=dormant, no border/glow).
-                            DataCell/BarCard/GfCard/AfrCard suppress glow on placeholder "— —".
+                            All cards use cardGlow() for ambient depth + CardBorder (0.5dp) borders.
+                            HeroCard glow scales with valueFraction (0=dormant, no accent glow).
+                            DataCell/BarCard values use AggressiveNum (Orbitron Bold).
                             HeroCard uses plain HeroNum (instant display, no animation)
-  DesignTokens.kt         — Tokens object: PagePad, CardGap, SectionGap, InnerH/V,
-                            CardShape(12dp), HeroShape(14dp), CardRadius, HeroRadius, CardBorder
+  DesignTokens.kt         — Tokens object: PagePad, CardGap, SectionGap, InnerH/V, NavBarHeight(38dp),
+                            CardShape(12dp), HeroShape(14dp), CardRadius, HeroRadius, CardBorder(0.5dp)
   Theme.kt                — Color tokens (brightness-scaled, see below), typography (Orbitron/JetBrains/ShareTech/Barlow)
                             setBrightness(Float) / getBrightness() — 0.0=Night, 0.5=Day, 1.0=Sun
                             7 base colors (Bg/Surf/Surf2/Surf3/Brd/Dim/Mid) are computed getters via lerp
+                            Typography: HeroNum (large Orbitron), AggressiveNum (mid-size Orbitron, 0.5sp spacing),
+                            MonoLabel (JetBrains Mono, 0.2sp spacing), MonoText (Share Tech Mono), UIText (Barlow)
   BleDevicePickerDialog.kt — BLE device picker: scan filtered to 0xFFE0, RSSI bars, dark neon aesthetic
                             Runtime BLE permission request (BLUETOOTH_SCAN + BLUETOOTH_CONNECT on API 31+)
                             Unknown device hint: orange "not a known adapter" for non-WiCAN/MeatPi names
@@ -107,8 +117,10 @@ ui/
   anim/
     EdgeShiftLight.kt     — Peripheral shift light: multi-zone edge glow overlay (breathing → fill → flash)
                             Three phases keyed to shiftRpm: 70% breathing, 81% progressive, 95.5% flash
-    GlowModifiers.kt      — neonGlow, neonGlowRect, neonBorder (animated pulse), neonPulse,
-                            bloomGlow (double-layer radial), scanLine (CRT sweep)
+    GlowModifiers.kt      — bloomGlow (double-layer radial) for connection dot,
+                            cardGlow (outer shadow + top specular) for ambient card depth
+    GForcePlot.kt         — 2D scatter plot: rectangular grid, corner brackets, auto-scaling axes,
+                            120-dot trail (blue→white age gradient), peak labels, RingBuffer history
     Sparkline.kt          — Inline trend chart with glow line + live endpoint dot + gradient fill
     StaggeredEntrance.kt  — StaggeredColumn: fade+slide-up with 40ms stagger delay per child
     InteractionModifiers.kt — pressClick() modifier: clickable + scale-down press feedback combined
@@ -119,6 +131,7 @@ ui/
     DrivePage.kt          — MAP tab: live mode (Google Maps + HUD + controls) + history mode (drive list)
                             Hoists cameraPositionState; floating controls: color mode, map type, weather,
                             zoom in (+), zoom out (−), locate/recenter (◎)
+                            onMapTouched callback: signals parent pager to disable swipe while map is touched
     DriveMap.kt           — Google Maps Compose wrapper: 6 color modes (SPD/MODE/BOOST/THRTL/G-LAT/TEMP),
                             start/finish flags, pause markers, peak markers (RPM/boost/lat-G/speed),
                             zoom-to-fit, map type cycling, blue dot location, color legend
@@ -220,7 +233,9 @@ data[5] = B5,  data[6] = B6 …
 - **Foreground service start from background** — `CanDataService.startConnection()` wraps `goForeground()` in try/catch because WiFi/Bluetooth callbacks can fire when the app is backgrounded. `MainActivity.startSvc()` also catches `ForegroundServiceStartNotAllowedException`
 - **Brightness colors are computed getters** — `Bg`, `Surf`, `Surf2`, `Surf3`, `Brd`, `Dim`, `Mid` in Theme.kt are `val ... get() = lerp(base, bright, brightness)` backed by `mutableFloatStateOf`. They are NOT static vals. Compose snapshot system tracks reads automatically. Call `setBrightness()` to change; all composables recompose. Do not cache these colors in non-composable contexts
 - **MAP tab camera state is hoisted** — `cameraPositionState` lives in `DrivePage`, passed to `DriveMap` as a parameter. This allows DrivePage to control zoom and recenter. Google Maps native My Location button is disabled; custom `◎` button replaces it
-- **MAP tab disables pager swipe** — `HorizontalPager` sets `userScrollEnabled = pagerState.currentPage != 4` so pinch-to-zoom and pan gestures don't conflict with tab swiping. Users navigate away via the tab bar. Google logo cannot be removed (Maps Platform ToS requirement)
+- **Navigation swipe + MAP tab isolation** — `HorizontalPager` with swipe between all tabs. MAP tab (page 4): pager swipe is dynamically disabled while the user touches the map area via `onMapTouched` callback from `DrivePage` → `mapTouched` state → `userScrollEnabled = !(selectedTab == 4 && mapTouched)`. `nestedScroll` does NOT work for this — Google Maps is an `AndroidView` that doesn't dispatch Compose nested scroll events. The `pointerInput` on the map Box monitors (does NOT consume) touches. Google logo cannot be removed (Maps Platform ToS requirement)
+- **Haze frosted glass placement** — `hazeSource` MUST be on the content composable (inside Scaffold), NOT on a parent Box that also contains the `hazeEffect` composable (BottomNavBar). If hazeEffect is inside the hazeSource tree, blur fails silently with no error. Also: Haze tint with `Bg.copy(alpha > 0.5f)` on a dark theme makes blur invisible — start at 0.0 and increase
+- **Bottom nav bar insets** — `Scaffold(contentWindowInsets = WindowInsets.statusBars)` drops the bottom inset so content extends behind the nav bar overlay. `enableEdgeToEdge(navigationBarStyle = SystemBarStyle.dark(TRANSPARENT))` removes the system nav bar scrim. Pages add `Tokens.NavBarHeight` as bottom scroll padding
 
 ## Theme Colors
 

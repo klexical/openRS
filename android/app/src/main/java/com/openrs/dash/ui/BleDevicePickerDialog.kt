@@ -34,6 +34,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import com.openrs.dash.ui.Tokens.CardBorder
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
@@ -105,7 +106,7 @@ fun BleDevicePickerDialog(
                 .fillMaxWidth()
                 .padding(horizontal = 24.dp)
                 .background(Bg, RoundedCornerShape(14.dp))
-                .border(1.dp, Brd, RoundedCornerShape(14.dp))
+                .border(CardBorder, Brd, RoundedCornerShape(14.dp))
                 .padding(20.dp)
         ) {
             MonoLabel("SCAN FOR DEVICES", 11.sp, accent,
@@ -118,7 +119,7 @@ fun BleDevicePickerDialog(
                 Box(
                     Modifier.fillMaxWidth()
                         .background(Surf2, RoundedCornerShape(10.dp))
-                        .border(1.dp, Brd, RoundedCornerShape(10.dp))
+                        .border(CardBorder, Brd, RoundedCornerShape(10.dp))
                         .padding(20.dp),
                     contentAlignment = Alignment.Center
                 ) {
@@ -132,7 +133,7 @@ fun BleDevicePickerDialog(
                 Box(
                     Modifier.fillMaxWidth()
                         .background(accent.copy(alpha = 0.1f), RoundedCornerShape(10.dp))
-                        .border(1.dp, accent.copy(alpha = 0.3f), RoundedCornerShape(10.dp))
+                        .border(CardBorder, accent.copy(alpha = 0.3f), RoundedCornerShape(10.dp))
                         .clickable { permLauncher.launch(blePerms) }
                         .padding(12.dp),
                     contentAlignment = Alignment.Center
@@ -145,7 +146,7 @@ fun BleDevicePickerDialog(
                 Box(
                     Modifier.fillMaxWidth()
                         .background(Surf2, RoundedCornerShape(10.dp))
-                        .border(1.dp, Brd, RoundedCornerShape(10.dp))
+                        .border(CardBorder, Brd, RoundedCornerShape(10.dp))
                         .padding(20.dp),
                     contentAlignment = Alignment.Center
                 ) {
@@ -160,7 +161,7 @@ fun BleDevicePickerDialog(
                 Box(
                     Modifier.fillMaxWidth()
                         .background(accent.copy(alpha = 0.1f), RoundedCornerShape(10.dp))
-                        .border(1.dp, accent.copy(alpha = 0.3f), RoundedCornerShape(10.dp))
+                        .border(CardBorder, accent.copy(alpha = 0.3f), RoundedCornerShape(10.dp))
                         .clickable {
                             if (hasPerms()) scanner.startScan()
                             else permLauncher.launch(blePerms)
@@ -211,7 +212,7 @@ fun BleDevicePickerDialog(
             Box(
                 Modifier.fillMaxWidth()
                     .background(Surf2, RoundedCornerShape(10.dp))
-                    .border(1.dp, Brd, RoundedCornerShape(10.dp))
+                    .border(CardBorder, Brd, RoundedCornerShape(10.dp))
                     .clickable { onDismiss() }
                     .padding(12.dp),
                 contentAlignment = Alignment.Center
@@ -253,7 +254,7 @@ private fun DeviceRow(
                 Brush.horizontalGradient(listOf(accent.copy(0.08f), accent.copy(0.03f))),
                 RoundedCornerShape(10.dp)
             )
-            .border(1.dp, accent.copy(0.2f), RoundedCornerShape(10.dp))
+            .border(CardBorder, accent.copy(0.2f), RoundedCornerShape(10.dp))
             .clickable { onClick() }
             .padding(horizontal = 14.dp, vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically

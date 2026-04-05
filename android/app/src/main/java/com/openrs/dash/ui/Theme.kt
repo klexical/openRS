@@ -131,13 +131,26 @@ val BarlowCond    = FontFamily(
     lineHeight = fontSize * 1.1f, modifier = modifier
 )
 
+/** Mid-size aggressive numeric values — Orbitron Bold, wider letter-spacing.
+ *  Use for DataCell / BarCard / WheelCell numbers (13–16 sp). */
+@Composable fun AggressiveNum(
+    text: String,
+    fontSize: TextUnit,
+    color: Color = Frost,
+    modifier: Modifier = Modifier
+) = Text(
+    text, fontSize = fontSize, fontFamily = OrbitronFamily, color = color,
+    fontWeight = FontWeight.Bold, textAlign = TextAlign.Center,
+    letterSpacing = 0.5.sp, lineHeight = fontSize * 1.1f, modifier = modifier
+)
+
 /** Small monospace labels — JetBrains Mono */
 @Composable fun MonoLabel(
     text: String,
     fontSize: TextUnit,
     color: Color = Dim,
     fontWeight: FontWeight = FontWeight.Normal,
-    letterSpacing: TextUnit = 0.15.sp,
+    letterSpacing: TextUnit = 0.2.sp,
     modifier: Modifier = Modifier
 ) = Text(
     text, fontSize = fontSize, fontFamily = JetBrainsMonoFamily, color = color,
